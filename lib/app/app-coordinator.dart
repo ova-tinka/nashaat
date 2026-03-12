@@ -5,21 +5,27 @@ class AppCoordinator {
 
   NavigatorState? get _navigator => navigatorKey.currentState;
 
-  void showOnboarding() {
-    _navigator?.pushReplacementNamed('/onboarding');
-  }
+  // ── Auth ──────────────────────────────────────────────────────────────────
 
   void showLogin() {
-    _navigator?.pushNamed('/login');
+    _navigator?.pushNamedAndRemoveUntil('/login', (_) => false);
   }
 
   void showRegister() {
     _navigator?.pushNamed('/register');
   }
 
-  void showDashboard() {
-    _navigator?.pushReplacementNamed('/dashboard');
+  // ── Post-auth destinations (clear entire stack) ───────────────────────────
+
+  void showOnboarding() {
+    _navigator?.pushNamedAndRemoveUntil('/onboarding', (_) => false);
   }
+
+  void showDashboard() {
+    _navigator?.pushNamedAndRemoveUntil('/dashboard', (_) => false);
+  }
+
+  // ── Feature navigation ────────────────────────────────────────────────────
 
   void showLogActivity() {
     _navigator?.pushNamed('/log-activity');

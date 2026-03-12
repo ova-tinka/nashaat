@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../features/auth/view/auth-gate.dart';
+import '../features/auth/view/login-screen.dart';
+import '../features/auth/view/register-screen.dart';
+
 class AppRouter {
   static const String splash = '/';
   static const String onboarding = '/onboarding';
@@ -12,11 +16,32 @@ class AppRouter {
 
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
-      // TODO: add feature routes here
+      case splash:
+        return MaterialPageRoute(builder: (_) => const AuthGate());
+
+      case login:
+        return MaterialPageRoute(builder: (_) => const LoginScreen());
+
+      case register:
+        return MaterialPageRoute(builder: (_) => const RegisterScreen());
+
+      // TODO: wire up remaining feature screens as they are implemented.
+      case onboarding:
+      case dashboard:
+      case logActivity:
+      case blocking:
+      case subscription:
+        return MaterialPageRoute(
+          builder: (_) => Scaffold(
+            appBar: AppBar(title: Text(settings.name ?? '')),
+            body: Center(child: Text('${settings.name} — coming soon')),
+          ),
+        );
+
       default:
         return MaterialPageRoute(
           builder: (_) => const Scaffold(
-            body: Center(child: Text('Route not found')),
+            body: Center(child: Text('Page not found')),
           ),
         );
     }

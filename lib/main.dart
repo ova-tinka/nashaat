@@ -32,6 +32,7 @@ class NashaatApp extends StatelessWidget {
       darkTheme: AppTheme.dark,
       navigatorKey: appCoordinator.navigatorKey,
       onGenerateRoute: AppRouter.generateRoute,
+      initialRoute: AppRouter.splash,
     );
   }
 }
