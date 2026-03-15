@@ -31,8 +31,8 @@ class AppCoordinator {
     _navigator?.pushNamed('/log-activity');
   }
 
-  void showBlocking() {
-    _navigator?.pushNamed('/blocking');
+  void showBlocking({required String userId}) {
+    _navigator?.pushNamed('/blocking', arguments: {'userId': userId});
   }
 
   void showSubscription() {

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../features/auth/view/auth-gate.dart';
 import '../features/auth/view/login-screen.dart';
 import '../features/auth/view/register-screen.dart';
+import '../features/blocking/view/blocking-screen.dart';
 
 class AppRouter {
   static const String splash = '/';
@@ -25,11 +26,17 @@ class AppRouter {
       case register:
         return MaterialPageRoute(builder: (_) => const RegisterScreen());
 
+      case blocking:
+        final args = settings.arguments as Map<String, dynamic>?;
+        final userId = args?['userId'] as String? ?? '';
+        return MaterialPageRoute(
+          builder: (_) => BlockingScreen(userId: userId),
+        );
+
       // TODO: wire up remaining feature screens as they are implemented.
       case onboarding:
       case dashboard:
       case logActivity:
-      case blocking:
       case subscription:
         return MaterialPageRoute(
           builder: (_) => Scaffold(
