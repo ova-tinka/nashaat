@@ -4,19 +4,24 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app/app-coordinator.dart';
 import 'app/app-router.dart';
+import 'shared/logger.dart';
 import 'shared/theme/app-theme.dart';
 
 final appCoordinator = AppCoordinator();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  Log.boot('Nashaat starting…');
 
   await dotenv.load(fileName: '.env');
+  Log.boot('.env loaded');
 
+  final url = dotenv.env['SUPABASE_URL'] ?? '';
   await Supabase.initialize(
-    url: dotenv.env['SUPABASE_URL']!,
+    url: url,
     anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
   );
+  Log.boot('Supabase ready → ${Uri.parse(url).host}');
 
   runApp(const NashaatApp());
 }

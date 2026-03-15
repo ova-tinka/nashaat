@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../../../core/repositories/auth-repository.dart';
+import '../../../shared/logger.dart';
 import '../model/auth-models.dart';
 
 class AuthViewModel extends ChangeNotifier {
@@ -36,8 +37,10 @@ class AuthViewModel extends ChangeNotifier {
       _otpMethod = OtpMethod.email;
       _otpFailures = 0;
       _step = AuthFlowStep.otpSent;
+      Log.auth('step → otpSent (email)');
       notifyListeners();
     } catch (e) {
+      Log.error('auth', e);
       _setError(e);
     }
   }
@@ -52,8 +55,10 @@ class AuthViewModel extends ChangeNotifier {
       _otpMethod = OtpMethod.phone;
       _otpFailures = 0;
       _step = AuthFlowStep.otpSent;
+      Log.auth('step → otpSent (phone)');
       notifyListeners();
     } catch (e) {
+      Log.error('auth', e);
       _setError(e);
     }
   }
@@ -62,6 +67,7 @@ class AuthViewModel extends ChangeNotifier {
 
   Future<void> verifyOtp(String token) async {
     if (isLockedOut) {
+      Log.auth('OTP verify blocked — account locked out');
       _step = AuthFlowStep.error;
       _errorMessage = 'Too many attempts. Try again in 15 minutes.';
       notifyListeners();
@@ -77,12 +83,17 @@ class AuthViewModel extends ChangeNotifier {
       }
       _needsOnboarding = await _auth.needsOnboarding();
       _step = AuthFlowStep.success;
+      Log.auth('step → success (needsOnboarding: $_needsOnboarding)');
       notifyListeners();
     } catch (e) {
       _otpFailures++;
       if (_otpFailures >= 5) {
         _lockoutUntil = DateTime.now().add(const Duration(minutes: 15));
+        Log.auth('too many OTP failures — locked out for 15 min');
+      } else {
+        Log.auth('OTP failure $_otpFailures/5');
       }
+      Log.error('auth', e);
       _setError(e);
     }
   }
@@ -95,8 +106,10 @@ class AuthViewModel extends ChangeNotifier {
       await _auth.signInWithGoogle();
       _needsOnboarding = await _auth.needsOnboarding();
       _step = AuthFlowStep.success;
+      Log.auth('step → success via Google (needsOnboarding: $_needsOnboarding)');
       notifyListeners();
     } catch (e) {
+      Log.error('auth', e);
       _setError(e);
     }
   }
@@ -107,8 +120,10 @@ class AuthViewModel extends ChangeNotifier {
       await _auth.signInWithApple();
       _needsOnboarding = await _auth.needsOnboarding();
       _step = AuthFlowStep.success;
+      Log.auth('step → success via Apple (needsOnboarding: $_needsOnboarding)');
       notifyListeners();
     } catch (e) {
+      Log.error('auth', e);
       _setError(e);
     }
   }
@@ -150,7 +165,7 @@ class AuthViewModel extends ChangeNotifier {
   String _friendlyError(Object e) {
     final msg = e.toString().toLowerCase();
     if (msg.contains('cancelled') || msg.contains('canceled')) return '';
-    if (msg.contains('invalid') || msg.contains('expired') || msg.contains('otp')) {
+    if (msg.contains('invalid') || msg.contains('expired')) {
       return 'Invalid or expired code. Please try again.';
     }
     if (msg.contains('network') || msg.contains('socket') || msg.contains('connection')) {

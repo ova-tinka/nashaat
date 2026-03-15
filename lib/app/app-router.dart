@@ -4,6 +4,7 @@ import '../features/auth/view/auth-gate.dart';
 import '../features/auth/view/login-screen.dart';
 import '../features/auth/view/register-screen.dart';
 import '../features/blocking/view/blocking-screen.dart';
+import '../shared/logger.dart';
 
 class AppRouter {
   static const String splash = '/';
@@ -16,6 +17,9 @@ class AppRouter {
   static const String subscription = '/subscription';
 
   static Route<dynamic> generateRoute(RouteSettings settings) {
+    final route = settings.name ?? '?';
+    Log.nav('→ $route');
+
     switch (settings.name) {
       case splash:
         return MaterialPageRoute(builder: (_) => const AuthGate());
@@ -29,6 +33,7 @@ class AppRouter {
       case blocking:
         final args = settings.arguments as Map<String, dynamic>?;
         final userId = args?['userId'] as String? ?? '';
+        Log.nav('blocking screen for user ${userId.substring(0, 8)}…');
         return MaterialPageRoute(
           builder: (_) => BlockingScreen(userId: userId),
         );
@@ -38,6 +43,7 @@ class AppRouter {
       case dashboard:
       case logActivity:
       case subscription:
+        Log.nav('$route — placeholder screen');
         return MaterialPageRoute(
           builder: (_) => Scaffold(
             appBar: AppBar(title: Text(settings.name ?? '')),
@@ -46,6 +52,7 @@ class AppRouter {
         );
 
       default:
+        Log.nav('$route — no route found');
         return MaterialPageRoute(
           builder: (_) => const Scaffold(
             body: Center(child: Text('Page not found')),

@@ -1,8 +1,7 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
-
 import '../../core/entities/blocking-rule-entity.dart';
 import '../../core/entities/enums.dart';
 import '../../core/repositories/blocking-repository.dart';
+import '../../shared/logger.dart';
 import 'supabase-client.dart';
 
 class SupabaseBlockingRepository implements BlockingRepository {
@@ -24,11 +23,16 @@ class SupabaseBlockingRepository implements BlockingRepository {
     }
 
     final data = await query.order('created_at', ascending: true);
-    return (data as List).map(_fromMap).toList();
+    final rules = (data as List)
+        .map((e) => _fromMap(e as Map<String, dynamic>))
+        .toList();
+    Log.db('loaded ${rules.length} blocking rule(s) for user ${userId.substring(0, 8)}…');
+    return rules;
   }
 
   @override
   Future<BlockingRuleEntity> createRule(BlockingRuleEntity rule) async {
+    Log.blocking('+1 rule: ${rule.itemIdentifier}');
     final data = await _db
         .from('blocking_rules')
         .insert({
@@ -39,7 +43,9 @@ class SupabaseBlockingRepository implements BlockingRepository {
         })
         .select()
         .single();
-    return _fromMap(data);
+    final created = _fromMap(data);
+    Log.blocking('rule created ✓ id ${created.id.substring(0, 8)}…');
+    return created;
   }
 
   @override
@@ -47,6 +53,7 @@ class SupabaseBlockingRepository implements BlockingRepository {
     String id,
     RuleStatus status,
   ) async {
+    Log.blocking('rule ${id.substring(0, 8)}… → ${_statusToString(status)}');
     final data = await _db
         .from('blocking_rules')
         .update({
@@ -61,7 +68,9 @@ class SupabaseBlockingRepository implements BlockingRepository {
 
   @override
   Future<void> deleteRule(String id) async {
+    Log.blocking('deleting rule ${id.substring(0, 8)}…');
     await _db.from('blocking_rules').delete().eq('id', id);
+    Log.blocking('rule deleted ✓');
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────

@@ -51,17 +51,22 @@ class _LoginScreenState extends State<LoginScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => OtpVerificationScreen(vm: _vm)),
-        ).then((_) => _otpPushed = false);
+        ).then((_) {
+          _otpPushed = false;
+          _vm.reset();
+        });
 
       case AuthFlowStep.error:
-        final msg = _vm.errorMessage;
-        if (msg != null && msg.isNotEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(msg),
-              backgroundColor: Theme.of(context).colorScheme.error,
-            ),
-          );
+        if (!_otpPushed) {
+          final msg = _vm.errorMessage;
+          if (msg != null && msg.isNotEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(msg),
+                backgroundColor: Theme.of(context).colorScheme.error,
+              ),
+            );
+          }
         }
 
       default:
@@ -157,7 +162,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 14),
                 FilledButton(
-                  onPressed: _handleEmailContinue,
+                  onPressed: _vm.step == AuthFlowStep.loading ? null : _handleEmailContinue,
                   style: FilledButton.styleFrom(
                     minimumSize: const Size.fromHeight(52),
                   ),

@@ -7,6 +7,7 @@ import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/repositories/auth-repository.dart';
+import '../../shared/logger.dart';
 import 'supabase-client.dart';
 
 /// Concrete Supabase implementation of [AuthRepository].
@@ -30,14 +31,17 @@ class SupabaseAuthRepository implements AuthRepository {
 
   @override
   Future<void> sendEmailOtp(String email) async {
+    Log.auth('sending OTP → ${_mask(email)}');
     await _auth.signInWithOtp(
       email: email,
       shouldCreateUser: true,
     );
+    Log.auth('OTP sent ✓');
   }
 
   @override
   Future<AuthResult> verifyEmailOtp(String email, String token) async {
+    Log.auth('verifying email OTP for ${_mask(email)}');
     final response = await _auth.verifyOTP(
       email: email,
       token: token,
@@ -45,6 +49,7 @@ class SupabaseAuthRepository implements AuthRepository {
     );
     final user = response.user;
     if (user == null) throw Exception('Email OTP verification failed.');
+    Log.auth('email OTP verified ✓ — uid ${user.id.substring(0, 8)}…');
     return AuthResult(userId: user.id, email: user.email ?? email);
   }
 
@@ -52,11 +57,14 @@ class SupabaseAuthRepository implements AuthRepository {
 
   @override
   Future<void> sendPhoneOtp(String phone) async {
+    Log.auth('sending SMS OTP → ${_maskPhone(phone)}');
     await _auth.signInWithOtp(phone: phone);
+    Log.auth('SMS OTP sent ✓');
   }
 
   @override
   Future<AuthResult> verifyPhoneOtp(String phone, String token) async {
+    Log.auth('verifying SMS OTP for ${_maskPhone(phone)}');
     final response = await _auth.verifyOTP(
       phone: phone,
       token: token,
@@ -64,6 +72,7 @@ class SupabaseAuthRepository implements AuthRepository {
     );
     final user = response.user;
     if (user == null) throw Exception('Phone OTP verification failed.');
+    Log.auth('SMS OTP verified ✓ — uid ${user.id.substring(0, 8)}…');
     return AuthResult(userId: user.id, email: user.email ?? '');
   }
 
@@ -72,6 +81,7 @@ class SupabaseAuthRepository implements AuthRepository {
   @override
   Future<AuthResult> signInWithGoogle() async {
     // TODO: set clientId to your iOS OAuth client ID from Google Cloud Console.
+    Log.auth('Google sign-in started');
     const webClientId = String.fromEnvironment('GOOGLE_WEB_CLIENT_ID');
     final googleSignIn = GoogleSignIn(
       serverClientId: webClientId.isEmpty ? null : webClientId,
@@ -79,6 +89,7 @@ class SupabaseAuthRepository implements AuthRepository {
 
     final googleUser = await googleSignIn.signIn();
     if (googleUser == null) throw Exception('Google sign-in cancelled.');
+    Log.auth('Google account selected: ${googleUser.email}');
 
     final googleAuth = await googleUser.authentication;
     final idToken = googleAuth.idToken;
@@ -92,6 +103,7 @@ class SupabaseAuthRepository implements AuthRepository {
 
     final user = response.user;
     if (user == null) throw Exception('Google authentication failed.');
+    Log.auth('Google sign-in ✓ — uid ${user.id.substring(0, 8)}…');
     return AuthResult(userId: user.id, email: user.email ?? '');
   }
 
@@ -99,6 +111,7 @@ class SupabaseAuthRepository implements AuthRepository {
 
   @override
   Future<AuthResult> signInWithApple() async {
+    Log.auth('Apple sign-in started');
     final rawNonce = _generateNonce();
     final hashedNonce = _sha256(rawNonce);
 
@@ -109,6 +122,7 @@ class SupabaseAuthRepository implements AuthRepository {
       ],
       nonce: hashedNonce,
     );
+    Log.auth('Apple credential received');
 
     final idToken = credential.identityToken;
     if (idToken == null) throw Exception('Failed to retrieve Apple ID token.');
@@ -121,18 +135,25 @@ class SupabaseAuthRepository implements AuthRepository {
 
     final user = response.user;
     if (user == null) throw Exception('Apple authentication failed.');
+    Log.auth('Apple sign-in ✓ — uid ${user.id.substring(0, 8)}…');
     return AuthResult(userId: user.id, email: user.email ?? '');
   }
 
   // ── Session ───────────────────────────────────────────────────────────────
 
   @override
-  Future<void> signOut() => _auth.signOut();
+  Future<void> signOut() {
+    Log.auth('signing out');
+    return _auth.signOut();
+  }
 
   @override
   Future<bool> needsOnboarding() async {
     final userId = currentUserId;
-    if (userId == null) return true;
+    if (userId == null) {
+      Log.auth('needsOnboarding — no current user → true');
+      return true;
+    }
 
     final data = await _supabase
         .from('profiles')
@@ -140,7 +161,9 @@ class SupabaseAuthRepository implements AuthRepository {
         .eq('id', userId)
         .maybeSingle();
 
-    return data == null || data['status'] != 'onboarded';
+    final needs = data == null || data['status'] != 'onboarded';
+    Log.auth('needsOnboarding → $needs (status: ${data?['status'] ?? 'no profile'})');
+    return needs;
   }
 
   // ── Private helpers ───────────────────────────────────────────────────────
@@ -156,5 +179,18 @@ class SupabaseAuthRepository implements AuthRepository {
   String _sha256(String input) {
     final bytes = utf8.encode(input);
     return sha256.convert(bytes).toString();
+  }
+
+  /// Shows first 3 chars + *** + @domain, e.g. "ayh***@gmail.com"
+  String _mask(String email) {
+    final at = email.indexOf('@');
+    if (at <= 3) return '***${email.substring(at)}';
+    return '${email.substring(0, 3)}***${email.substring(at)}';
+  }
+
+  /// Shows last 4 digits only, e.g. "•••• 4321"
+  String _maskPhone(String phone) {
+    if (phone.length <= 4) return phone;
+    return '•••• ${phone.substring(phone.length - 4)}';
   }
 }

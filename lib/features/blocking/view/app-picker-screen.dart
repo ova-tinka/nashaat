@@ -114,7 +114,7 @@ class _AppPickerScreenState extends State<AppPickerScreen> {
             Expanded(
               child: ListenableBuilder(
                 listenable: _vm,
-                builder: (_, __) {
+                builder: (_, _) {
                   final apps = _filtered;
                   return ListView.builder(
                     itemCount: apps.length,

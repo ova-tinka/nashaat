@@ -7,6 +7,7 @@ import '../../../core/entities/enums.dart';
 import '../../../core/repositories/blocking-repository.dart';
 import '../../../infra/blocking/blocking-platform-service.dart';
 import '../../../infra/permissions/permission-service.dart';
+import '../../../shared/logger.dart';
 
 class BlockingViewModel extends ChangeNotifier {
   final BlockingRepository _blockingRepo;
@@ -44,13 +45,20 @@ class BlockingViewModel extends ChangeNotifier {
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
   Future<void> initialize() async {
+    Log.blocking('initializing for user ${userId.substring(0, 8)}…');
     _isLoading = true;
     _error = null;
     notifyListeners();
     try {
       await Future.wait([_refreshPermissions(), _loadRules()]);
       _isBlockingActive = await _platform.isBlockingActive();
+      Log.blocking(
+        'ready — ${_rules.length} rule(s), '
+        '${activeRules.length} active, '
+        'blocking ${_isBlockingActive ? "ON" : "OFF"}',
+      );
     } catch (e) {
+      Log.error('blocking', e);
       _error = _friendlyError(e);
     } finally {
       _isLoading = false;
@@ -88,25 +96,30 @@ class BlockingViewModel extends ChangeNotifier {
               !blockedIds.contains(a.packageId),
         )
         .toList();
+    Log.blocking('${_installedApps.length} blockable app(s) loaded (${raw.length} total, ${blockedIds.length} already blocked)');
     notifyListeners();
   }
 
   // ── iOS native picker ─────────────────────────────────────────────────────
 
   Future<void> openIosPicker() async {
+    Log.blocking('opening iOS native picker');
     await _platform.presentIosPicker();
     // Reload rules after the picker closes (native side may have updated them)
     await _loadRules();
+    Log.blocking('iOS picker closed — ${_rules.length} rule(s) now');
     notifyListeners();
   }
 
   // ── Rule CRUD ─────────────────────────────────────────────────────────────
 
   Future<void> addRules(List<InstalledApp> apps) async {
+    Log.blocking('adding ${apps.length} app(s) to block list');
     for (final app in apps) {
       await _addRule(app);
     }
     if (_isBlockingActive) await _syncToNative();
+    Log.blocking('block list now has ${_rules.length} rule(s) (${activeRules.length} active)');
     notifyListeners();
   }
 
@@ -115,8 +128,10 @@ class BlockingViewModel extends ChangeNotifier {
       await _blockingRepo.deleteRule(id);
       _rules.removeWhere((r) => r.id == id);
       if (_isBlockingActive) await _syncToNative();
+      Log.blocking('rule removed — ${_rules.length} rule(s) remaining');
       notifyListeners();
     } catch (e) {
+      Log.error('blocking', e);
       _error = _friendlyError(e);
       notifyListeners();
     }
@@ -127,6 +142,7 @@ class BlockingViewModel extends ChangeNotifier {
     final newStatus = rule.status == RuleStatus.active
         ? RuleStatus.inactive
         : RuleStatus.active;
+    Log.blocking('toggle ${rule.itemIdentifier} → ${newStatus.name}');
     try {
       final updated = await _blockingRepo.updateRuleStatus(id, newStatus);
       final idx = _rules.indexWhere((r) => r.id == id);
@@ -134,6 +150,7 @@ class BlockingViewModel extends ChangeNotifier {
       if (_isBlockingActive) await _syncToNative();
       notifyListeners();
     } catch (e) {
+      Log.error('blocking', e);
       _error = _friendlyError(e);
       notifyListeners();
     }
@@ -142,22 +159,28 @@ class BlockingViewModel extends ChangeNotifier {
   // ── Blocking toggle ───────────────────────────────────────────────────────
 
   Future<void> activateBlocking() async {
+    Log.blocking('activating — syncing ${activeRules.length} active rule(s) to native');
     try {
       await _syncToNative();
       _isBlockingActive = true;
+      Log.blocking('blocking ON ✓');
       notifyListeners();
     } catch (e) {
+      Log.error('blocking', e);
       _error = _friendlyError(e);
       notifyListeners();
     }
   }
 
   Future<void> deactivateBlocking() async {
+    Log.blocking('deactivating');
     try {
       await _platform.stopBlocking();
       _isBlockingActive = false;
+      Log.blocking('blocking OFF ✓');
       notifyListeners();
     } catch (e) {
+      Log.error('blocking', e);
       _error = _friendlyError(e);
       notifyListeners();
     }
@@ -196,13 +219,17 @@ class BlockingViewModel extends ChangeNotifier {
       // Skip duplicates silently; surface other errors
       final msg = e.toString().toLowerCase();
       if (!msg.contains('duplicate') && !msg.contains('unique')) {
+        Log.error('blocking', e);
         _error = _friendlyError(e);
+      } else {
+        Log.blocking('skipped duplicate: ${app.packageId}');
       }
     }
   }
 
   Future<void> _syncToNative() async {
     final ids = activeRules.map((r) => r.itemIdentifier).toList();
+    Log.blocking('syncing ${ids.length} app id(s) to native layer');
     await _platform.startBlocking(ids);
   }
 
