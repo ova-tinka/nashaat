@@ -16,6 +16,29 @@ class InstalledApp {
       );
 }
 
+class IosSummary {
+  final int appCount;
+  final int categoryCount;
+  final int domainCount;
+
+  const IosSummary({
+    required this.appCount,
+    required this.categoryCount,
+    required this.domainCount,
+  });
+
+  int get total => appCount + categoryCount + domainCount;
+  bool get isEmpty => total == 0;
+
+  String get displayText {
+    final parts = <String>[];
+    if (appCount > 0) parts.add('$appCount app${appCount == 1 ? '' : 's'}');
+    if (categoryCount > 0) parts.add('$categoryCount categor${categoryCount == 1 ? 'y' : 'ies'}');
+    if (domainCount > 0) parts.add('$domainCount site${domainCount == 1 ? '' : 's'}');
+    return parts.isEmpty ? 'Nothing selected' : parts.join(', ');
+  }
+}
+
 /// Bridge to native iOS/Android blocking functionality.
 ///
 /// iOS  → FamilyControls (Screen Time API), requires entitlement.
@@ -90,6 +113,22 @@ class BlockingPlatformService {
       return await _channel.invokeMethod<String?>('getForegroundApp');
     } catch (_) {
       return null;
+    }
+  }
+
+  /// iOS only — returns a summary of what is currently selected in the
+  /// FamilyActivitySelection stored on-device.
+  Future<IosSummary> getSelectionSummary() async {
+    if (!Platform.isIOS) return const IosSummary(appCount: 0, categoryCount: 0, domainCount: 0);
+    try {
+      final result = await _channel.invokeMapMethod<String, dynamic>('getSelectionSummary');
+      return IosSummary(
+        appCount: (result?['appCount'] as int?) ?? 0,
+        categoryCount: (result?['categoryCount'] as int?) ?? 0,
+        domainCount: (result?['domainCount'] as int?) ?? 0,
+      );
+    } catch (_) {
+      return const IosSummary(appCount: 0, categoryCount: 0, domainCount: 0);
     }
   }
 }

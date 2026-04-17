@@ -26,6 +26,7 @@ import SwiftUI
             case "startBlocking":   startBlocking(result: result)
             case "stopBlocking":    stopBlocking(result: result)
             case "isBlockingActive": isBlockingActive(result: result)
+            case "getSelectionSummary": getSelectionSummary(result: result)
             default: result(FlutterMethodNotImplemented)
             }
         } else {
@@ -133,6 +134,23 @@ import SwiftUI
     @available(iOS 16.0, *)
     private func isBlockingActive(result: @escaping FlutterResult) {
         result(UserDefaults.standard.bool(forKey: "nashaat_blocking_active"))
+    }
+
+    @available(iOS 16.0, *)
+    private func getSelectionSummary(result: @escaping FlutterResult) {
+        #if canImport(FamilyControls)
+        guard let sel = BlockingStore.shared.loadSelection() else {
+            result(["appCount": 0, "categoryCount": 0, "domainCount": 0])
+            return
+        }
+        result([
+            "appCount": sel.applicationTokens.count,
+            "categoryCount": sel.categoryTokens.count,
+            "domainCount": sel.webDomainTokens.count,
+        ])
+        #else
+        result(["appCount": 0, "categoryCount": 0, "domainCount": 0])
+        #endif
     }
 }
 

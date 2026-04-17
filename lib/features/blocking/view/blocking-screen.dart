@@ -57,8 +57,9 @@ class _BlockingScreenState extends State<BlockingScreen> {
               : _buildBody(context),
           floatingActionButton: _vm.permissions.isFullyGranted
               ? FloatingActionButton.extended(
-                  onPressed: () =>
-                      _coordinator.showAppPicker(context, _vm),
+                  onPressed: _vm.isIos
+                      ? () => _vm.openIosPicker()
+                      : () => _coordinator.showAppPicker(context, _vm),
                   icon: const Icon(Icons.add),
                   label: const Text('Add App'),
                 )
@@ -216,13 +217,129 @@ class _BlockedAppsList extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 8),
           child: Text(
-            '${vm.rules.length} app(s) managed',
+            '${vm.rules.length} rule(s) active',
             style: Theme.of(context).textTheme.titleSmall,
           ),
         ),
-        ...vm.rules.map((rule) => _AppRuleCard(rule: rule, vm: vm)),
+        ...vm.rules.map((rule) {
+          if (rule.itemIdentifier.startsWith('ios_selection:')) {
+            return _IosSelectionCard(rule: rule, vm: vm, coordinator: coordinator);
+          }
+          return _AppRuleCard(rule: rule, vm: vm);
+        }),
       ],
     );
+  }
+}
+
+class _IosSelectionCard extends StatelessWidget {
+  final BlockingRuleEntity rule;
+  final BlockingViewModel vm;
+  final BlockingCoordinator coordinator;
+
+  const _IosSelectionCard({
+    required this.rule,
+    required this.vm,
+    required this.coordinator,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isActive = rule.status == RuleStatus.active;
+    final summary = vm.iosSummary;
+    final subtitleText = summary != null && !summary.isEmpty
+        ? summary.displayText
+        : 'Tap Modify to see selected apps';
+
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                  child: Icon(
+                    Icons.shield_outlined,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'iOS Screen Time',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                      Text(
+                        subtitleText,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Switch(
+                  value: isActive,
+                  onChanged: (_) => vm.toggleRule(rule.id),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton.icon(
+                  icon: const Icon(Icons.edit_outlined, size: 16),
+                  label: const Text('Modify'),
+                  onPressed: () => vm.openIosPicker(),
+                ),
+                const SizedBox(width: 8),
+                TextButton.icon(
+                  icon: Icon(
+                    Icons.delete_outline,
+                    size: 16,
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                  label: Text(
+                    'Remove',
+                    style: TextStyle(color: Theme.of(context).colorScheme.error),
+                  ),
+                  onPressed: () => _confirmDelete(context),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmDelete(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Remove Blocking'),
+        content: const Text('Remove all blocked apps? This will turn off Screen Time blocking.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Remove')),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await vm.removeRule(rule.id);
+    }
   }
 }
 

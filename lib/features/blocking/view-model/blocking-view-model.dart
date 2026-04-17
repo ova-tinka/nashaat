@@ -21,6 +21,7 @@ class BlockingViewModel extends ChangeNotifier {
   List<InstalledApp> _installedApps = [];
   PermissionsState _permissions = const PermissionsState();
   bool _isBlockingActive = false;
+  IosSummary? _iosSummary;
 
   BlockingViewModel({
     required this.userId,
@@ -38,6 +39,7 @@ class BlockingViewModel extends ChangeNotifier {
   PermissionsState get permissions => _permissions;
   bool get isBlockingActive => _isBlockingActive;
   bool get isIos => Platform.isIOS;
+  IosSummary? get iosSummary => _iosSummary;
 
   List<BlockingRuleEntity> get activeRules =>
       _rules.where((r) => r.status == RuleStatus.active).toList();
@@ -52,6 +54,13 @@ class BlockingViewModel extends ChangeNotifier {
     try {
       await Future.wait([_refreshPermissions(), _loadRules()]);
       _isBlockingActive = await _platform.isBlockingActive();
+      if (Platform.isIOS) {
+        try {
+          _iosSummary = await _platform.getSelectionSummary();
+        } catch (_) {
+          // Summary is cosmetic — never block the initialize flow.
+        }
+      }
       Log.blocking(
         'ready — ${_rules.length} rule(s), '
         '${activeRules.length} active, '
@@ -128,6 +137,7 @@ class BlockingViewModel extends ChangeNotifier {
     );
     final created = await _blockingRepo.createRule(rule);
     _rules.add(created);
+    _iosSummary = await _platform.getSelectionSummary();
     _isBlockingActive = true;
     Log.blocking('iOS picker done — $count item(s) selected, blocking active');
     notifyListeners();
@@ -150,6 +160,9 @@ class BlockingViewModel extends ChangeNotifier {
       final rule = _rules.firstWhere((r) => r.id == id);
       await _blockingRepo.deleteRule(id);
       _rules.removeWhere((r) => r.id == id);
+      if (Platform.isIOS && rule.itemIdentifier.startsWith('ios_selection:')) {
+        _iosSummary = null;
+      }
       if (_isBlockingActive) {
         if (Platform.isIOS &&
             rule.itemIdentifier.startsWith('ios_selection:')) {
