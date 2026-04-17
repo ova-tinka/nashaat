@@ -1,5 +1,6 @@
 import '../core/repositories/auth-repository.dart';
 import '../core/repositories/blocking-repository.dart';
+import '../core/repositories/emergency-break-repository.dart';
 import '../core/repositories/exercise-repository.dart';
 import '../core/repositories/leaderboard-repository.dart';
 import '../core/repositories/profile-repository.dart';
@@ -8,6 +9,7 @@ import '../core/repositories/workout-log-repository.dart';
 import '../core/repositories/workout-plan-repository.dart';
 import 'supabase/auth-repository-impl.dart';
 import 'supabase/blocking-repository-impl.dart';
+import 'supabase/emergency-break-repository-impl.dart';
 import 'supabase/exercise-repository-impl.dart';
 import 'supabase/leaderboard-repository-impl.dart';
 import 'supabase/profile-repository-impl.dart';
@@ -29,4 +31,6 @@ class RepositoryLocator {
       SupabaseScreenTimeTransactionRepository();
   final BlockingRepository blocking = SupabaseBlockingRepository();
   final LeaderboardRepository leaderboard = SupabaseLeaderboardRepository();
+  final EmergencyBreakRepository emergencyBreak =
+      SupabaseEmergencyBreakRepository();
 }

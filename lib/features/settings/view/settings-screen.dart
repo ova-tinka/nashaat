@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../../../infra/repository-locator.dart';
 import '../../../main.dart';
@@ -37,6 +36,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _onVmChanged() {
+    if (_vm.isDeleted) {
+      appCoordinator.showLogin();
+      return;
+    }
     final profile = _vm.profile;
     if (profile != null && !_edited) {
       _usernameCtrl.text = profile.username ?? '';
@@ -391,6 +394,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: Column(
             children: [
               ListTile(
+                leading: const Icon(Icons.lock_reset),
+                title: const Text('Change Password'),
+                onTap: () => _showChangePasswordDialog(context),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+              ),
+              Divider(height: 1, color: cs.outlineVariant),
+              ListTile(
                 leading: const Icon(Icons.logout),
                 title: const Text('Sign Out'),
                 onTap: () => _confirmSignOut(context),
@@ -471,22 +482,156 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Future<void> _confirmDeleteAccount(BuildContext context) async {
+  Future<void> _showChangePasswordDialog(BuildContext context) async {
+    final newPassCtrl = TextEditingController();
+    final confirmPassCtrl = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
     await showDialog<void>(
       context: context,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (dialogCtx, setDialogState) => AlertDialog(
+          title: const Text('Change Password'),
+          content: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: newPassCtrl,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'New Password',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (v) {
+                    if (v == null || v.length < 8) {
+                      return 'Password must be at least 8 characters';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: confirmPassCtrl,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Confirm Password',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (v) {
+                    if (v != newPassCtrl.text) {
+                      return 'Passwords do not match';
+                    }
+                    return null;
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: _vm.isSaving
+                  ? null
+                  : () async {
+                      if (!formKey.currentState!.validate()) return;
+                      Navigator.pop(dialogCtx);
+                      await _vm.changePassword(newPassCtrl.text);
+                    },
+              child: const Text('Update Password'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    newPassCtrl.dispose();
+    confirmPassCtrl.dispose();
+  }
+
+  Future<void> _confirmDeleteAccount(BuildContext context) async {
+    final step1 = await showDialog<bool>(
+      context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Delete Account'),
+        title: const Text('Delete Your Account?'),
         content: const Text(
-          'Account deletion requires contacting support. Please email support@nashaat.app to request account deletion.',
+          'This action is permanent and cannot be undone. All your data, workout history, and screen time balance will be permanently deleted.',
         ),
         actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Theme.of(context).colorScheme.onError,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete Permanently'),
           ),
         ],
       ),
     );
+
+    if (step1 != true || !mounted) return;
+
+    final confirmCtrl = TextEditingController();
+    // ignore: use_build_context_synchronously
+    final step2 = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (dialogCtx, setDialogState) {
+          final cs = Theme.of(dialogCtx).colorScheme;
+          return AlertDialog(
+            title: const Text('Confirm Deletion'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Type DELETE to confirm:'),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: confirmCtrl,
+                  autofocus: true,
+                  decoration: const InputDecoration(
+                    hintText: 'DELETE',
+                    border: OutlineInputBorder(),
+                  ),
+                  onChanged: (_) => setDialogState(() {}),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogCtx, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: cs.error,
+                  foregroundColor: cs.onError,
+                ),
+                onPressed: confirmCtrl.text == 'DELETE'
+                    ? () => Navigator.pop(dialogCtx, true)
+                    : null,
+                child: const Text('Delete Account'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    confirmCtrl.dispose();
+
+    if (step2 == true) {
+      await _vm.deleteAccount();
+    }
   }
 }
 

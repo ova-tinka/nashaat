@@ -32,6 +32,7 @@ class _FocusScreenState extends State<FocusScreen> {
       txnRepo: RepositoryLocator.instance.screenTimeTransaction,
       platform: platform,
       blockingRepo: RepositoryLocator.instance.blocking,
+      emergencyBreakRepo: RepositoryLocator.instance.emergencyBreak,
       userId: userId,
     );
     _coordinator = BlockingCoordinator(appCoordinator);
@@ -79,6 +80,17 @@ class _FocusScreenState extends State<FocusScreen> {
                       // ── Screen time status ──────────────────────────────
                       _StatusCard(vm: _vm),
                       const SizedBox(height: 16),
+
+                      // ── Lock action card (balance depleted) ─────────────
+                      if (_vm.balanceMinutes == 0 &&
+                          bvm.isBlockingActive) ...[
+                        _LockActionCard(
+                          bvm: bvm,
+                          onStartWorkout: () =>
+                              appCoordinator.showDashboard(),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
 
                       // ── Rewards economy ─────────────────────────────────
                       if (_vm.isConfigured) ...[
@@ -587,6 +599,237 @@ class _RewardRow extends StatelessWidget {
               fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
               color: bold ? cs.primary : null,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Lock action card ──────────────────────────────────────────────────────────
+
+class _LockActionCard extends StatelessWidget {
+  final BlockingViewModel bvm;
+  final VoidCallback onStartWorkout;
+
+  const _LockActionCard({
+    required this.bvm,
+    required this.onStartWorkout,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+
+    return Card(
+      elevation: 0,
+      color: cs.errorContainer,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.lock_clock, color: cs.onErrorContainer),
+                const SizedBox(width: 8),
+                Text(
+                  'Screen-Time Depleted',
+                  style: tt.titleMedium?.copyWith(
+                    color: cs.onErrorContainer,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Complete a workout to earn more screen time.',
+              style: tt.bodyMedium
+                  ?.copyWith(color: cs.onErrorContainer.withValues(alpha: 0.8)),
+            ),
+            if (bvm.emergencyBreakActive) ...[
+              const SizedBox(height: 12),
+              _EmbeddedCountdown(bvm: bvm),
+            ],
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: onStartWorkout,
+              icon: const Icon(Icons.fitness_center),
+              label: const Text('Start Workout'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(double.infinity, 44),
+              ),
+            ),
+            const SizedBox(height: 8),
+            if (!bvm.emergencyBreakActive)
+              if (bvm.canRequestBreak)
+                TextButton(
+                  onPressed: () => _openBreakPicker(context),
+                  style: TextButton.styleFrom(
+                    foregroundColor: cs.onErrorContainer,
+                    minimumSize: const Size(double.infinity, 40),
+                  ),
+                  child: Text(
+                    'Take a break  ·  ${bvm.remainingBreakMinutes} min left today',
+                  ),
+                )
+              else
+                Text(
+                  'No break time left today. Resets at midnight.',
+                  style: tt.bodySmall?.copyWith(
+                      color: cs.onErrorContainer.withValues(alpha: 0.7)),
+                  textAlign: TextAlign.center,
+                ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openBreakPicker(BuildContext context) async {
+    final minutes = await showModalBottomSheet<int>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _BreakPickerSheet(bvm: bvm),
+    );
+    if (minutes != null && minutes > 0) {
+      await bvm.requestEmergencyBreak(minutes);
+    }
+  }
+}
+
+class _BreakPickerSheet extends StatefulWidget {
+  final BlockingViewModel bvm;
+  const _BreakPickerSheet({required this.bvm});
+
+  @override
+  State<_BreakPickerSheet> createState() => _BreakPickerSheetState();
+}
+
+class _BreakPickerSheetState extends State<_BreakPickerSheet> {
+  late int _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = widget.bvm.remainingBreakMinutes.clamp(1, 15);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    final max = widget.bvm.remainingBreakMinutes;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: cs.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      padding: EdgeInsets.fromLTRB(
+        24, 16, 24, MediaQuery.of(context).viewInsets.bottom + 32,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 36,
+            height: 4,
+            decoration: BoxDecoration(
+              color: cs.outlineVariant,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text('Take a Break',
+              style: tt.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          Text('$max min remaining today',
+              style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant)),
+          const SizedBox(height: 32),
+          Text(
+            '$_selected',
+            style: tt.displayLarge?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: cs.primary,
+            ),
+          ),
+          Text('minutes',
+              style: tt.titleMedium?.copyWith(color: cs.onSurfaceVariant)),
+          const SizedBox(height: 16),
+          Slider(
+            value: _selected.toDouble(),
+            min: 1,
+            max: max.toDouble(),
+            divisions: max > 1 ? max - 1 : 1,
+            onChanged: (v) => setState(() => _selected = v.round()),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('1 min',
+                  style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant)),
+              Text('$max min',
+                  style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Does not replenish your screen-time balance.',
+            style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, _selected),
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(double.infinity, 52),
+            ),
+            child: Text('Use $_selected min'),
+          ),
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: () => Navigator.pop(context, null),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EmbeddedCountdown extends StatelessWidget {
+  final BlockingViewModel bvm;
+  const _EmbeddedCountdown({required this.bvm});
+
+  @override
+  Widget build(BuildContext context) {
+    final secs = bvm.emergencyBreakSecondsRemaining;
+    final mins = secs ~/ 60;
+    final s = secs % 60;
+    final label =
+        '${mins.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: cs.primaryContainer,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.timer_outlined, size: 18, color: cs.onPrimaryContainer),
+          const SizedBox(width: 8),
+          Text(
+            'Break ends in $label',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: cs.onPrimaryContainer,
+                  fontWeight: FontWeight.w600,
+                ),
           ),
         ],
       ),

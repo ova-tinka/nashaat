@@ -10,6 +10,7 @@ import '../../../core/entities/screen-time-transaction-entity.dart';
 import '../../../core/repositories/profile-repository.dart';
 import '../../../core/repositories/screen-time-transaction-repository.dart';
 import '../../../core/repositories/blocking-repository.dart';
+import '../../../core/repositories/emergency-break-repository.dart';
 import '../../../infra/blocking/blocking-platform-service.dart';
 import '../../../infra/permissions/permission-service.dart';
 import '../../../shared/logger.dart';
@@ -27,6 +28,7 @@ class FocusViewModel extends ChangeNotifier {
     required ScreenTimeTransactionRepository txnRepo,
     required BlockingPlatformService platform,
     required BlockingRepository blockingRepo,
+    required EmergencyBreakRepository emergencyBreakRepo,
     required String userId,
   })  : _profileRepo = profileRepo,
         _txnRepo = txnRepo,
@@ -36,6 +38,7 @@ class FocusViewModel extends ChangeNotifier {
           blockingRepo: blockingRepo,
           platform: platform,
           permissionService: PermissionService(platform),
+          emergencyBreakRepo: emergencyBreakRepo,
         );
 
   // ── State ─────────────────────────────────────────────────────────────────

@@ -34,6 +34,7 @@ class _BlockingScreenState extends State<BlockingScreen> {
       blockingRepo: RepositoryLocator.instance.blocking,
       platform: platform,
       permissionService: PermissionService(platform),
+      emergencyBreakRepo: RepositoryLocator.instance.emergencyBreak,
     );
     _coordinator = BlockingCoordinator(appCoordinator);
     _vm.initialize();

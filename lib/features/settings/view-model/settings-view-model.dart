@@ -19,12 +19,14 @@ class SettingsViewModel extends ChangeNotifier {
   ProfileEntity? _profile;
   bool _isLoading = false;
   bool _isSaving = false;
+  bool _isDeleted = false;
   String? _error;
   String? _successMessage;
 
   ProfileEntity? get profile => _profile;
   bool get isLoading => _isLoading;
   bool get isSaving => _isSaving;
+  bool get isDeleted => _isDeleted;
   String? get error => _error;
   String? get successMessage => _successMessage;
 
@@ -100,6 +102,47 @@ class SettingsViewModel extends ChangeNotifier {
       _error = 'Could not update profile.';
     } finally {
       _isSaving = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> changePassword(String newPassword) async {
+    _isSaving = true;
+    _error = null;
+    _successMessage = null;
+    notifyListeners();
+
+    try {
+      await Supabase.instance.client.auth
+          .updateUser(UserAttributes(password: newPassword));
+      _successMessage = 'Password updated successfully.';
+    } catch (e) {
+      Log.error('SettingsViewModel.changePassword', e);
+      _error = 'Could not update password. Please try again.';
+    } finally {
+      _isSaving = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> deleteAccount() async {
+    _isSaving = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      await Supabase.instance.client.auth.updateUser(
+        UserAttributes(
+          data: {'deleted_at': DateTime.now().toIso8601String()},
+        ),
+      );
+      _isDeleted = true;
+      notifyListeners();
+      await _authRepo.signOut();
+    } catch (e) {
+      Log.error('SettingsViewModel.deleteAccount', e);
+      _isSaving = false;
+      _error = 'Could not delete account. Please try again.';
       notifyListeners();
     }
   }

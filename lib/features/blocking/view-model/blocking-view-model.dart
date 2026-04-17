@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -5,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import '../../../core/entities/blocking-rule-entity.dart';
 import '../../../core/entities/enums.dart';
 import '../../../core/repositories/blocking-repository.dart';
+import '../../../core/repositories/emergency-break-repository.dart';
 import '../../../infra/blocking/blocking-platform-service.dart';
 import '../../../infra/permissions/permission-service.dart';
 import '../../../shared/logger.dart';
@@ -13,6 +15,7 @@ class BlockingViewModel extends ChangeNotifier {
   final BlockingRepository _blockingRepo;
   final BlockingPlatformService _platform;
   final PermissionService _permissionService;
+  final EmergencyBreakRepository _emergencyBreakRepo;
   final String userId;
 
   bool _isLoading = false;
@@ -23,14 +26,21 @@ class BlockingViewModel extends ChangeNotifier {
   bool _isBlockingActive = false;
   IosSummary? _iosSummary;
 
+  int _todayBreakMinutesUsed = 0;
+  bool _emergencyBreakActive = false;
+  int _emergencyBreakSecondsRemaining = 0;
+  Timer? _emergencyBreakTimer;
+
   BlockingViewModel({
     required this.userId,
     required BlockingRepository blockingRepo,
     required BlockingPlatformService platform,
     required PermissionService permissionService,
+    required EmergencyBreakRepository emergencyBreakRepo,
   })  : _blockingRepo = blockingRepo,
         _platform = platform,
-        _permissionService = permissionService;
+        _permissionService = permissionService,
+        _emergencyBreakRepo = emergencyBreakRepo;
 
   bool get isLoading => _isLoading;
   String? get error => _error;
@@ -40,6 +50,14 @@ class BlockingViewModel extends ChangeNotifier {
   bool get isBlockingActive => _isBlockingActive;
   bool get isIos => Platform.isIOS;
   IosSummary? get iosSummary => _iosSummary;
+  static const int dailyBreakBudgetMinutes = 15;
+  int get todayBreakMinutesUsed => _todayBreakMinutesUsed;
+  int get remainingBreakMinutes =>
+      (dailyBreakBudgetMinutes - _todayBreakMinutesUsed).clamp(0, dailyBreakBudgetMinutes);
+  bool get emergencyBreakActive => _emergencyBreakActive;
+  int get emergencyBreakSecondsRemaining => _emergencyBreakSecondsRemaining;
+  bool get canRequestBreak =>
+      remainingBreakMinutes > 0 && !_emergencyBreakActive;
 
   List<BlockingRuleEntity> get activeRules =>
       _rules.where((r) => r.status == RuleStatus.active).toList();
@@ -52,7 +70,11 @@ class BlockingViewModel extends ChangeNotifier {
     _error = null;
     notifyListeners();
     try {
-      await Future.wait([_refreshPermissions(), _loadRules()]);
+      await Future.wait([
+        _refreshPermissions(),
+        _loadRules(),
+        _loadTodayBreaks(),
+      ]);
       _isBlockingActive = await _platform.isBlockingActive();
       if (Platform.isIOS) {
         try {
@@ -231,6 +253,37 @@ class BlockingViewModel extends ChangeNotifier {
     }
   }
 
+  // ── Emergency break ───────────────────────────────────────────────────────
+
+  Future<void> requestEmergencyBreak(int minutes) async {
+    if (!canRequestBreak) return;
+    final clamped = minutes.clamp(1, remainingBreakMinutes);
+    try {
+      await _emergencyBreakRepo.requestBreak(userId, clamped);
+      _todayBreakMinutesUsed += clamped;
+      _emergencyBreakActive = true;
+      _emergencyBreakSecondsRemaining = clamped * 60;
+      notifyListeners();
+      _emergencyBreakTimer?.cancel();
+      _emergencyBreakTimer =
+          Timer.periodic(const Duration(seconds: 1), (_) {
+        if (_emergencyBreakSecondsRemaining > 0) {
+          _emergencyBreakSecondsRemaining--;
+          notifyListeners();
+        } else {
+          _emergencyBreakActive = false;
+          _emergencyBreakTimer?.cancel();
+          _emergencyBreakTimer = null;
+          notifyListeners();
+        }
+      });
+    } catch (e) {
+      Log.error('blocking.emergencyBreak', e);
+      _error = _friendlyError(e);
+      notifyListeners();
+    }
+  }
+
   void clearError() {
     _error = null;
     notifyListeners();
@@ -245,6 +298,21 @@ class BlockingViewModel extends ChangeNotifier {
   Future<void> _loadRules() async {
     _rules = await _blockingRepo.getUserRules(userId);
     _rules = _rules.where((r) => r.status != RuleStatus.archived).toList();
+  }
+
+  Future<void> _loadTodayBreaks() async {
+    try {
+      final breaks = await _emergencyBreakRepo.getUserBreaks(userId);
+      final today = DateTime.now();
+      _todayBreakMinutesUsed = breaks
+          .where((b) =>
+              b.grantedAt.year == today.year &&
+              b.grantedAt.month == today.month &&
+              b.grantedAt.day == today.day)
+          .fold(0, (sum, b) => sum + b.durationMinutes);
+    } catch (e) {
+      Log.error('blocking._loadTodayBreaks', e);
+    }
   }
 
   Future<void> _addRule(InstalledApp app) async {
@@ -299,4 +367,10 @@ class BlockingViewModel extends ChangeNotifier {
     'com.google.android.apps.messaging',
     'com.android.settings',
   };
+
+  @override
+  void dispose() {
+    _emergencyBreakTimer?.cancel();
+    super.dispose();
+  }
 }
