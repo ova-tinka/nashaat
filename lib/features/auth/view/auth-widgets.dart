@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
-/// "or continue with" row divider used on Login and Register screens.
+import '../../../shared/design/tokens/app-colors.dart';
+import '../../../shared/design/tokens/app-typography.dart';
+
 class AuthOrDivider extends StatelessWidget {
   const AuthOrDivider({super.key});
 
@@ -8,50 +10,42 @@ class AuthOrDivider extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        const Expanded(child: Divider()),
+        const Expanded(child: Divider(color: AppColors.paperBorder)),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Text(
-            'or continue with',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-          ),
+          child: Text('or continue with', style: AppTypography.labelMuted),
         ),
-        const Expanded(child: Divider()),
+        const Expanded(child: Divider(color: AppColors.paperBorder)),
       ],
     );
   }
 }
 
-/// Full-width outlined social sign-in button.
 class AuthSocialButton extends StatelessWidget {
   final Widget icon;
   final String label;
   final VoidCallback onPressed;
 
-  const AuthSocialButton({
-    super.key,
-    required this.icon,
-    required this.label,
-    required this.onPressed,
-  });
+  const AuthSocialButton({super.key, required this.icon, required this.label, required this.onPressed});
 
   @override
   Widget build(BuildContext context) {
     return OutlinedButton.icon(
       onPressed: onPressed,
       icon: icon,
-      label: Text(label),
+      label: Text(label, style: AppTypography.label.copyWith(fontSize: 14)),
       style: OutlinedButton.styleFrom(
-        minimumSize: const Size.fromHeight(52),
+        minimumSize: const Size.fromHeight(48),
         alignment: Alignment.center,
+        foregroundColor: AppColors.ink,
+        side: const BorderSide(color: AppColors.paperBorder, width: 1),
+        shape: const RoundedRectangleBorder(),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
       ),
     );
   }
 }
 
-/// Coloured "G" badge used as a Google logo stand-in.
 class GoogleIcon extends StatelessWidget {
   const GoogleIcon({super.key});
 
@@ -61,17 +55,16 @@ class GoogleIcon extends StatelessWidget {
       width: 20,
       height: 20,
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: Colors.grey.shade300),
+        color: AppColors.paper,
+        border: Border.all(color: AppColors.paperBorder, width: 1),
       ),
       child: const Center(
         child: Text(
           'G',
           style: TextStyle(
-            color: Color(0xFF4285F4),
+            color: AppColors.ink,
             fontSize: 13,
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w700,
             height: 1,
           ),
         ),

@@ -5,7 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app/app-coordinator.dart';
 import 'app/app-router.dart';
 import 'shared/logger.dart';
-import 'shared/theme/app-theme.dart';
+import 'shared/design/theme.dart';
 
 final appCoordinator = AppCoordinator();
 
@@ -34,7 +34,8 @@ class NashaatApp extends StatelessWidget {
     return MaterialApp(
       title: 'Nashaat',
       theme: AppTheme.light,
-      darkTheme: AppTheme.dark,
+      darkTheme: AppTheme.light,
+      themeMode: ThemeMode.light,
       navigatorKey: appCoordinator.navigatorKey,
       onGenerateRoute: AppRouter.generateRoute,
       initialRoute: AppRouter.splash,

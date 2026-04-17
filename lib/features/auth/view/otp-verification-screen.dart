@@ -4,13 +4,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../main.dart';
+import '../../../shared/design/atoms/app-button.dart';
+import '../../../shared/design/tokens/app-colors.dart';
+import '../../../shared/design/tokens/app-spacing.dart';
+import '../../../shared/design/tokens/app-typography.dart';
 import '../coordinator/auth-coordinator.dart';
 import '../model/auth-models.dart';
 import '../view-model/auth-view-model.dart';
 
 class OtpVerificationScreen extends StatefulWidget {
   final AuthViewModel vm;
-
   const OtpVerificationScreen({super.key, required this.vm});
 
   @override
@@ -44,12 +47,10 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
   void _onVmChanged() {
     if (!mounted) return;
-
     switch (widget.vm.step) {
       case AuthFlowStep.success:
         _coordinator.handleAuthSuccess(widget.vm);
 
-      // OTP resent — restart timer and clear field
       case AuthFlowStep.otpSent:
         _otpController.clear();
         _restartResendTimer();
@@ -57,12 +58,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       case AuthFlowStep.error:
         final msg = widget.vm.errorMessage;
         if (msg != null && msg.isNotEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(msg),
-              backgroundColor: Theme.of(context).colorScheme.error,
-            ),
-          );
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
         }
 
       default:
@@ -72,10 +68,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
   void _startResendTimer() {
     _timer = Timer.periodic(const Duration(seconds: 1), (t) {
-      if (_secondsLeft == 0) {
-        t.cancel();
-        return;
-      }
+      if (_secondsLeft == 0) { t.cancel(); return; }
       setState(() => _secondsLeft--);
     });
   }
@@ -94,165 +87,107 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
     final vm = widget.vm;
     final contact = vm.pendingContact ?? '';
     final isEmail = vm.otpMethod == OtpMethod.email;
 
     return Scaffold(
-      appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
+      backgroundColor: AppColors.paper,
+      appBar: AppBar(backgroundColor: AppColors.paper, elevation: 0),
       body: SafeArea(
         child: ListenableBuilder(
           listenable: vm,
           builder: (context, _) {
             if (vm.step == AuthFlowStep.loading) {
-              return const Center(child: CircularProgressIndicator());
+              return const Center(child: CircularProgressIndicator(color: AppColors.ink));
             }
-            return _buildBody(context, theme, colorScheme, contact, isEmail);
+            return SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SizedBox(height: AppSpacing.xl),
+                  Container(
+                    width: 48,
+                    height: 48,
+                    color: AppColors.paperAlt,
+                    child: Icon(
+                      isEmail ? Icons.mark_email_read_outlined : Icons.sms_outlined,
+                      size: 24,
+                      color: AppColors.ink,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  Text(
+                    'Check your ${isEmail ? 'email' : 'phone'}',
+                    style: AppTypography.title,
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Text.rich(
+                    TextSpan(
+                      text: 'We sent a 6-digit code to\n',
+                      style: AppTypography.bodyMuted,
+                      children: [
+                        TextSpan(text: contact, style: AppTypography.body.copyWith(fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: AppSpacing.xl),
+
+                  Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        TextFormField(
+                          controller: _otpController,
+                          keyboardType: TextInputType.number,
+                          textAlign: TextAlign.center,
+                          maxLength: 8,
+                          autofocus: true,
+                          style: AppTypography.display.copyWith(letterSpacing: 12, fontSize: 24),
+                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          decoration: const InputDecoration(
+                            hintText: '────────',
+                            counterText: '',
+                          ),
+                          validator: (v) => (v == null || v.length != 8) ? 'Enter the 8-digit code' : null,
+                          onFieldSubmitted: (_) => _handleVerify(),
+                        ),
+                        const SizedBox(height: AppSpacing.base),
+                        AppButton.primary('Verify', onPressed: _handleVerify, width: double.infinity),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: AppSpacing.lg),
+                  Center(
+                    child: _secondsLeft > 0
+                        ? Text('Resend code in ${_secondsLeft}s', style: AppTypography.labelMuted)
+                        : TextButton(
+                            onPressed: () => widget.vm.resendOtp(),
+                            child: Text('Resend code', style: AppTypography.label),
+                          ),
+                  ),
+
+                  if (widget.vm.isLockedOut) ...[
+                    const SizedBox(height: AppSpacing.base),
+                    Container(
+                      padding: const EdgeInsets.all(AppSpacing.md),
+                      color: AppColors.errorMuted,
+                      child: Text(
+                        'Too many failed attempts. Please wait 15 minutes before trying again.',
+                        style: AppTypography.body.copyWith(color: AppColors.error),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            );
           },
         ),
-      ),
-    );
-  }
-
-  Widget _buildBody(
-    BuildContext context,
-    ThemeData theme,
-    ColorScheme colorScheme,
-    String contact,
-    bool isEmail,
-  ) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 28),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const SizedBox(height: 32),
-
-          // Icon
-          Container(
-            width: 72,
-            height: 72,
-            decoration: BoxDecoration(
-              color: colorScheme.primaryContainer,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Icon(
-              isEmail ? Icons.mark_email_read_outlined : Icons.sms_outlined,
-              size: 36,
-              color: colorScheme.onPrimaryContainer,
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          Text(
-            'Check your ${isEmail ? 'email' : 'phone'}',
-            style: theme.textTheme.headlineSmall
-                ?.copyWith(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          Text.rich(
-            TextSpan(
-              text: 'We sent a 6-digit code to\n',
-              style: theme.textTheme.bodyLarge
-                  ?.copyWith(color: colorScheme.onSurfaceVariant),
-              children: [
-                TextSpan(
-                  text: contact,
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    color: colorScheme.onSurface,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 40),
-
-          // OTP input
-          Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                TextFormField(
-                  controller: _otpController,
-                  keyboardType: TextInputType.number,
-                  textAlign: TextAlign.center,
-                  maxLength: 8, // ← change this number to adjust OTP length
-                  autofocus: true,
-                  style: theme.textTheme.headlineSmall
-                      ?.copyWith(letterSpacing: 12, fontWeight: FontWeight.bold),
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  decoration: InputDecoration(
-                    hintText: '────────',
-                    counterText: '',
-                    border: const OutlineInputBorder(),
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: BorderSide(
-                          color: colorScheme.outline.withAlpha(128), width: 1.5),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide:
-                          BorderSide(color: colorScheme.primary, width: 2),
-                    ),
-                  ),
-                  validator: (v) {
-                    if (v == null || v.length != 8) {
-                      return 'Enter the 8-digit code';
-                    }
-                    return null;
-                  },
-                  onFieldSubmitted: (_) => _handleVerify(),
-                ),
-                const SizedBox(height: 20),
-                FilledButton(
-                  onPressed: _handleVerify,
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size.fromHeight(52),
-                  ),
-                  child: const Text('Verify'),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 28),
-
-          // Resend
-          Center(
-            child: _secondsLeft > 0
-                ? Text(
-                    'Resend code in ${_secondsLeft}s',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  )
-                : TextButton(
-                    onPressed: () => widget.vm.resendOtp(),
-                    child: const Text('Resend code'),
-                  ),
-          ),
-
-          const SizedBox(height: 16),
-
-          // Lockout warning
-          if (widget.vm.isLockedOut)
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: colorScheme.errorContainer,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                'Too many failed attempts. Please wait 15 minutes before trying again.',
-                style: TextStyle(color: colorScheme.onErrorContainer),
-                textAlign: TextAlign.center,
-              ),
-            ),
-        ],
       ),
     );
   }

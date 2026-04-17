@@ -2,10 +2,15 @@ import 'package:flutter/material.dart';
 
 import '../../../infra/repository-locator.dart';
 import '../../../main.dart';
+import '../../../shared/design/atoms/app-button.dart';
+import '../../../shared/design/atoms/app-divider.dart';
+import '../../../shared/design/tokens/app-colors.dart';
+import '../../../shared/design/tokens/app-spacing.dart';
+import '../../../shared/design/tokens/app-typography.dart';
 import '../coordinator/auth-coordinator.dart';
 import '../model/auth-models.dart';
 import '../view-model/auth-view-model.dart';
-import 'auth-widgets.dart';
+import '../view/auth-widgets.dart';
 import 'otp-verification-screen.dart';
 import 'phone-auth-screen.dart';
 
@@ -41,17 +46,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _onVmChanged() {
     if (!mounted) return;
-
     switch (_vm.step) {
       case AuthFlowStep.success:
         _coordinator.handleAuthSuccess(_vm);
 
       case AuthFlowStep.otpSent when !_otpPushed:
         _otpPushed = true;
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => OtpVerificationScreen(vm: _vm)),
-        ).then((_) {
+        Navigator.push(context, MaterialPageRoute(builder: (_) => OtpVerificationScreen(vm: _vm))).then((_) {
           _otpPushed = false;
           _vm.reset();
         });
@@ -60,12 +61,7 @@ class _LoginScreenState extends State<LoginScreen> {
         if (!_otpPushed) {
           final msg = _vm.errorMessage;
           if (msg != null && msg.isNotEmpty) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(msg),
-                backgroundColor: Theme.of(context).colorScheme.error,
-              ),
-            );
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
           }
         }
 
@@ -83,12 +79,13 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.paper,
       body: SafeArea(
         child: ListenableBuilder(
           listenable: _vm,
           builder: (context, _) {
             if (_vm.step == AuthFlowStep.loading) {
-              return const Center(child: CircularProgressIndicator());
+              return const Center(child: CircularProgressIndicator(color: AppColors.ink));
             }
             return _buildBody(context);
           },
@@ -98,40 +95,19 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _buildBody(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
     return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 28),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const SizedBox(height: 72),
 
-          // Brand mark
-          Icon(
-            Icons.fitness_center_rounded,
-            size: 56,
-            color: colorScheme.primary,
-          ),
-          const SizedBox(height: 20),
-          Text(
-            'Welcome back',
-            style: theme.textTheme.headlineMedium
-                ?.copyWith(fontWeight: FontWeight.bold),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Sign in to continue',
-            style: theme.textTheme.bodyLarge
-                ?.copyWith(color: colorScheme.onSurfaceVariant),
-            textAlign: TextAlign.center,
-          ),
+          Text('NASHAAT', style: AppTypography.display.copyWith(letterSpacing: 4)),
+          const SizedBox(height: AppSpacing.xs),
+          Text('Welcome back.', style: AppTypography.bodyMuted),
 
-          const SizedBox(height: 48),
+          const SizedBox(height: AppSpacing.xxl),
 
-          // Email OTP form
           Form(
             key: _formKey,
             child: Column(
@@ -145,84 +121,81 @@ class _LoginScreenState extends State<LoginScreen> {
                   decoration: const InputDecoration(
                     labelText: 'Email address',
                     hintText: 'you@example.com',
-                    prefixIcon: Icon(Icons.email_outlined),
-                    border: OutlineInputBorder(),
                   ),
                   validator: (v) {
-                    if (v == null || v.trim().isEmpty) {
-                      return 'Please enter your email address';
-                    }
-                    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
-                        .hasMatch(v.trim())) {
+                    if (v == null || v.trim().isEmpty) return 'Please enter your email address';
+                    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(v.trim())) {
                       return 'Enter a valid email address';
                     }
                     return null;
                   },
                   onFieldSubmitted: (_) => _handleEmailContinue(),
                 ),
-                const SizedBox(height: 14),
-                FilledButton(
+                const SizedBox(height: AppSpacing.md),
+                AppButton.primary(
+                  'Continue with Email',
                   onPressed: _vm.step == AuthFlowStep.loading ? null : _handleEmailContinue,
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size.fromHeight(52),
-                  ),
-                  child: const Text('Continue with email'),
+                  width: double.infinity,
                 ),
               ],
             ),
           ),
 
-          const SizedBox(height: 32),
+          const SizedBox(height: AppSpacing.xl),
+          const _OrDivider(),
+          const SizedBox(height: AppSpacing.lg),
 
-          // Divider
-          const AuthOrDivider(),
-
-          const SizedBox(height: 24),
-
-          // Social sign-in
           AuthSocialButton(
             icon: const GoogleIcon(),
             label: 'Continue with Google',
             onPressed: _vm.signInWithGoogle,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpacing.md),
           AuthSocialButton(
-            icon: const Icon(Icons.apple, size: 22),
+            icon: const Icon(Icons.apple, size: 22, color: AppColors.ink),
             label: 'Continue with Apple',
             onPressed: _vm.signInWithApple,
           ),
 
-          const SizedBox(height: 20),
-
-          // Phone option
+          const SizedBox(height: AppSpacing.base),
           TextButton.icon(
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => PhoneAuthScreen(vm: _vm)),
-            ),
-            icon: const Icon(Icons.phone_outlined, size: 18),
-            label: const Text('Use phone number instead'),
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PhoneAuthScreen(vm: _vm))),
+            icon: const Icon(Icons.phone_outlined, size: 16, color: AppColors.inkMuted),
+            label: Text('Use phone number instead', style: AppTypography.labelMuted),
           ),
 
-          const SizedBox(height: 36),
-
-          // Switch to register
+          const SizedBox(height: AppSpacing.xl),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text("Don't have an account?",
-                  style: theme.textTheme.bodyMedium),
+              Text("Don't have an account?", style: AppTypography.body),
               TextButton(
-                onPressed: () =>
-                    Navigator.pushReplacementNamed(context, '/register'),
-                child: const Text('Register'),
+                onPressed: () => Navigator.pushReplacementNamed(context, '/register'),
+                child: Text('Register', style: AppTypography.label),
               ),
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: AppSpacing.lg),
         ],
       ),
     );
   }
 }
 
+class _OrDivider extends StatelessWidget {
+  const _OrDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        const Expanded(child: AppDivider()),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+          child: Text('or', style: AppTypography.labelMuted),
+        ),
+        const Expanded(child: AppDivider()),
+      ],
+    );
+  }
+}

@@ -4,6 +4,14 @@ import 'package:flutter/services.dart';
 import '../../../core/entities/enums.dart';
 import '../../../core/entities/exercise-entity.dart';
 import '../../../infra/repository-locator.dart';
+import '../../../shared/design/atoms/app-badge.dart';
+import '../../../shared/design/atoms/app-button.dart';
+import '../../../shared/design/atoms/app-chip.dart';
+import '../../../shared/design/atoms/app-divider.dart';
+import '../../../shared/design/molecules/app-section-header.dart';
+import '../../../shared/design/tokens/app-colors.dart';
+import '../../../shared/design/tokens/app-spacing.dart';
+import '../../../shared/design/tokens/app-typography.dart';
 import '../../../shared/utils/week-helper.dart';
 import '../model/workout-models.dart';
 import '../view-model/workout-builder-view-model.dart';
@@ -62,104 +70,96 @@ class _WorkoutBuilderScreenState extends State<WorkoutBuilderScreen> {
       builder: (context, _) {
         if (_vm.isLoading) {
           return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
+            body: Center(child: CircularProgressIndicator(color: AppColors.ink)),
           );
         }
 
         return Scaffold(
+          backgroundColor: AppColors.paper,
           appBar: AppBar(
-            title: Text(widget.editPlanId != null ? 'Edit Plan' : 'New Plan'),
+            backgroundColor: AppColors.paper,
+            surfaceTintColor: Colors.transparent,
+            scrolledUnderElevation: 0,
+            title: Text(
+              widget.editPlanId != null ? 'EDIT PLAN' : 'NEW PLAN',
+              style: AppTypography.sectionHeader.copyWith(fontSize: 13, letterSpacing: 2),
+            ),
             actions: [
               if (_vm.durationEstimate.isNotEmpty)
                 Center(
                   child: Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: Chip(
-                      avatar: const Icon(Icons.timer_outlined, size: 16),
-                      label: Text(_vm.durationEstimate),
-                      visualDensity: VisualDensity.compact,
-                    ),
+                    padding: const EdgeInsets.only(right: AppSpacing.sm),
+                    child: AppBadge(_vm.durationEstimate),
                   ),
                 ),
               Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: FilledButton(
+                padding: const EdgeInsets.only(right: AppSpacing.sm),
+                child: AppButton.primary(
+                  'Save',
+                  isLoading: _vm.isSaving,
                   onPressed: _vm.isValid && !_vm.isSaving ? _handleSave : null,
-                  child: _vm.isSaving
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Save'),
                 ),
               ),
             ],
+            bottom: const PreferredSize(
+              preferredSize: Size.fromHeight(1),
+              child: Divider(height: 1, thickness: 1, color: AppColors.paperBorder),
+            ),
           ),
           body: Form(
             key: _formKey,
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.base, AppSpacing.sm, AppSpacing.base, 120,
+              ),
               children: [
                 if (_vm.error != null)
-                  _ErrorBanner(
-                    message: _vm.error!,
-                    onDismiss: _vm.clearError,
-                  ),
+                  _ErrorBanner(message: _vm.error!, onDismiss: _vm.clearError),
 
-                // Title
                 TextFormField(
                   controller: _titleController,
                   decoration: const InputDecoration(
                     labelText: 'Plan title *',
                     hintText: 'e.g. Push Day, Full Body HIIT',
-                    border: OutlineInputBorder(),
                   ),
+                  style: AppTypography.body,
                   textCapitalization: TextCapitalization.sentences,
                   validator: (v) =>
                       (v?.trim().isEmpty ?? true) ? 'Title is required' : null,
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: AppSpacing.md),
 
-                // Description
                 TextFormField(
                   controller: _descController,
                   decoration: const InputDecoration(
                     labelText: 'Description (optional)',
-                    border: OutlineInputBorder(),
                   ),
+                  style: AppTypography.body,
                   maxLines: 2,
                   textCapitalization: TextCapitalization.sentences,
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: AppSpacing.lg),
 
-                // Session size
                 _SessionSizeSelector(vm: _vm),
-                const SizedBox(height: 20),
+                const SizedBox(height: AppSpacing.lg),
 
-                // Weekday schedule
                 _WeekdaySelector(vm: _vm),
-                const SizedBox(height: 20),
+                const SizedBox(height: AppSpacing.lg),
 
-                // Exercises header
                 Row(
                   children: [
                     Expanded(
-                      child: Text(
-                        'Exercises',
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w600),
-                      ),
+                      child: AppSectionHeader('Exercises', padding: EdgeInsets.zero),
                     ),
-                    TextButton.icon(
+                    const SizedBox(width: AppSpacing.sm),
+                    AppButton.ghost(
+                      'Add',
+                      icon: Icons.add,
                       onPressed: _addExercise,
-                      icon: const Icon(Icons.add, size: 18),
-                      label: const Text('Add'),
                     ),
                   ],
                 ),
+                const SizedBox(height: AppSpacing.sm),
 
                 if (_vm.entries.isEmpty)
                   _EmptyExercises(onAdd: _addExercise)
@@ -208,7 +208,6 @@ class _WorkoutBuilderScreenState extends State<WorkoutBuilderScreen> {
           content: Text(widget.editPlanId != null
               ? 'Plan updated successfully'
               : 'Plan created successfully'),
-          behavior: SnackBarBehavior.floating,
         ),
       );
       Navigator.pop(context, true);
@@ -224,34 +223,30 @@ class _SessionSizeSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tt = Theme.of(context).textTheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Session size',
-            style: tt.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
+        Text('Session size', style: AppTypography.heading.copyWith(fontSize: 14)),
         const SizedBox(height: 4),
         Text(
           'Determines how much screen time this workout earns.',
-          style: tt.bodySmall
-              ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+          style: AppTypography.labelMuted,
         ),
-        const SizedBox(height: 10),
-        SegmentedButton<SessionSize>(
-          segments: const [
-            ButtonSegment(
-              value: SessionSize.small,
-              icon: Icon(Icons.fitness_center, size: 16),
-              label: Text('Small'),
+        const SizedBox(height: AppSpacing.sm),
+        Row(
+          children: [
+            AppSelectChip(
+              label: 'Small',
+              selected: vm.sessionSize == SessionSize.small,
+              onTap: () => vm.setSessionSize(SessionSize.small),
             ),
-            ButtonSegment(
-              value: SessionSize.big,
-              icon: Icon(Icons.local_fire_department, size: 16),
-              label: Text('Big  ×2'),
+            const SizedBox(width: AppSpacing.sm),
+            AppSelectChip(
+              label: 'Big  x2',
+              selected: vm.sessionSize == SessionSize.big,
+              onTap: () => vm.setSessionSize(SessionSize.big),
             ),
           ],
-          selected: {vm.sessionSize},
-          onSelectionChanged: (s) => vm.setSessionSize(s.first),
         ),
       ],
     );
@@ -269,34 +264,24 @@ class _WeekdaySelector extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Schedule',
-          style: Theme.of(context)
-              .textTheme
-              .titleMedium
-              ?.copyWith(fontWeight: FontWeight.w600),
-        ),
-        const SizedBox(height: 8),
+        Text('Schedule', style: AppTypography.heading.copyWith(fontSize: 14)),
+        const SizedBox(height: 6),
         if (vm.scheduledDays.isNotEmpty)
           Padding(
-            padding: const EdgeInsets.only(bottom: 6),
+            padding: const EdgeInsets.only(bottom: 8),
             child: Text(
               WeekHelper.formatScheduledDays(vm.scheduledDays),
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
+              style: AppTypography.labelMuted,
             ),
           ),
         Wrap(
           spacing: 6,
           children: List.generate(7, (i) {
             final day = i + 1;
-            final selected = vm.scheduledDays.contains(day);
-            return FilterChip(
-              label: Text(WeekHelper.shortDayLabel(day)),
-              selected: selected,
-              onSelected: (_) => vm.toggleDay(day),
-              visualDensity: VisualDensity.compact,
+            return AppDayChip(
+              label: WeekHelper.shortDayLabel(day),
+              selected: vm.scheduledDays.contains(day),
+              onTap: () => vm.toggleDay(day),
             );
           }),
         ),
@@ -321,44 +306,49 @@ class _ExerciseEntryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final tt = Theme.of(context).textTheme;
-
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 5),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.paper,
+        border: Border.all(color: AppColors.paperBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.md, AppSpacing.md, AppSpacing.sm, AppSpacing.sm,
+            ),
+            child: Row(
               children: [
                 ReorderableDragStartListener(
                   index: index,
-                  child: Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: Icon(Icons.drag_handle, color: cs.outlineVariant),
+                  child: const Padding(
+                    padding: EdgeInsets.only(right: AppSpacing.sm),
+                    child: Icon(Icons.drag_handle, color: AppColors.inkMuted, size: 20),
                   ),
                 ),
                 Expanded(
                   child: Text(
                     entry.exercise.name,
-                    style: tt.titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w600),
+                    style: AppTypography.body.copyWith(fontWeight: FontWeight.w600),
                   ),
                 ),
                 IconButton(
-                  icon: Icon(Icons.close, color: cs.error),
-                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(Icons.close, size: 18, color: AppColors.error),
                   onPressed: () => vm.removeExercise(index),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                 ),
               ],
             ),
-            const SizedBox(height: 10),
-            _EntryFields(index: index, entry: entry, vm: vm),
-          ],
-        ),
+          ),
+          const AppDivider(),
+          Padding(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: _EntryFields(index: index, entry: entry, vm: vm),
+          ),
+        ],
       ),
     );
   }
@@ -500,11 +490,11 @@ class _NumberFieldState extends State<_NumberField> {
         controller: _ctrl,
         decoration: InputDecoration(
           labelText: widget.label,
-          border: const OutlineInputBorder(),
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          labelStyle: AppTypography.labelMuted,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           isDense: true,
         ),
+        style: AppTypography.mono,
         keyboardType: TextInputType.number,
         inputFormatters: [FilteringTextInputFormatter.digitsOnly],
         onChanged: (s) {
@@ -558,11 +548,11 @@ class _DecimalFieldState extends State<_DecimalField> {
         controller: _ctrl,
         decoration: InputDecoration(
           labelText: widget.label,
-          border: const OutlineInputBorder(),
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          labelStyle: AppTypography.labelMuted,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           isDense: true,
         ),
+        style: AppTypography.mono,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
         inputFormatters: [
           FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
@@ -576,7 +566,7 @@ class _DecimalFieldState extends State<_DecimalField> {
   }
 }
 
-// ── Misc ──────────────────────────────────────────────────────────────────────
+// ── Empty / error ─────────────────────────────────────────────────────────────
 
 class _EmptyExercises extends StatelessWidget {
   final VoidCallback onAdd;
@@ -584,20 +574,22 @@ class _EmptyExercises extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(AppSpacing.xl),
       decoration: BoxDecoration(
-        border: Border.all(color: cs.outlineVariant),
-        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.paperBorder),
       ),
       child: Column(
         children: [
-          Icon(Icons.add_circle_outline, size: 48, color: cs.outlineVariant),
-          const SizedBox(height: 12),
-          const Text('No exercises added yet', textAlign: TextAlign.center),
-          const SizedBox(height: 12),
-          OutlinedButton(onPressed: onAdd, child: const Text('Add Exercise')),
+          const Icon(Icons.add_circle_outline, size: 40, color: AppColors.inkMuted),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            'No exercises added yet',
+            style: AppTypography.labelMuted,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          AppButton.ghost('Add Exercise', onPressed: onAdd),
         ],
       ),
     );
@@ -611,26 +603,25 @@ class _ErrorBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      margin: const EdgeInsets.only(bottom: AppSpacing.md),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.base, vertical: 10,
+      ),
       decoration: BoxDecoration(
-        color: cs.errorContainer,
-        borderRadius: BorderRadius.circular(10),
+        color: AppColors.errorMuted,
+        border: Border.all(color: AppColors.error),
       ),
       child: Row(
         children: [
-          Icon(Icons.error_outline, color: cs.onErrorContainer),
+          const Icon(Icons.error_outline, color: AppColors.error, size: 16),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(message,
-                style: TextStyle(color: cs.onErrorContainer)),
+            child: Text(message, style: AppTypography.body.copyWith(color: AppColors.error)),
           ),
-          IconButton(
-            icon: const Icon(Icons.close),
-            color: cs.onErrorContainer,
-            onPressed: onDismiss,
+          GestureDetector(
+            onTap: onDismiss,
+            child: const Icon(Icons.close, color: AppColors.error, size: 16),
           ),
         ],
       ),

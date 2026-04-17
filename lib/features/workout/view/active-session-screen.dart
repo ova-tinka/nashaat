@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../../../core/entities/workout-plan-entity.dart';
 import '../../../infra/repository-locator.dart';
+import '../../../shared/design/atoms/app-button.dart';
+import '../../../shared/design/atoms/app-divider.dart';
+import '../../../shared/design/tokens/app-colors.dart';
+import '../../../shared/design/tokens/app-spacing.dart';
+import '../../../shared/design/tokens/app-typography.dart';
 import '../model/workout-models.dart';
 import '../view-model/active-session-view-model.dart';
 
@@ -47,7 +52,7 @@ class _ActiveSessionScreenState extends State<ActiveSessionScreen> {
       onPopInvokedWithResult: (didPop, _) async {
         if (!didPop) {
           final ok = await _confirmExit();
-          if (ok && mounted) Navigator.pop(context);
+          if (ok && context.mounted) Navigator.pop(context);
         }
       },
       child: ListenableBuilder(
@@ -57,27 +62,41 @@ class _ActiveSessionScreenState extends State<ActiveSessionScreen> {
             return _CompletedView(vm: _vm, planTitle: widget.plan.title);
           }
           return Scaffold(
+            backgroundColor: AppColors.paper,
             appBar: AppBar(
-              title: Text(widget.plan.title),
+              backgroundColor: AppColors.paper,
+              surfaceTintColor: Colors.transparent,
+              scrolledUnderElevation: 0,
+              title: Text(
+                widget.plan.title.toUpperCase(),
+                style: AppTypography.sectionHeader.copyWith(fontSize: 13, letterSpacing: 2),
+              ),
               leading: IconButton(
-                icon: const Icon(Icons.close),
+                icon: const Icon(Icons.close, color: AppColors.ink),
                 onPressed: () async {
-                  if (await _confirmExit() && mounted) Navigator.pop(context);
+                  if (await _confirmExit() && context.mounted) Navigator.pop(context);
                 },
               ),
               actions: [
                 if (widget.mode == SessionMode.guided)
                   IconButton(
-                    icon: Icon(_vm.status == ActiveSessionStatus.paused
-                        ? Icons.play_arrow
-                        : Icons.pause),
+                    icon: Icon(
+                      _vm.status == ActiveSessionStatus.paused
+                          ? Icons.play_arrow
+                          : Icons.pause,
+                      color: AppColors.ink,
+                    ),
                     onPressed: _vm.pauseOrResume,
                   ),
-                TextButton(
+                AppButton.ghost(
+                  'Done',
                   onPressed: _vm.markAllComplete,
-                  child: const Text('Done'),
                 ),
               ],
+              bottom: const PreferredSize(
+                preferredSize: Size.fromHeight(1),
+                child: AppDivider(),
+              ),
             ),
             body: widget.mode == SessionMode.guided
                 ? _GuidedBody(vm: _vm)
@@ -93,17 +112,21 @@ class _ActiveSessionScreenState extends State<ActiveSessionScreen> {
     final result = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Quit Workout?'),
-        content: const Text(
-            'Your progress will be lost. Are you sure you want to quit?'),
+        backgroundColor: AppColors.paper,
+        shape: const RoundedRectangleBorder(),
+        title: Text('Quit Workout?', style: AppTypography.heading),
+        content: Text(
+          'Your progress will be lost. Are you sure?',
+          style: AppTypography.body,
+        ),
         actions: [
-          TextButton(
+          AppButton.ghost(
+            'Keep Going',
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Keep Going'),
           ),
-          FilledButton(
+          AppButton.destructive(
+            'Quit',
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Quit'),
           ),
         ],
       ),
@@ -120,19 +143,18 @@ class _GuidedBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final tt = Theme.of(context).textTheme;
     final ex = vm.currentExercise;
 
     if (ex == null) return const Center(child: Text('Session complete'));
 
     return Column(
       children: [
-        // Progress bar
         LinearProgressIndicator(
           value: vm.overallProgress,
           minHeight: 4,
-          backgroundColor: cs.surfaceContainerHighest,
+          backgroundColor: AppColors.paperBorder,
+          color: AppColors.ink,
+          borderRadius: BorderRadius.zero,
         ),
 
         if (vm.status == ActiveSessionStatus.resting)
@@ -140,52 +162,47 @@ class _GuidedBody extends StatelessWidget {
         else
           Expanded(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.all(AppSpacing.xl),
               child: Column(
                 children: [
-                  const SizedBox(height: 16),
-                  // Exercise name
+                  const SizedBox(height: AppSpacing.base),
                   Text(
                     ex.exerciseName,
-                    style: tt.headlineSmall
-                        ?.copyWith(fontWeight: FontWeight.w700),
+                    style: AppTypography.title.copyWith(fontSize: 24),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 4),
                   Text(
                     'Set ${vm.setIndex + 1} of ${vm.totalSetsForCurrent}',
-                    style: tt.bodyLarge?.copyWith(color: cs.onSurfaceVariant),
+                    style: AppTypography.labelMuted,
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: AppSpacing.xl),
 
-                  // Set info
                   _SetInfo(exercise: ex),
 
-                  const SizedBox(height: 40),
+                  const SizedBox(height: AppSpacing.xl),
 
-                  // Elapsed time
                   Text(
                     _formatTime(vm.elapsedSeconds),
-                    style: tt.displaySmall?.copyWith(
+                    style: AppTypography.monoStrong.copyWith(
+                      fontSize: 48,
                       fontWeight: FontWeight.w300,
-                      color: cs.onSurfaceVariant,
+                      color: AppColors.inkMuted,
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Text('elapsed', style: tt.bodySmall),
-                  const SizedBox(height: 40),
+                  Text('elapsed', style: AppTypography.labelMuted),
+                  const SizedBox(height: AppSpacing.xl),
 
-                  FilledButton(
+                  AppButton.primary(
+                    'Complete Set',
                     onPressed: vm.completeCurrentSet,
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size(200, 52),
-                    ),
-                    child: const Text('Complete Set'),
+                    width: 220,
                   ),
-                  const SizedBox(height: 12),
-                  TextButton(
+                  const SizedBox(height: AppSpacing.md),
+                  AppButton.ghost(
+                    'Skip',
                     onPressed: vm.skipCurrentSet,
-                    child: const Text('Skip'),
                   ),
                 ],
               ),
@@ -208,27 +225,21 @@ class _RestOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final tt = Theme.of(context).textTheme;
-
     return Expanded(
       child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.self_improvement, size: 72, color: cs.primary),
-            const SizedBox(height: 16),
-            Text('Rest', style: tt.headlineMedium),
-            const SizedBox(height: 8),
+            const Icon(Icons.self_improvement, size: 64, color: AppColors.inkMuted),
+            const SizedBox(height: AppSpacing.base),
+            Text('Rest', style: AppTypography.title),
+            const SizedBox(height: AppSpacing.sm),
             Text(
               '${vm.restCountdown}s',
-              style: tt.displaySmall?.copyWith(fontWeight: FontWeight.w700),
+              style: AppTypography.monoStrong.copyWith(fontSize: 48),
             ),
-            const SizedBox(height: 24),
-            OutlinedButton(
-              onPressed: vm.completeCurrentSet,
-              child: const Text('Skip Rest'),
-            ),
+            const SizedBox(height: AppSpacing.lg),
+            AppButton.ghost('Skip Rest', onPressed: vm.completeCurrentSet),
           ],
         ),
       ),
@@ -242,9 +253,6 @@ class _SetInfo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tt = Theme.of(context).textTheme;
-    final cs = Theme.of(context).colorScheme;
-
     final parts = <String>[];
     if (exercise.reps != null) parts.add('${exercise.reps} reps');
     if (exercise.durationSeconds != null) {
@@ -260,17 +268,11 @@ class _SetInfo extends StatelessWidget {
     if (parts.isEmpty) return const SizedBox.shrink();
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      decoration: BoxDecoration(
-        color: cs.primaryContainer,
-        borderRadius: BorderRadius.circular(16),
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl, vertical: AppSpacing.base),
+      color: AppColors.paperAlt,
       child: Text(
         parts.join('  ·  '),
-        style: tt.titleLarge?.copyWith(
-          color: cs.onPrimaryContainer,
-          fontWeight: FontWeight.w600,
-        ),
+        style: AppTypography.monoStrong.copyWith(fontSize: 20),
         textAlign: TextAlign.center,
       ),
     );
@@ -292,12 +294,13 @@ class _ManualBody extends StatelessWidget {
         LinearProgressIndicator(
           value: vm.overallProgress,
           minHeight: 4,
-          backgroundColor:
-              Theme.of(context).colorScheme.surfaceContainerHighest,
+          backgroundColor: AppColors.paperBorder,
+          color: AppColors.ink,
+          borderRadius: BorderRadius.zero,
         ),
         Expanded(
           child: ListView.builder(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(AppSpacing.md),
             itemCount: plan.exercises.length,
             itemBuilder: (context, i) {
               final ex = plan.exercises[i];
@@ -319,13 +322,11 @@ class _ManualBody extends StatelessWidget {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.all(16),
-          child: FilledButton(
+          padding: const EdgeInsets.all(AppSpacing.base),
+          child: AppButton.primary(
+            'Finish Session',
             onPressed: vm.overallProgress > 0 ? vm.markAllComplete : null,
-            style: FilledButton.styleFrom(
-              minimumSize: const Size.fromHeight(52),
-            ),
-            child: const Text('Finish Session'),
+            width: double.infinity,
           ),
         ),
       ],
@@ -350,77 +351,72 @@ class _ManualExerciseTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final tt = Theme.of(context).textTheme;
-
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 5),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      color: isComplete ? cs.primaryContainer : null,
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  isComplete
-                      ? Icons.check_circle
-                      : Icons.radio_button_unchecked,
-                  color: isComplete ? cs.onPrimaryContainer : cs.outlineVariant,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    exercise.exerciseName,
-                    style: tt.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      decoration:
-                          isComplete ? TextDecoration.lineThrough : null,
-                      color: isComplete ? cs.onPrimaryContainer : null,
-                    ),
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      decoration: BoxDecoration(
+        color: isComplete ? AppColors.paperAlt : AppColors.paper,
+        border: Border.all(
+          color: isComplete ? AppColors.ink : AppColors.paperBorder,
+          width: isComplete ? 1.5 : 1,
+        ),
+      ),
+      padding: const EdgeInsets.all(AppSpacing.base),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                isComplete ? Icons.check_circle : Icons.radio_button_unchecked,
+                color: isComplete ? AppColors.ink : AppColors.inkMuted,
+                size: 20,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  exercise.exerciseName,
+                  style: AppTypography.body.copyWith(
+                    fontWeight: FontWeight.w600,
+                    decoration: isComplete ? TextDecoration.lineThrough : null,
+                    color: isComplete ? AppColors.inkMuted : AppColors.ink,
                   ),
                 ),
-                if (!isComplete)
-                  TextButton(
-                    onPressed: onMarkDone,
-                    child: const Text('Done'),
-                  ),
-              ],
-            ),
-            if (!isComplete) ...[
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 6,
-                children: List.generate(exercise.sets, (i) {
-                  final done = i < setCompletions.length && setCompletions[i];
-                  return GestureDetector(
-                    onTap: () => onToggleSet(i),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: done ? cs.primary : cs.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Center(
-                        child: Text(
-                          'S${i + 1}',
-                          style: tt.labelSmall?.copyWith(
-                            color: done ? cs.onPrimary : cs.onSurfaceVariant,
-                            fontWeight: FontWeight.w600,
-                          ),
+              ),
+              if (!isComplete)
+                AppButton.ghost(
+                  'Done',
+                  onPressed: onMarkDone,
+                ),
+            ],
+          ),
+          if (!isComplete) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Wrap(
+              spacing: 6,
+              children: List.generate(exercise.sets, (i) {
+                final done = i < setCompletions.length && setCompletions[i];
+                return GestureDetector(
+                  onTap: () => onToggleSet(i),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    width: 36,
+                    height: 36,
+                    color: done ? AppColors.ink : AppColors.paperAlt,
+                    child: Center(
+                      child: Text(
+                        'S${i + 1}',
+                        style: AppTypography.monoStrong.copyWith(
+                          fontSize: 11,
+                          color: done ? AppColors.paper : AppColors.inkMuted,
                         ),
                       ),
                     ),
-                  );
-                }),
-              ),
-            ],
+                  ),
+                );
+              }),
+            ),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -457,33 +453,30 @@ class _CompletedViewState extends State<_CompletedView> {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final tt = Theme.of(context).textTheme;
     final vm = widget.vm;
 
     return Scaffold(
+      backgroundColor: AppColors.paper,
       body: Center(
         child: Padding(
-          padding: const EdgeInsets.all(32),
+          padding: const EdgeInsets.all(AppSpacing.xl),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                Icons.emoji_events,
-                size: 80,
-                color: cs.primary,
+              Container(
+                width: 80,
+                height: 80,
+                color: AppColors.acid,
+                child: const Icon(Icons.emoji_events, size: 40, color: AppColors.ink),
               ),
-              const SizedBox(height: 20),
-              Text(
-                'Workout Complete!',
-                style: tt.headlineMedium?.copyWith(fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpacing.lg),
+              Text('Workout Complete!', style: AppTypography.title),
+              const SizedBox(height: AppSpacing.sm),
               Text(
                 widget.planTitle,
-                style: tt.bodyLarge?.copyWith(color: cs.onSurfaceVariant),
+                style: AppTypography.labelMuted,
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: AppSpacing.xl),
               if (!_saved)
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -491,43 +484,41 @@ class _CompletedViewState extends State<_CompletedView> {
                     const SizedBox(
                       width: 16,
                       height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.ink),
                     ),
                     const SizedBox(width: 8),
-                    const Text('Saving session…'),
+                    Text('Saving session...', style: AppTypography.body),
                   ],
                 )
               else ...[
-                _StatTile(
+                _StatRow(
                   icon: Icons.timer_outlined,
                   label: 'Duration',
                   value: _formatMinutes(
                       (vm.elapsedSeconds / 60).ceil().clamp(1, 9999)),
                 ),
-                const SizedBox(height: 8),
-                _StatTile(
+                const SizedBox(height: AppSpacing.sm),
+                _StatRow(
                   icon: Icons.phone_android,
                   label: 'Earned',
                   value: vm.earnedMinutes > 0
                       ? '+${_formatMinutes(vm.earnedMinutes)} screen time'
-                      : 'Configure in Settings → Screen Time',
+                      : 'Configure in Settings',
                 ),
                 if (vm.error != null) ...[
-                  const SizedBox(height: 12),
+                  const SizedBox(height: AppSpacing.md),
                   Text(
                     vm.error!,
-                    style: TextStyle(color: cs.error),
+                    style: AppTypography.body.copyWith(color: AppColors.error),
                     textAlign: TextAlign.center,
                   ),
                 ],
               ],
-              const SizedBox(height: 40),
-              FilledButton(
+              const SizedBox(height: AppSpacing.xxl),
+              AppButton.primary(
+                'Back to Workouts',
                 onPressed: () => Navigator.pop(context),
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size(200, 48),
-                ),
-                child: const Text('Back to Workouts'),
+                width: 220,
               ),
             ],
           ),
@@ -537,49 +528,32 @@ class _CompletedViewState extends State<_CompletedView> {
   }
 
   String _formatMinutes(int minutes) {
-    if (minutes < 60) return '${minutes} min';
+    if (minutes < 60) return '$minutes min';
     return '${minutes ~/ 60}h ${minutes % 60}m';
   }
 }
 
-class _StatTile extends StatelessWidget {
+class _StatRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
-  const _StatTile(
-      {required this.icon, required this.label, required this.value});
+  const _StatRow({required this.icon, required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(12),
-      ),
+      padding: const EdgeInsets.all(AppSpacing.base),
+      color: AppColors.paperAlt,
       child: Row(
         children: [
-          Icon(icon, color: cs.primary),
-          const SizedBox(width: 12),
+          Icon(icon, color: AppColors.ink, size: 20),
+          const SizedBox(width: AppSpacing.md),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                label,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(color: cs.onSurfaceVariant),
-              ),
-              Text(
-                value,
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w600),
-              ),
+              Text(label, style: AppTypography.labelMuted),
+              Text(value, style: AppTypography.body.copyWith(fontWeight: FontWeight.w600)),
             ],
           ),
         ],

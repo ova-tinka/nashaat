@@ -1,16 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../core/entities/enums.dart';
 import '../../../core/entities/workout-plan-entity.dart';
 import '../../../infra/repository-locator.dart';
+import '../../../shared/design/atoms/app-badge.dart';
+import '../../../shared/design/atoms/app-button.dart';
+import '../../../shared/design/atoms/app-chip.dart';
+import '../../../shared/design/atoms/app-divider.dart';
+import '../../../shared/design/molecules/app-section-header.dart';
+import '../../../shared/design/tokens/app-colors.dart';
+import '../../../shared/design/tokens/app-spacing.dart';
+import '../../../shared/design/tokens/app-typography.dart';
 import '../../../shared/logger.dart';
+import '../../../core/entities/enums.dart';
 import '../model/workout-models.dart';
 
 /// Entry point for AI workout generation.
-///
-/// Collects user preferences, calls the AI service boundary, and returns
-/// a [WorkoutPlanEntity] via Navigator.pop for the caller to save.
 class AiGenerationScreen extends StatefulWidget {
   const AiGenerationScreen({super.key});
 
@@ -34,131 +39,119 @@ class _AiGenerationScreenState extends State<AiGenerationScreen> {
   String? _error;
 
   static const _trainingStyles = [
-    'Strength',
-    'Cardio',
-    'HIIT',
-    'Yoga',
-    'Calisthenics',
-    'Mixed',
+    'Strength', 'Cardio', 'HIIT', 'Yoga', 'Calisthenics', 'Mixed',
   ];
 
   static const _intensities = ['Low', 'Medium', 'High'];
-
   static const _experiences = ['beginner', 'intermediate', 'advanced'];
 
   static const _muscleGroups = [
-    'Chest',
-    'Back',
-    'Shoulders',
-    'Biceps',
-    'Triceps',
-    'Legs',
-    'Core',
-    'Full Body',
+    'Chest', 'Back', 'Shoulders', 'Biceps', 'Triceps', 'Legs', 'Core', 'Full Body',
   ];
 
   static const _equipmentOptions = [
-    'None (bodyweight)',
-    'Dumbbells',
-    'Barbell',
-    'Resistance Bands',
-    'Pull-up Bar',
-    'Gym Machines',
+    'None (bodyweight)', 'Dumbbells', 'Barbell',
+    'Resistance Bands', 'Pull-up Bar', 'Gym Machines',
   ];
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
     return Scaffold(
+      backgroundColor: AppColors.paper,
       appBar: AppBar(
-        title: const Text('Generate with AI'),
+        backgroundColor: AppColors.paper,
+        surfaceTintColor: Colors.transparent,
+        scrolledUnderElevation: 0,
+        title: Text(
+          'AI GENERATION',
+          style: AppTypography.sectionHeader.copyWith(fontSize: 13, letterSpacing: 2),
+        ),
         actions: [
-          Chip(
-            avatar: Icon(Icons.auto_awesome, size: 16, color: cs.onTertiaryContainer),
-            label: const Text('VIP'),
-            backgroundColor: cs.tertiaryContainer,
-            labelStyle: TextStyle(
-              color: cs.onTertiaryContainer,
-              fontWeight: FontWeight.w700,
-            ),
+          Padding(
+            padding: const EdgeInsets.only(right: AppSpacing.base),
+            child: Center(child: AppBadge.acid('VIP')),
           ),
-          const SizedBox(width: 12),
         ],
+        bottom: const PreferredSize(
+          preferredSize: Size.fromHeight(1),
+          child: AppDivider(),
+        ),
       ),
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.base, AppSpacing.sm, AppSpacing.base, 120,
+          ),
           children: [
             if (_error != null)
               Container(
-                padding: const EdgeInsets.all(12),
-                margin: const EdgeInsets.only(bottom: 12),
-                decoration: BoxDecoration(
-                  color: cs.errorContainer,
-                  borderRadius: BorderRadius.circular(10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.base, vertical: 10,
                 ),
-                child: Text(_error!,
-                    style: TextStyle(color: cs.onErrorContainer)),
+                margin: const EdgeInsets.only(bottom: AppSpacing.md),
+                decoration: BoxDecoration(
+                  color: AppColors.errorMuted,
+                  border: Border.all(color: AppColors.error),
+                ),
+                child: Text(_error!, style: AppTypography.body.copyWith(color: AppColors.error)),
               ),
 
-            _SectionTitle(title: 'Your Goals'),
+            AppSectionHeader('Your Goals', padding: const EdgeInsets.only(top: 8, bottom: 8)),
             TextFormField(
               decoration: const InputDecoration(
                 labelText: 'What do you want to achieve?',
                 hintText: 'e.g. Build muscle, improve endurance, lose weight',
-                border: OutlineInputBorder(),
               ),
+              style: AppTypography.body,
               textCapitalization: TextCapitalization.sentences,
               maxLines: 2,
               validator: (v) =>
                   (v?.trim().isEmpty ?? true) ? 'Please describe your goals' : null,
               onChanged: (v) => _goals = v,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpacing.base),
 
-            _SectionTitle(title: 'Training Style'),
+            AppSectionHeader('Training Style', padding: const EdgeInsets.only(top: 8, bottom: 8)),
             Wrap(
-              spacing: 8,
+              spacing: 6,
+              runSpacing: 6,
               children: _trainingStyles.map((s) {
-                final selected = _trainingStyle == s;
-                return FilterChip(
-                  label: Text(s),
-                  selected: selected,
-                  onSelected: (_) => setState(() => _trainingStyle = s),
+                return AppSelectChip(
+                  label: s,
+                  selected: _trainingStyle == s,
+                  onTap: () => setState(() => _trainingStyle = s),
                 );
               }).toList(),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpacing.base),
 
-            _SectionTitle(title: 'Focus Areas (optional)'),
+            AppSectionHeader('Focus Areas (optional)', padding: const EdgeInsets.only(top: 8, bottom: 8)),
             Wrap(
-              spacing: 8,
-              runSpacing: 4,
+              spacing: 6,
+              runSpacing: 6,
               children: _muscleGroups.map((g) {
-                final selected = _focusAreas.contains(g);
-                return FilterChip(
-                  label: Text(g),
-                  selected: selected,
-                  onSelected: (v) => setState(() {
-                    if (v) {
-                      _focusAreas.add(g);
-                    } else {
+                return AppSelectChip(
+                  label: g,
+                  selected: _focusAreas.contains(g),
+                  onTap: () => setState(() {
+                    if (_focusAreas.contains(g)) {
                       _focusAreas.remove(g);
+                    } else {
+                      _focusAreas.add(g);
                     }
                   }),
                 );
               }).toList(),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpacing.base),
 
-            _SectionTitle(title: 'Session Settings'),
+            AppSectionHeader('Session Settings', padding: const EdgeInsets.only(top: 8, bottom: 8)),
             Row(
               children: [
                 Expanded(
                   child: _StepperField(
-                    label: 'Minutes / session',
+                    label: 'Min / session',
                     value: _minutesPerSession,
                     min: 15,
                     max: 120,
@@ -166,7 +159,7 @@ class _AiGenerationScreenState extends State<AiGenerationScreen> {
                     onChanged: (v) => setState(() => _minutesPerSession = v),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: _StepperField(
                     label: 'Sessions / week',
@@ -179,75 +172,69 @@ class _AiGenerationScreenState extends State<AiGenerationScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpacing.base),
 
-            _SectionTitle(title: 'Available Equipment'),
+            AppSectionHeader('Available Equipment', padding: const EdgeInsets.only(top: 8, bottom: 8)),
             Wrap(
-              spacing: 8,
-              runSpacing: 4,
+              spacing: 6,
+              runSpacing: 6,
               children: _equipmentOptions.map((e) {
-                final selected = _equipment.contains(e);
-                return FilterChip(
-                  label: Text(e),
-                  selected: selected,
-                  onSelected: (v) => setState(() {
-                    if (v) {
-                      _equipment.add(e);
-                    } else {
+                return AppSelectChip(
+                  label: e,
+                  selected: _equipment.contains(e),
+                  onTap: () => setState(() {
+                    if (_equipment.contains(e)) {
                       _equipment.remove(e);
+                    } else {
+                      _equipment.add(e);
                     }
                   }),
                 );
               }).toList(),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpacing.base),
 
-            _SectionTitle(title: 'Intensity'),
-            SegmentedButton<String>(
-              segments: _intensities
-                  .map((i) => ButtonSegment(value: i, label: Text(i)))
-                  .toList(),
-              selected: {_intensity},
-              onSelectionChanged: (s) =>
-                  setState(() => _intensity = s.first),
+            AppSectionHeader('Intensity', padding: const EdgeInsets.only(top: 8, bottom: 8)),
+            Row(
+              children: _intensities.map((i) {
+                return Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: AppSelectChip(
+                    label: i,
+                    selected: _intensity == i,
+                    onTap: () => setState(() => _intensity = i),
+                  ),
+                );
+              }).toList(),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpacing.base),
 
-            _SectionTitle(title: 'Experience Level'),
-            SegmentedButton<String>(
-              segments: _experiences
-                  .map((e) => ButtonSegment(
-                        value: e,
-                        label: Text(
-                          e[0].toUpperCase() + e.substring(1),
-                        ),
-                      ))
-                  .toList(),
-              selected: {_experience},
-              onSelectionChanged: (s) =>
-                  setState(() => _experience = s.first),
+            AppSectionHeader('Experience Level', padding: const EdgeInsets.only(top: 8, bottom: 8)),
+            Row(
+              children: _experiences.map((e) {
+                return Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: AppSelectChip(
+                    label: e[0].toUpperCase() + e.substring(1),
+                    selected: _experience == e,
+                    onTap: () => setState(() => _experience = e),
+                  ),
+                );
+              }).toList(),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: AppSpacing.xl),
           ],
         ),
       ),
       bottomNavigationBar: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: FilledButton.icon(
+          padding: const EdgeInsets.all(AppSpacing.base),
+          child: AppButton.acid(
+            _isGenerating ? 'Generating...' : 'Generate Workout Plan',
+            isLoading: _isGenerating,
             onPressed: _isGenerating ? null : _generate,
-            icon: _isGenerating
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.auto_awesome),
-            label: Text(
-                _isGenerating ? 'Generating…' : 'Generate Workout Plan'),
-            style: FilledButton.styleFrom(
-              minimumSize: const Size.fromHeight(52),
-            ),
+            width: double.infinity,
+            icon: _isGenerating ? null : Icons.auto_awesome,
           ),
         ),
       ),
@@ -275,8 +262,6 @@ class _AiGenerationScreenState extends State<AiGenerationScreen> {
         experienceLevel: _experience,
       );
 
-      // AI service boundary — generates a plan from input.
-      // When a real AI service is integrated, replace this call.
       final plan = await _generatePlan(input);
 
       if (mounted) Navigator.pop(context, plan);
@@ -316,57 +301,18 @@ class _AiGenerationScreenState extends State<AiGenerationScreen> {
   }
 
   List<WorkoutPlanExercise> _buildExercisesForInput(AiWorkoutInput input) {
-    // Generates a reasonable set of exercises based on style + focus areas.
-    // In a real implementation this would come from an AI model.
     final exercises = <WorkoutPlanExercise>[];
 
     final Map<String, List<String>> styleExercises = {
-      'Strength': [
-        'Bench Press',
-        'Squat',
-        'Deadlift',
-        'Overhead Press',
-        'Barbell Row',
-      ],
-      'Cardio': [
-        'Running',
-        'Cycling',
-        'Jump Rope',
-        'Rowing',
-        'Stair Climber',
-      ],
-      'HIIT': [
-        'Burpees',
-        'Mountain Climbers',
-        'Jump Squats',
-        'High Knees',
-        'Box Jumps',
-      ],
-      'Yoga': [
-        'Sun Salutation',
-        'Warrior Pose',
-        'Downward Dog',
-        'Plank Hold',
-        'Child Pose',
-      ],
-      'Calisthenics': [
-        'Push-ups',
-        'Pull-ups',
-        'Dips',
-        'Pistol Squats',
-        'L-Sit',
-      ],
-      'Mixed': [
-        'Push-ups',
-        'Squats',
-        'Plank',
-        'Lunges',
-        'Dumbbell Rows',
-      ],
+      'Strength': ['Bench Press', 'Squat', 'Deadlift', 'Overhead Press', 'Barbell Row'],
+      'Cardio': ['Running', 'Cycling', 'Jump Rope', 'Rowing', 'Stair Climber'],
+      'HIIT': ['Burpees', 'Mountain Climbers', 'Jump Squats', 'High Knees', 'Box Jumps'],
+      'Yoga': ['Sun Salutation', 'Warrior Pose', 'Downward Dog', 'Plank Hold', 'Child Pose'],
+      'Calisthenics': ['Push-ups', 'Pull-ups', 'Dips', 'Pistol Squats', 'L-Sit'],
+      'Mixed': ['Push-ups', 'Squats', 'Plank', 'Lunges', 'Dumbbell Rows'],
     };
 
-    final names = styleExercises[input.trainingStyle] ??
-        styleExercises['Mixed']!;
+    final names = styleExercises[input.trainingStyle] ?? styleExercises['Mixed']!;
 
     for (final name in names) {
       exercises.add(WorkoutPlanExercise(
@@ -382,7 +328,6 @@ class _AiGenerationScreenState extends State<AiGenerationScreen> {
   }
 
   List<int> _buildSchedule(int sessionsPerWeek) {
-    // Spreads sessions evenly through the week.
     const allDays = [1, 2, 3, 4, 5, 6, 7];
     if (sessionsPerWeek >= 7) return allDays;
     final step = 7 / sessionsPerWeek;
@@ -390,25 +335,6 @@ class _AiGenerationScreenState extends State<AiGenerationScreen> {
       sessionsPerWeek,
       (i) => allDays[(i * step).floor()],
     )..sort();
-  }
-}
-
-class _SectionTitle extends StatelessWidget {
-  final String title;
-  const _SectionTitle({required this.title});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Text(
-        title,
-        style: Theme.of(context)
-            .textTheme
-            .titleSmall
-            ?.copyWith(fontWeight: FontWeight.w600),
-      ),
-    );
   }
 }
 
@@ -431,39 +357,34 @@ class _StepperField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final tt = Theme.of(context).textTheme;
-
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
       decoration: BoxDecoration(
-        border: Border.all(color: cs.outline),
-        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.paperBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label,
-              style: tt.labelSmall?.copyWith(color: cs.onSurfaceVariant)),
+          Text(label, style: AppTypography.labelMuted),
           const SizedBox(height: 4),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               IconButton(
-                icon: const Icon(Icons.remove),
-                visualDensity: VisualDensity.compact,
-                onPressed:
-                    value > min ? () => onChanged(value - step) : null,
+                icon: const Icon(Icons.remove, color: AppColors.ink, size: 18),
+                onPressed: value > min ? () => onChanged(value - step) : null,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
               ),
               Text(
                 '$value',
-                style: tt.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                style: AppTypography.monoStrong.copyWith(fontSize: 18),
               ),
               IconButton(
-                icon: const Icon(Icons.add),
-                visualDensity: VisualDensity.compact,
-                onPressed:
-                    value < max ? () => onChanged(value + step) : null,
+                icon: const Icon(Icons.add, color: AppColors.ink, size: 18),
+                onPressed: value < max ? () => onChanged(value + step) : null,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
               ),
             ],
           ),

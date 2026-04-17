@@ -3,6 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../infra/repository-locator.dart';
+import '../../../shared/design/molecules/app-card.dart';
+import '../../../shared/design/molecules/app-section-header.dart';
+import '../../../shared/design/molecules/app-stat-tile.dart';
+import '../../../shared/design/tokens/app-colors.dart';
+import '../../../shared/design/tokens/app-spacing.dart';
+import '../../../shared/design/tokens/app-typography.dart';
 import '../../../shared/utils/week-helper.dart';
 import '../view-model/dashboard-view-model.dart';
 
@@ -44,32 +50,41 @@ class _DashboardScreenState extends State<DashboardScreen> {
           return const Center(child: CircularProgressIndicator());
         }
         return RefreshIndicator(
+          color: AppColors.ink,
+          backgroundColor: AppColors.paper,
           onRefresh: _vm.load,
           child: CustomScrollView(
             slivers: [
-              SliverAppBar.large(
-                title: const Text('Progress'),
+              SliverAppBar(
+                title: Text('PROGRESS', style: AppTypography.sectionHeader.copyWith(fontSize: 13, letterSpacing: 2)),
                 centerTitle: false,
-                floating: true,
-                snap: true,
+                pinned: true,
+                backgroundColor: AppColors.paper,
+                surfaceTintColor: Colors.transparent,
+                scrolledUnderElevation: 0,
+                bottom: const PreferredSize(
+                  preferredSize: Size.fromHeight(1),
+                  child: Divider(height: 1, thickness: 1, color: AppColors.paperBorder),
+                ),
               ),
               if (_vm.error != null)
                 SliverToBoxAdapter(
-                  child: _ErrorBanner(
-                    message: _vm.error!,
-                    onDismiss: _vm.clearError,
-                  ),
+                  child: _ErrorBanner(message: _vm.error!, onDismiss: _vm.clearError),
                 ),
               SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.base, AppSpacing.base, AppSpacing.base, AppSpacing.xl
+                ),
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
                     _ProfileHeader(vm: _vm),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: AppSpacing.lg),
+                    AppSectionHeader('This Week'),
+                    const SizedBox(height: AppSpacing.sm),
                     _WeeklyMetrics(vm: _vm),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: AppSpacing.base),
                     _ActivityChart(vm: _vm),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: AppSpacing.base),
                     _GoalCard(vm: _vm),
                   ]),
                 ),
@@ -90,18 +105,17 @@ class _ProfileHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final tt = Theme.of(context).textTheme;
     final streak = vm.streakCount;
-
     return Row(
       children: [
-        CircleAvatar(
-          radius: 30,
-          backgroundColor: cs.primaryContainer,
+        Container(
+          width: 52,
+          height: 52,
+          color: AppColors.ink,
+          alignment: Alignment.center,
           child: Text(
             vm.displayName.substring(0, 1).toUpperCase(),
-            style: tt.headlineSmall?.copyWith(color: cs.onPrimaryContainer),
+            style: AppTypography.title.copyWith(color: AppColors.paper),
           ),
         ),
         const SizedBox(width: 14),
@@ -109,19 +123,12 @@ class _ProfileHeader extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Welcome back,',
-                style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
-              ),
-              Text(
-                vm.displayName,
-                style: tt.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-              ),
+              Text('Welcome back,', style: AppTypography.labelMuted),
+              Text(vm.displayName, style: AppTypography.title),
             ],
           ),
         ),
-        if (streak > 0)
-          _StreakBadge(streak: streak),
+        if (streak > 0) _StreakBadge(streak: streak),
       ],
     );
   }
@@ -133,24 +140,17 @@ class _StreakBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: cs.tertiaryContainer,
-        borderRadius: BorderRadius.circular(20),
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      color: AppColors.signal,
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.local_fire_department, size: 16),
+          const Icon(Icons.local_fire_department, size: 14, color: AppColors.ink),
           const SizedBox(width: 4),
           Text(
             '$streak',
-            style: Theme.of(context)
-                .textTheme
-                .labelLarge
-                ?.copyWith(fontWeight: FontWeight.w700),
+            style: AppTypography.monoStrong.copyWith(fontSize: 14),
           ),
         ],
       ),
@@ -167,132 +167,35 @@ class _WeeklyMetrics extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'This Week',
-          style: Theme.of(context)
-              .textTheme
-              .titleMedium
-              ?.copyWith(fontWeight: FontWeight.w600),
-        ),
-        const SizedBox(height: 12),
         Row(
           children: [
-            Expanded(
-              child: _MetricTile(
-                label: 'Earned',
-                value: _formatMinutes(vm.weeklyEarnedMinutes),
-                icon: Icons.timer_outlined,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _MetricTile(
-                label: 'Spent',
-                value: _formatMinutes(vm.weeklySpentMinutes),
-                icon: Icons.phone_android,
-                color: Theme.of(context).colorScheme.error,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _MetricTile(
-                label: 'Balance',
-                value: _formatMinutes(vm.screenTimeBalanceMinutes),
-                icon: Icons.account_balance_wallet_outlined,
-                color: Theme.of(context).colorScheme.secondary,
-              ),
-            ),
+            Expanded(child: AppStatTile(value: _fmt(vm.weeklyEarnedMinutes), label: 'Earned', icon: Icons.timer_outlined)),
+            const SizedBox(width: 8),
+            Expanded(child: AppStatTile(value: _fmt(vm.weeklySpentMinutes), label: 'Spent', icon: Icons.phone_android)),
+            const SizedBox(width: 8),
+            Expanded(child: AppStatTile(value: _fmt(vm.screenTimeBalanceMinutes), label: 'Balance', icon: Icons.account_balance_wallet_outlined)),
           ],
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
         Row(
           children: [
-            Expanded(
-              child: _MetricTile(
-                label: 'Sessions',
-                value: '${vm.weeklySessionsCompleted}',
-                icon: Icons.fitness_center,
-                color: Theme.of(context).colorScheme.tertiary,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _MetricTile(
-                label: 'Trained',
-                value: _formatMinutes(vm.weeklyMinutesTrained),
-                icon: Icons.timer,
-                color: Theme.of(context).colorScheme.tertiary,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _MetricTile(
-                label: 'Target',
-                value: _formatMinutes(vm.weeklyTargetMinutes),
-                icon: Icons.flag_outlined,
-                color: Theme.of(context).colorScheme.outline,
-              ),
-            ),
+            Expanded(child: AppStatTile(value: '${vm.weeklySessionsCompleted}', label: 'Sessions', icon: Icons.fitness_center)),
+            const SizedBox(width: 8),
+            Expanded(child: AppStatTile(value: _fmt(vm.weeklyMinutesTrained), label: 'Trained', icon: Icons.timer)),
+            const SizedBox(width: 8),
+            Expanded(child: AppStatTile(value: _fmt(vm.weeklyTargetMinutes), label: 'Target', icon: Icons.flag_outlined, accentColor: AppColors.inkMuted)),
           ],
         ),
       ],
     );
   }
 
-  String _formatMinutes(int minutes) {
+  String _fmt(int minutes) {
     if (minutes < 60) return '${minutes}m';
     final h = minutes ~/ 60;
     final m = minutes % 60;
     return m == 0 ? '${h}h' : '${h}h ${m}m';
-  }
-}
-
-class _MetricTile extends StatelessWidget {
-  final String label;
-  final String value;
-  final IconData icon;
-  final Color color;
-
-  const _MetricTile({
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final tt = Theme.of(context).textTheme;
-    return Card(
-      elevation: 0,
-      color: cs.surfaceContainerHighest,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, size: 18, color: color),
-            const SizedBox(height: 6),
-            Text(
-              value,
-              style: tt.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: cs.onSurface,
-              ),
-            ),
-            Text(
-              label,
-              style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }
 
@@ -304,112 +207,83 @@ class _ActivityChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final tt = Theme.of(context).textTheme;
     final spots = vm.weeklyActivitySpots;
     final maxY = spots.reduce((a, b) => a > b ? a : b).clamp(1.0, 999.0);
     final weekDays = WeekHelper.currentWeekDays();
+    final lineSpots = List.generate(spots.length, (i) => FlSpot(i.toDouble(), spots[i]));
 
-    final lineSpots = List.generate(
-      spots.length,
-      (i) => FlSpot(i.toDouble(), spots[i]),
-    );
-
-    return Card(
-      elevation: 0,
-      color: cs.surfaceContainerHighest,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Weekly Activity',
-              style: tt.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Sessions per day this week',
-              style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              height: 140,
-              child: LineChart(
-                LineChartData(
-                  minX: 0,
-                  maxX: 6,
-                  minY: 0,
-                  maxY: maxY + 1,
-                  gridData: FlGridData(
-                    show: true,
-                    horizontalInterval: 1,
-                    getDrawingHorizontalLine: (value) => FlLine(
-                      color: cs.outlineVariant.withOpacity(0.3),
-                      strokeWidth: 1,
-                    ),
-                    drawVerticalLine: false,
+    return AppCard(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Weekly Activity', style: AppTypography.heading.copyWith(fontSize: 15)),
+          const SizedBox(height: 2),
+          Text('Sessions per day this week', style: AppTypography.labelMuted),
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 120,
+            child: LineChart(
+              LineChartData(
+                minX: 0, maxX: 6, minY: 0, maxY: maxY + 1,
+                gridData: FlGridData(
+                  show: true,
+                  horizontalInterval: 1,
+                  getDrawingHorizontalLine: (v) => const FlLine(
+                    color: AppColors.paperBorder,
+                    strokeWidth: 1,
                   ),
-                  titlesData: FlTitlesData(
-                    bottomTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        interval: 1,
-                        getTitlesWidget: (value, meta) {
-                          final idx = value.toInt();
-                          if (idx < 0 || idx >= weekDays.length) {
-                            return const SizedBox.shrink();
-                          }
-                          return Padding(
-                            padding: const EdgeInsets.only(top: 4),
-                            child: Text(
-                              WeekHelper.shortDayLabel(weekDays[idx].weekday),
-                              style: tt.labelSmall
-                                  ?.copyWith(color: cs.onSurfaceVariant),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    leftTitles: AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
-                    ),
-                    topTitles: AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
-                    ),
-                    rightTitles: AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
-                    ),
-                  ),
-                  borderData: FlBorderData(show: false),
-                  lineBarsData: [
-                    LineChartBarData(
-                      spots: lineSpots,
-                      isCurved: true,
-                      color: cs.primary,
-                      barWidth: 3,
-                      isStrokeCapRound: true,
-                      dotData: FlDotData(
-                        show: true,
-                        getDotPainter: (spot, percent, barData, index) =>
-                            FlDotCirclePainter(
-                          radius: 4,
-                          color: cs.primary,
-                          strokeWidth: 0,
-                        ),
-                      ),
-                      belowBarData: BarAreaData(
-                        show: true,
-                        color: cs.primary.withOpacity(0.12),
-                      ),
-                    ),
-                  ],
+                  drawVerticalLine: false,
                 ),
+                titlesData: FlTitlesData(
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      interval: 1,
+                      getTitlesWidget: (value, meta) {
+                        final idx = value.toInt();
+                        if (idx < 0 || idx >= weekDays.length) return const SizedBox.shrink();
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                            WeekHelper.shortDayLabel(weekDays[idx].weekday),
+                            style: AppTypography.mono.copyWith(fontSize: 10, color: AppColors.inkMuted),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                ),
+                borderData: FlBorderData(show: false),
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: lineSpots,
+                    isCurved: false,
+                    color: AppColors.ink,
+                    barWidth: 2,
+                    isStrokeCapRound: false,
+                    dotData: FlDotData(
+                      show: true,
+                      getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(
+                        radius: 3,
+                        color: AppColors.acid,
+                        strokeWidth: 1,
+                        strokeColor: AppColors.ink,
+                      ),
+                    ),
+                    belowBarData: BarAreaData(
+                      show: true,
+                      color: AppColors.paperAlt,
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -423,66 +297,49 @@ class _GoalCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final tt = Theme.of(context).textTheme;
     final status = vm.goalStatus;
     final progress = vm.weeklyProgress;
-    final statusColor = switch (status) {
-      'Strong' => Colors.green,
-      'Stable' => cs.primary,
-      _ => cs.error,
+    final statusBg = switch (status) {
+      'Strong' => AppColors.acid,
+      'Stable' => AppColors.signal,
+      _ => AppColors.errorMuted,
+    };
+    final statusFg = switch (status) {
+      'Strong' => AppColors.ink,
+      'Stable' => AppColors.ink,
+      _ => AppColors.error,
     };
 
-    return Card(
-      elevation: 0,
-      color: cs.surfaceContainerHighest,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Weekly Goal',
-                  style: tt.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-                ),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    status,
-                    style: tt.labelMedium?.copyWith(
-                      color: statusColor,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: LinearProgressIndicator(
-                value: progress,
-                minHeight: 10,
-                backgroundColor: cs.surfaceContainerHighest,
-                valueColor: AlwaysStoppedAnimation<Color>(cs.primary),
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.base),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Weekly Goal', style: AppTypography.heading.copyWith(fontSize: 15)),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                color: statusBg,
+                child: Text(status.toUpperCase(), style: AppTypography.sectionHeader.copyWith(color: statusFg, letterSpacing: 1)),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '${vm.weeklyMinutesTrained} / ${vm.weeklyTargetMinutes} minutes trained',
-              style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-            ),
-          ],
-        ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          LinearProgressIndicator(
+            value: progress,
+            minHeight: 6,
+            backgroundColor: AppColors.paperBorder,
+            color: AppColors.ink,
+            borderRadius: BorderRadius.zero,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '${vm.weeklyMinutesTrained} / ${vm.weeklyTargetMinutes} minutes trained',
+            style: AppTypography.labelMuted,
+          ),
+        ],
       ),
     );
   }
@@ -498,30 +355,23 @@ class _ErrorBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: cs.errorContainer,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.error_outline, color: cs.onErrorContainer),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(message,
-                  style: TextStyle(color: cs.onErrorContainer)),
-            ),
-            IconButton(
-              icon: const Icon(Icons.close),
-              color: cs.onErrorContainer,
-              onPressed: onDismiss,
-            ),
-          ],
-        ),
+    return Container(
+      margin: const EdgeInsets.fromLTRB(AppSpacing.base, AppSpacing.sm, AppSpacing.base, 0),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.base, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.errorMuted,
+        border: Border.all(color: AppColors.error, width: 1),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline, color: AppColors.error, size: 16),
+          const SizedBox(width: 8),
+          Expanded(child: Text(message, style: AppTypography.body.copyWith(color: AppColors.error))),
+          GestureDetector(
+            onTap: onDismiss,
+            child: const Icon(Icons.close, color: AppColors.error, size: 16),
+          ),
+        ],
       ),
     );
   }

@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../../../infra/blocking/blocking-platform-service.dart';
+import '../../../shared/design/atoms/app-button.dart';
+import '../../../shared/design/atoms/app-divider.dart';
+import '../../../shared/design/tokens/app-colors.dart';
+import '../../../shared/design/tokens/app-spacing.dart';
+import '../../../shared/design/tokens/app-typography.dart';
 import '../view-model/blocking-view-model.dart';
 
 /// Android: searchable list of installed apps for multi-select.
@@ -58,27 +63,49 @@ class _AppPickerScreenState extends State<AppPickerScreen> {
     // iOS: native picker
     if (_vm.isIos) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Select Apps')),
+        backgroundColor: AppColors.paper,
+        appBar: AppBar(
+          backgroundColor: AppColors.paper,
+          surfaceTintColor: Colors.transparent,
+          scrolledUnderElevation: 0,
+          title: Text(
+            'SELECT APPS',
+            style: AppTypography.sectionHeader.copyWith(fontSize: 13, letterSpacing: 2),
+          ),
+          bottom: const PreferredSize(
+            preferredSize: Size.fromHeight(1),
+            child: AppDivider(),
+          ),
+        ),
         body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.phone_iphone, size: 64, color: Colors.grey),
-              const SizedBox(height: 16),
-              const Text(
-                'Tap the button below to choose apps\nusing iOS Screen Time.',
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-              FilledButton.icon(
-                icon: const Icon(Icons.add),
-                label: const Text('Choose Apps'),
-                onPressed: () async {
-                  await _vm.openIosPicker();
-                  if (context.mounted) Navigator.of(context).pop([]);
-                },
-              ),
-            ],
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.xl),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 72,
+                  height: 72,
+                  color: AppColors.paperAlt,
+                  child: const Icon(Icons.phone_iphone, size: 40, color: AppColors.inkMuted),
+                ),
+                const SizedBox(height: AppSpacing.base),
+                Text(
+                  'Choose apps using iOS Screen Time.',
+                  style: AppTypography.body,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                AppButton.primary(
+                  'Choose Apps',
+                  icon: Icons.add,
+                  onPressed: () async {
+                    await _vm.openIosPicker();
+                    if (context.mounted) Navigator.of(context).pop([]);
+                  },
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -86,37 +113,59 @@ class _AppPickerScreenState extends State<AppPickerScreen> {
 
     // Android: searchable list
     return Scaffold(
+      backgroundColor: AppColors.paper,
       appBar: AppBar(
-        title: const Text('Select Apps'),
+        backgroundColor: AppColors.paper,
+        surfaceTintColor: Colors.transparent,
+        scrolledUnderElevation: 0,
+        title: Text(
+          'SELECT APPS',
+          style: AppTypography.sectionHeader.copyWith(fontSize: 13, letterSpacing: 2),
+        ),
         actions: [
-          TextButton(
-            onPressed: _selected.isEmpty
-                ? null
-                : () => Navigator.of(context).pop(_selected.toList()),
-            child: Text(
-              _selected.isEmpty
-                  ? 'Done'
-                  : 'Done (${_selected.length})',
+          Padding(
+            padding: const EdgeInsets.only(right: AppSpacing.sm),
+            child: AppButton.primary(
+              _selected.isEmpty ? 'Done' : 'Done (${_selected.length})',
+              onPressed: _selected.isEmpty
+                  ? null
+                  : () => Navigator.of(context).pop(_selected.toList()),
             ),
           ),
         ],
+        bottom: const PreferredSize(
+          preferredSize: Size.fromHeight(1),
+          child: AppDivider(),
+        ),
       ),
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-            child: SearchBar(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.base, AppSpacing.sm, AppSpacing.base, 0,
+            ),
+            child: TextField(
               controller: _search,
-              hintText: 'Search apps…',
-              leading: const Icon(Icons.search),
+              decoration: InputDecoration(
+                hintText: 'Search apps...',
+                hintStyle: AppTypography.labelMuted,
+                prefixIcon: const Icon(Icons.search, color: AppColors.inkMuted, size: 18),
+                isDense: true,
+              ),
               onChanged: (_) => setState(() {}),
             ),
           ),
+          const SizedBox(height: AppSpacing.sm),
+          const AppDivider(),
           if (_isLoading)
-            const Expanded(child: Center(child: CircularProgressIndicator()))
-          else if (_vm.installedApps.isEmpty)
             const Expanded(
-              child: Center(child: Text('No apps found.')),
+              child: Center(child: CircularProgressIndicator(color: AppColors.ink)),
+            )
+          else if (_vm.installedApps.isEmpty)
+            Expanded(
+              child: Center(
+                child: Text('No apps found.', style: AppTypography.labelMuted),
+              ),
             )
           else
             Expanded(
@@ -129,20 +178,51 @@ class _AppPickerScreenState extends State<AppPickerScreen> {
                     itemBuilder: (_, i) {
                       final app = apps[i];
                       final checked = _selected.contains(app);
-                      return CheckboxListTile(
-                        title: Text(app.name),
-                        subtitle: Text(
-                          app.packageId,
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                        value: checked,
-                        onChanged: (_) => setState(() {
+                      return InkWell(
+                        onTap: () => setState(() {
                           if (checked) {
                             _selected.remove(app);
                           } else {
                             _selected.add(app);
                           }
                         }),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.base, vertical: AppSpacing.md,
+                          ),
+                          decoration: const BoxDecoration(
+                            border: Border(
+                              bottom: BorderSide(color: AppColors.paperBorder),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 22,
+                                height: 22,
+                                decoration: BoxDecoration(
+                                  color: checked ? AppColors.ink : AppColors.paper,
+                                  border: Border.all(
+                                    color: checked ? AppColors.ink : AppColors.paperBorder,
+                                  ),
+                                ),
+                                child: checked
+                                    ? const Icon(Icons.check, size: 14, color: AppColors.paper)
+                                    : null,
+                              ),
+                              const SizedBox(width: AppSpacing.md),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(app.name, style: AppTypography.body.copyWith(fontWeight: FontWeight.w600)),
+                                    Text(app.packageId, style: AppTypography.labelMuted),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       );
                     },
                   );

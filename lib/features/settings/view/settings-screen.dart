@@ -2,6 +2,14 @@ import 'package:flutter/material.dart';
 
 import '../../../infra/repository-locator.dart';
 import '../../../main.dart';
+import '../../../shared/design/atoms/app-button.dart';
+import '../../../shared/design/atoms/app-divider.dart';
+import '../../../shared/design/molecules/app-card.dart';
+import '../../../shared/design/molecules/app-counter.dart';
+import '../../../shared/design/molecules/app-section-header.dart';
+import '../../../shared/design/tokens/app-colors.dart';
+import '../../../shared/design/tokens/app-spacing.dart';
+import '../../../shared/design/tokens/app-typography.dart';
 import '../../../shared/utils/screen-time-economy.dart';
 import '../view-model/settings-view-model.dart';
 
@@ -48,17 +56,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _weeklyTargetMinutes = profile.weeklyExerciseTargetMinutes;
     }
     if (profile != null && !_screenTimeEdited) {
-      _dailyPhoneHours =
-          profile.dailyPhoneHours > 0 ? profile.dailyPhoneHours : 8;
+      _dailyPhoneHours = profile.dailyPhoneHours > 0 ? profile.dailyPhoneHours : 8;
       _weeklySmallSessions = profile.weeklySmallSessions;
       _weeklyBigSessions = profile.weeklyBigSessions;
     }
     if (_vm.successMessage != null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_vm.successMessage!),
-          behavior: SnackBarBehavior.floating,
-        ),
+        SnackBar(content: Text(_vm.successMessage!)),
       );
       _vm.clearMessages();
     }
@@ -80,12 +84,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       listenable: _vm,
       builder: (context, _) {
         return Scaffold(
+          backgroundColor: AppColors.paper,
           appBar: AppBar(
-            title: const Text('Settings'),
-            centerTitle: false,
+            title: Text('SETTINGS', style: AppTypography.sectionHeader.copyWith(fontSize: 13, letterSpacing: 2)),
           ),
           body: _vm.isLoading
-              ? const Center(child: CircularProgressIndicator())
+              ? const Center(child: CircularProgressIndicator(color: AppColors.ink))
               : _buildBody(context),
         );
       },
@@ -93,342 +97,207 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildBody(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final tt = Theme.of(context).textTheme;
-
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
+      padding: const EdgeInsets.fromLTRB(AppSpacing.base, 0, AppSpacing.base, AppSpacing.xl),
       children: [
         if (_vm.error != null)
           Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.all(12),
+            margin: const EdgeInsets.only(bottom: AppSpacing.md),
+            padding: const EdgeInsets.all(AppSpacing.md),
             decoration: BoxDecoration(
-              color: cs.errorContainer,
-              borderRadius: BorderRadius.circular(10),
+              color: AppColors.errorMuted,
+              border: Border.all(color: AppColors.error, width: 1),
             ),
-            child: Text(_vm.error!,
-                style: TextStyle(color: cs.onErrorContainer)),
+            child: Text(_vm.error!, style: AppTypography.body.copyWith(color: AppColors.error)),
           ),
 
-        // Profile section
-        _SectionHeader(title: 'Profile'),
-        Card(
-          elevation: 0,
-          color: cs.surfaceContainerHighest,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14)),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                _TextField(
-                  controller: _usernameCtrl,
-                  label: 'Username',
-                  hint: 'e.g. fitnesswarrior',
-                  onChanged: (_) => _edited = true,
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _TextField(
-                        controller: _firstNameCtrl,
-                        label: 'First name',
-                        onChanged: (_) => _edited = true,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _TextField(
-                        controller: _lastNameCtrl,
-                        label: 'Last name',
-                        onChanged: (_) => _edited = true,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+        // Profile
+        AppSectionHeader('Profile'),
+        AppCard(
+          padding: const EdgeInsets.all(AppSpacing.base),
+          child: Column(
+            children: [
+              _SettingsField(controller: _usernameCtrl, label: 'Username', hint: 'e.g. fitnesswarrior', onChanged: (_) => _edited = true),
+              const SizedBox(height: AppSpacing.md),
+              Row(
+                children: [
+                  Expanded(child: _SettingsField(controller: _firstNameCtrl, label: 'First name', onChanged: (_) => _edited = true)),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(child: _SettingsField(controller: _lastNameCtrl, label: 'Last name', onChanged: (_) => _edited = true)),
+                ],
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 16),
 
-        // Training goals section
-        _SectionHeader(title: 'Training Goals'),
-        Card(
-          elevation: 0,
-          color: cs.surfaceContainerHighest,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14)),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Weekly training target',
-                    style: tt.bodyMedium),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Slider(
-                        value: _weeklyTargetMinutes.toDouble(),
-                        min: 30,
-                        max: 600,
-                        divisions: 19,
-                        label: '${_weeklyTargetMinutes}m',
-                        onChanged: (v) {
-                          setState(
-                              () => _weeklyTargetMinutes = v.round());
-                          _edited = true;
-                        },
-                      ),
+        // Training goals
+        AppSectionHeader('Training Goals'),
+        AppCard(
+          padding: const EdgeInsets.all(AppSpacing.base),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Weekly training target', style: AppTypography.body),
+              const SizedBox(height: AppSpacing.sm),
+              Row(
+                children: [
+                  Expanded(
+                    child: Slider(
+                      value: _weeklyTargetMinutes.toDouble(),
+                      min: 30, max: 600, divisions: 19,
+                      label: '${_weeklyTargetMinutes}m',
+                      onChanged: (v) { setState(() => _weeklyTargetMinutes = v.round()); _edited = true; },
                     ),
-                    SizedBox(
-                      width: 60,
-                      child: Text(
-                        '${_weeklyTargetMinutes}m',
-                        style: tt.titleSmall
-                            ?.copyWith(fontWeight: FontWeight.w600),
-                        textAlign: TextAlign.right,
-                      ),
-                    ),
-                  ],
-                ),
-                Text(
-                  'Aim for at least ${_weeklyTargetMinutes ~/ 60}h ${_weeklyTargetMinutes % 60}m of training per week.',
-                  style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-                ),
-              ],
-            ),
+                  ),
+                  SizedBox(
+                    width: 56,
+                    child: Text('${_weeklyTargetMinutes}m', style: AppTypography.monoStrong, textAlign: TextAlign.right),
+                  ),
+                ],
+              ),
+              Text(
+                'Target: ${_weeklyTargetMinutes ~/ 60}h ${_weeklyTargetMinutes % 60}m per week.',
+                style: AppTypography.labelMuted,
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppSpacing.sm),
+        AppButton.primary('Save Changes', onPressed: _vm.isSaving ? null : _handleSave, isLoading: _vm.isSaving, width: double.infinity),
 
-        // Save profile button
-        FilledButton(
-          onPressed: _vm.isSaving ? null : _handleSave,
-          child: _vm.isSaving
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('Save Changes'),
-        ),
-        const SizedBox(height: 24),
-
-        // Screen time economy section
-        _SectionHeader(title: 'Screen Time Economy'),
-        Card(
-          elevation: 0,
-          color: cs.surfaceContainerHighest,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14)),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Daily phone usage',
-                    style: tt.bodyMedium
-                        ?.copyWith(fontWeight: FontWeight.w500)),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Slider(
-                        value: _dailyPhoneHours.toDouble(),
-                        min: 1,
-                        max: 16,
-                        divisions: 15,
-                        label: '${_dailyPhoneHours}h',
-                        onChanged: (v) {
-                          setState(() => _dailyPhoneHours = v.round());
-                          _screenTimeEdited = true;
-                        },
-                      ),
+        // Screen time economy
+        AppSectionHeader('Screen Time Economy'),
+        AppCard(
+          padding: const EdgeInsets.all(AppSpacing.base),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Daily phone usage', style: AppTypography.body.copyWith(fontWeight: FontWeight.w600)),
+              Row(
+                children: [
+                  Expanded(
+                    child: Slider(
+                      value: _dailyPhoneHours.toDouble(),
+                      min: 1, max: 16, divisions: 15,
+                      label: '${_dailyPhoneHours}h',
+                      onChanged: (v) { setState(() => _dailyPhoneHours = v.round()); _screenTimeEdited = true; },
                     ),
-                    SizedBox(
-                      width: 44,
-                      child: Text(
-                        '${_dailyPhoneHours}h',
-                        style: tt.titleSmall
-                            ?.copyWith(fontWeight: FontWeight.w600),
-                        textAlign: TextAlign.right,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Text('Weekly sessions',
-                    style: tt.bodyMedium
-                        ?.copyWith(fontWeight: FontWeight.w500)),
-                const SizedBox(height: 8),
-                _SettingsSessionCounter(
-                  label: 'Small  (1×)',
-                  value: _weeklySmallSessions,
-                  onChanged: (v) {
-                    setState(() => _weeklySmallSessions = v);
-                    _screenTimeEdited = true;
-                  },
-                ),
-                const SizedBox(height: 4),
-                _SettingsSessionCounter(
-                  label: 'Big  (2×)',
-                  value: _weeklyBigSessions,
-                  onChanged: (v) {
-                    setState(() => _weeklyBigSessions = v);
-                    _screenTimeEdited = true;
-                  },
-                ),
-                const SizedBox(height: 12),
-                Builder(builder: (context) {
-                  final rewards = ScreenTimeEconomy.calculateRaw(
-                    dailyPhoneHours: _dailyPhoneHours,
-                    weeklySmallSessions: _weeklySmallSessions,
-                    weeklyBigSessions: _weeklyBigSessions,
-                  );
-                  String fmt(int m) {
-                    final h = m ~/ 60;
-                    final min = m % 60;
-                    return h > 0 ? '${h}h ${min}m' : '${min}m';
-                  }
-
-                  if (rewards.smallRewardMinutes == 0) {
-                    return const SizedBox.shrink();
-                  }
-                  return Text(
-                    'Small = ${fmt(rewards.smallRewardMinutes)}  ·  '
-                    'Big = ${fmt(rewards.bigRewardMinutes)}  ·  '
-                    'Free = ${fmt(rewards.freeMinutes)}/week',
-                    style: tt.bodySmall
-                        ?.copyWith(color: cs.onSurfaceVariant),
-                  );
-                }),
-              ],
-            ),
+                  ),
+                  SizedBox(
+                    width: 44,
+                    child: Text('${_dailyPhoneHours}h', style: AppTypography.monoStrong, textAlign: TextAlign.right),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Text('Weekly sessions', style: AppTypography.body.copyWith(fontWeight: FontWeight.w600)),
+              const SizedBox(height: AppSpacing.sm),
+              AppCounter(
+                label: 'Small (1×)',
+                value: _weeklySmallSessions,
+                onChanged: (v) { setState(() => _weeklySmallSessions = v); _screenTimeEdited = true; },
+              ),
+              const SizedBox(height: 6),
+              AppCounter(
+                label: 'Big (2×)',
+                value: _weeklyBigSessions,
+                onChanged: (v) { setState(() => _weeklyBigSessions = v); _screenTimeEdited = true; },
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Builder(builder: (context) {
+                final rewards = ScreenTimeEconomy.calculateRaw(
+                  dailyPhoneHours: _dailyPhoneHours,
+                  weeklySmallSessions: _weeklySmallSessions,
+                  weeklyBigSessions: _weeklyBigSessions,
+                );
+                String fmt(int m) {
+                  final h = m ~/ 60; final min = m % 60;
+                  return h > 0 ? '${h}h ${min}m' : '${min}m';
+                }
+                if (rewards.smallRewardMinutes == 0) return const SizedBox.shrink();
+                return Text(
+                  'Small = ${fmt(rewards.smallRewardMinutes)}  ·  Big = ${fmt(rewards.bigRewardMinutes)}  ·  Free = ${fmt(rewards.freeMinutes)}/week',
+                  style: AppTypography.mono.copyWith(color: AppColors.inkMuted, fontSize: 12),
+                );
+              }),
+            ],
           ),
         ),
-        const SizedBox(height: 8),
-        FilledButton.tonal(
+        const SizedBox(height: AppSpacing.sm),
+        AppButton.secondary(
+          'Save Screen Time Setup',
           onPressed: _vm.isSaving ? null : _handleSaveScreenTime,
-          child: const Text('Save Screen Time Setup'),
+          isLoading: _vm.isSaving,
+          width: double.infinity,
         ),
-        const SizedBox(height: 24),
 
-        // Premium section
-        _SectionHeader(title: 'Premium'),
-        Card(
-          elevation: 0,
-          color: cs.tertiaryContainer,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14)),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
+        // Premium
+        AppSectionHeader('Premium'),
+        Container(
+          decoration: const BoxDecoration(
+            border: Border(left: BorderSide(color: AppColors.acid, width: 3)),
+          ),
+          child: AppCard(
+            backgroundColor: AppColors.paperAlt,
+            padding: const EdgeInsets.all(AppSpacing.base),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Icon(Icons.auto_awesome, color: cs.onTertiaryContainer),
+                    Text('NASHAAT VIP', style: AppTypography.sectionHeader.copyWith(fontSize: 13, letterSpacing: 1.5, color: AppColors.ink)),
                     const SizedBox(width: 8),
-                    Text(
-                      'Nashaat VIP',
-                      style: tt.titleMedium?.copyWith(
-                        color: cs.onTertiaryContainer,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
+                    Container(width: 8, height: 8, color: AppColors.acid),
                   ],
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
                 ...[
                   'AI-generated workout plans',
                   'Advanced progress analytics',
                   'Expanded exercise library',
                   'Priority support',
-                ].map(
-                  (f) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 2),
-                    child: Row(
-                      children: [
-                        Icon(Icons.check_circle_outline,
-                            size: 16,
-                            color: cs.onTertiaryContainer),
-                        const SizedBox(width: 8),
-                        Text(
-                          f,
-                          style: tt.bodyMedium
-                              ?.copyWith(color: cs.onTertiaryContainer),
-                        ),
-                      ],
-                    ),
+                ].map((f) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      Container(width: 5, height: 5, color: AppColors.acid),
+                      const SizedBox(width: 10),
+                      Text(f, style: AppTypography.body),
+                    ],
                   ),
-                ),
-                const SizedBox(height: 12),
-                FilledButton(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: cs.tertiary,
-                    foregroundColor: cs.onTertiary,
-                  ),
-                  onPressed: () => Navigator.pushNamed(
-                    context,
-                    '/subscription',
-                  ),
-                  child: const Text('Upgrade to VIP'),
+                )),
+                const SizedBox(height: AppSpacing.md),
+                AppButton.acid(
+                  'Upgrade to VIP',
+                  onPressed: () => Navigator.pushNamed(context, '/subscription'),
+                  width: double.infinity,
                 ),
               ],
             ),
           ),
         ),
-        const SizedBox(height: 24),
 
-        // Account section
-        _SectionHeader(title: 'Account'),
-        Card(
-          elevation: 0,
-          color: cs.surfaceContainerHighest,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14)),
+        // Account
+        AppSectionHeader('Account'),
+        AppCard(
           child: Column(
             children: [
-              ListTile(
-                leading: const Icon(Icons.lock_reset),
-                title: const Text('Change Password'),
-                onTap: () => _showChangePasswordDialog(context),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
-              ),
-              Divider(height: 1, color: cs.outlineVariant),
-              ListTile(
-                leading: const Icon(Icons.logout),
-                title: const Text('Sign Out'),
-                onTap: () => _confirmSignOut(context),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
-              ),
-              Divider(height: 1, color: cs.outlineVariant),
-              ListTile(
-                leading: Icon(Icons.delete_outline, color: cs.error),
-                title: Text('Delete Account',
-                    style: TextStyle(color: cs.error)),
+              _AccountTile(icon: Icons.lock_reset, label: 'Change Password', onTap: () => _showChangePasswordDialog(context)),
+              const AppDivider(indent: 16),
+              _AccountTile(icon: Icons.logout, label: 'Sign Out', onTap: () => _confirmSignOut(context)),
+              const AppDivider(indent: 16),
+              _AccountTile(
+                icon: Icons.delete_outline,
+                label: 'Delete Account',
                 onTap: () => _confirmDeleteAccount(context),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
+                destructive: true,
               ),
             ],
           ),
         ),
-        const SizedBox(height: 16),
 
-        // Version info
-        Center(
-          child: Text(
-            'Nashaat v1.0.0',
-            style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-          ),
-        ),
+        const SizedBox(height: AppSpacing.base),
+        Center(child: Text('Nashaat v1.0.0', style: AppTypography.labelMuted)),
       ],
     );
   }
@@ -444,15 +313,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _handleSave() async {
     await _vm.updateProfile(
-      username: _usernameCtrl.text.trim().isEmpty
-          ? null
-          : _usernameCtrl.text.trim(),
-      firstName: _firstNameCtrl.text.trim().isEmpty
-          ? null
-          : _firstNameCtrl.text.trim(),
-      lastName: _lastNameCtrl.text.trim().isEmpty
-          ? null
-          : _lastNameCtrl.text.trim(),
+      username: _usernameCtrl.text.trim().isEmpty ? null : _usernameCtrl.text.trim(),
+      firstName: _firstNameCtrl.text.trim().isEmpty ? null : _firstNameCtrl.text.trim(),
+      lastName: _lastNameCtrl.text.trim().isEmpty ? null : _lastNameCtrl.text.trim(),
       weeklyExerciseTargetMinutes: _weeklyTargetMinutes,
     );
     _edited = false;
@@ -462,17 +325,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Sign Out'),
-        content: const Text('Are you sure you want to sign out?'),
+        title: Text('Sign Out', style: AppTypography.heading),
+        content: Text('Are you sure you want to sign out?', style: AppTypography.body),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Sign Out'),
-          ),
+          AppButton.ghost('Cancel', onPressed: () => Navigator.pop(context, false)),
+          const SizedBox(width: 8),
+          AppButton.primary('Sign Out', onPressed: () => Navigator.pop(context, true)),
         ],
       ),
     );
@@ -491,7 +349,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder: (dialogCtx) => StatefulBuilder(
         builder: (dialogCtx, setDialogState) => AlertDialog(
-          title: const Text('Change Password'),
+          title: Text('Change Password', style: AppTypography.heading),
           content: Form(
             key: formKey,
             child: Column(
@@ -500,55 +358,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 TextFormField(
                   controller: newPassCtrl,
                   obscureText: true,
-                  decoration: const InputDecoration(
-                    labelText: 'New Password',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (v) {
-                    if (v == null || v.length < 8) {
-                      return 'Password must be at least 8 characters';
-                    }
-                    return null;
-                  },
+                  decoration: const InputDecoration(labelText: 'New Password'),
+                  validator: (v) => (v == null || v.length < 8) ? 'Password must be at least 8 characters' : null,
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: confirmPassCtrl,
                   obscureText: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Confirm Password',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (v) {
-                    if (v != newPassCtrl.text) {
-                      return 'Passwords do not match';
-                    }
-                    return null;
-                  },
+                  decoration: const InputDecoration(labelText: 'Confirm Password'),
+                  validator: (v) => v != newPassCtrl.text ? 'Passwords do not match' : null,
                 ),
               ],
             ),
           ),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogCtx),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: _vm.isSaving
-                  ? null
-                  : () async {
-                      if (!formKey.currentState!.validate()) return;
-                      Navigator.pop(dialogCtx);
-                      await _vm.changePassword(newPassCtrl.text);
-                    },
-              child: const Text('Update Password'),
+            AppButton.ghost('Cancel', onPressed: () => Navigator.pop(dialogCtx)),
+            const SizedBox(width: 8),
+            AppButton.primary(
+              'Update',
+              onPressed: _vm.isSaving ? null : () async {
+                if (!formKey.currentState!.validate()) return;
+                Navigator.pop(dialogCtx);
+                await _vm.changePassword(newPassCtrl.text);
+              },
             ),
           ],
         ),
       ),
     );
-
     newPassCtrl.dispose();
     confirmPassCtrl.dispose();
   }
@@ -557,27 +394,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final step1 = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Delete Your Account?'),
-        content: const Text(
+        title: Text('Delete Your Account?', style: AppTypography.heading),
+        content: Text(
           'This action is permanent and cannot be undone. All your data, workout history, and screen time balance will be permanently deleted.',
+          style: AppTypography.body,
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-              foregroundColor: Theme.of(context).colorScheme.onError,
-            ),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete Permanently'),
-          ),
+          AppButton.ghost('Cancel', onPressed: () => Navigator.pop(context, false)),
+          const SizedBox(width: 8),
+          AppButton.destructive('Delete Permanently', onPressed: () => Navigator.pop(context, true)),
         ],
       ),
     );
-
     if (step1 != true || !mounted) return;
 
     final confirmCtrl = TextEditingController();
@@ -585,140 +413,81 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final step2 = await showDialog<bool>(
       context: context,
       builder: (dialogCtx) => StatefulBuilder(
-        builder: (dialogCtx, setDialogState) {
-          final cs = Theme.of(dialogCtx).colorScheme;
-          return AlertDialog(
-            title: const Text('Confirm Deletion'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Type DELETE to confirm:'),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: confirmCtrl,
-                  autofocus: true,
-                  decoration: const InputDecoration(
-                    hintText: 'DELETE',
-                    border: OutlineInputBorder(),
-                  ),
-                  onChanged: (_) => setDialogState(() {}),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogCtx, false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: cs.error,
-                  foregroundColor: cs.onError,
-                ),
-                onPressed: confirmCtrl.text == 'DELETE'
-                    ? () => Navigator.pop(dialogCtx, true)
-                    : null,
-                child: const Text('Delete Account'),
+        builder: (dialogCtx, setDialogState) => AlertDialog(
+          title: Text('Confirm Deletion', style: AppTypography.heading),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Type DELETE to confirm:', style: AppTypography.body),
+              const SizedBox(height: 12),
+              TextField(
+                controller: confirmCtrl,
+                autofocus: true,
+                decoration: const InputDecoration(hintText: 'DELETE'),
+                onChanged: (_) => setDialogState(() {}),
               ),
             ],
-          );
-        },
-      ),
-    );
-
-    confirmCtrl.dispose();
-
-    if (step2 == true) {
-      await _vm.deleteAccount();
-    }
-  }
-}
-
-class _SettingsSessionCounter extends StatelessWidget {
-  final String label;
-  final int value;
-  final ValueChanged<int> onChanged;
-
-  const _SettingsSessionCounter({
-    required this.label,
-    required this.value,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final tt = Theme.of(context).textTheme;
-    return Row(
-      children: [
-        Expanded(child: Text(label, style: tt.bodyMedium)),
-        IconButton(
-          icon: const Icon(Icons.remove_circle_outline, size: 20),
-          onPressed: value > 0 ? () => onChanged(value - 1) : null,
-          visualDensity: VisualDensity.compact,
-        ),
-        SizedBox(
-          width: 28,
-          child: Text(
-            '$value',
-            textAlign: TextAlign.center,
-            style: tt.titleSmall?.copyWith(fontWeight: FontWeight.w700),
           ),
-        ),
-        IconButton(
-          icon: const Icon(Icons.add_circle_outline, size: 20),
-          onPressed: value < 7 ? () => onChanged(value + 1) : null,
-          visualDensity: VisualDensity.compact,
-        ),
-      ],
-    );
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  final String title;
-  const _SectionHeader({required this.title});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Text(
-        title,
-        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              color: Theme.of(context).colorScheme.primary,
-              fontWeight: FontWeight.w600,
+          actions: [
+            AppButton.ghost('Cancel', onPressed: () => Navigator.pop(dialogCtx, false)),
+            const SizedBox(width: 8),
+            AppButton.destructive(
+              'Delete Account',
+              onPressed: confirmCtrl.text == 'DELETE' ? () => Navigator.pop(dialogCtx, true) : null,
             ),
+          ],
+        ),
       ),
     );
+    confirmCtrl.dispose();
+    if (step2 == true) await _vm.deleteAccount();
   }
 }
 
-class _TextField extends StatelessWidget {
+class _SettingsField extends StatelessWidget {
   final TextEditingController controller;
   final String label;
   final String? hint;
   final ValueChanged<String>? onChanged;
 
-  const _TextField({
-    required this.controller,
-    required this.label,
-    this.hint,
-    this.onChanged,
-  });
+  const _SettingsField({required this.controller, required this.label, this.hint, this.onChanged});
 
   @override
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hint,
-        border: const OutlineInputBorder(),
-        isDense: true,
-      ),
+      decoration: InputDecoration(labelText: label, hintText: hint),
       textCapitalization: TextCapitalization.words,
       onChanged: onChanged,
+    );
+  }
+}
+
+class _AccountTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool destructive;
+
+  const _AccountTile({required this.icon, required this.label, required this.onTap, this.destructive = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = destructive ? AppColors.error : AppColors.ink;
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.base, vertical: 14),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: color),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(child: Text(label, style: AppTypography.body.copyWith(color: color))),
+            Icon(Icons.chevron_right, size: 18, color: AppColors.inkMuted),
+          ],
+        ),
+      ),
     );
   }
 }

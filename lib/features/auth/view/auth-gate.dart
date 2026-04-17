@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../infra/repository-locator.dart';
 import '../../../main.dart';
+import '../../../shared/design/tokens/app-colors.dart';
 
 /// Entry point of the app. Checks for an active Supabase session and routes
 /// to Login, Onboarding, or Dashboard accordingly.
@@ -48,7 +49,8 @@ class _AuthGateState extends State<AuthGate> {
   @override
   Widget build(BuildContext context) {
     return const Scaffold(
-      body: Center(child: CircularProgressIndicator()),
+      backgroundColor: AppColors.paper,
+      body: Center(child: CircularProgressIndicator(color: AppColors.ink)),
     );
   }
 }

@@ -10,8 +10,17 @@ import '../../../infra/blocking/blocking-platform-service.dart';
 import '../../../infra/permissions/permission-service.dart';
 import '../../../infra/repository-locator.dart';
 import '../../../main.dart';
+import '../../../shared/design/atoms/app-chip.dart';
+import '../../../shared/design/molecules/app-counter.dart';
+import '../../../shared/design/organisms/app-step-scaffold.dart';
+import '../../../shared/design/tokens/app-colors.dart';
+import '../../../shared/design/tokens/app-spacing.dart';
+import '../../../shared/design/tokens/app-typography.dart';
 import '../../../shared/logger.dart';
 import '../../../shared/utils/screen-time-economy.dart';
+
+// Total steps: 0-based index, 6 steps total
+const _kTotalSteps = 6;
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -21,117 +30,32 @@ class OnboardingScreen extends StatefulWidget {
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
-  final _pageCtrl = PageController();
-  int _page = 0;
+  int _step = 0;
 
-  // Step 1 — Exercise Target
+  // Step 0 — Username
   String _username = '';
+  // Step 1 — Days per week
   int _daysPerWeek = 4;
+  // Step 2 — Workout duration
   int _workoutDurationMinutes = 30;
+  // Step 3 — Daily phone hours
   int _dailyPhoneHours = 8;
+  // Step 4 — Reward preview (read-only + optional session counters)
   int _weeklySmallSessions = 2;
   int _weeklyBigSessions = 3;
-
-  // Step 2 — Blocking Preferences
+  // Step 5 — Blocking preferences
   List<String> _selectedAppPackages = [];
 
   bool _isSaving = false;
 
-  @override
-  void dispose() {
-    _pageCtrl.dispose();
-    super.dispose();
+  void _goNext() {
+    if (_step < _kTotalSteps - 1) {
+      setState(() => _step++);
+    }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final showProgress = _page > 0;
-    final stepLabel = _page == 1 ? 'Step 1 of 2' : (_page == 2 ? 'Step 2 of 2' : '');
-    final progressValue = _page == 1 ? 0.5 : 1.0;
-
-    return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            if (showProgress) ...[
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 16, 24, 4),
-                child: Row(
-                  children: [
-                    Text(
-                      stepLabel,
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.primary,
-                            fontWeight: FontWeight.w600,
-                          ),
-                    ),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
-                child: LinearProgressIndicator(
-                  value: progressValue,
-                  borderRadius: BorderRadius.circular(8),
-                  minHeight: 6,
-                ),
-              ),
-            ] else
-              const SizedBox(height: 16),
-            Expanded(
-              child: PageView(
-                controller: _pageCtrl,
-                physics: const NeverScrollableScrollPhysics(),
-                children: [
-                  _WelcomePage(
-                    onNext: (username) {
-                      _username = username;
-                      _nextPage();
-                    },
-                  ),
-                  _ExerciseTargetPage(
-                    daysPerWeek: _daysPerWeek,
-                    workoutDurationMinutes: _workoutDurationMinutes,
-                    dailyPhoneHours: _dailyPhoneHours,
-                    weeklySmallSessions: _weeklySmallSessions,
-                    weeklyBigSessions: _weeklyBigSessions,
-                    onDaysChanged: (v) => setState(() => _daysPerWeek = v),
-                    onDurationChanged: (v) =>
-                        setState(() => _workoutDurationMinutes = v),
-                    onDailyHoursChanged: (v) =>
-                        setState(() => _dailyPhoneHours = v),
-                    onSmallSessionsChanged: (v) =>
-                        setState(() => _weeklySmallSessions = v),
-                    onBigSessionsChanged: (v) =>
-                        setState(() => _weeklyBigSessions = v),
-                    onNext: _nextPage,
-                  ),
-                  _BlockingPreferencesPage(
-                    onSkip: _handleFinish,
-                    onContinue: (packages) async {
-                      _selectedAppPackages = packages;
-                      await _handleFinish();
-                    },
-                    isSaving: _isSaving,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _nextPage() {
-    setState(() => _page++);
-    _pageCtrl.nextPage(
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
-    );
-  }
-
-  Future<void> _handleFinish() async {
+  Future<void> _handleFinish({List<String>? packages}) async {
+    if (packages != null) _selectedAppPackages = packages;
     setState(() => _isSaving = true);
 
     try {
@@ -139,17 +63,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       final repo = RepositoryLocator.instance.profile;
       final weeklyTargetMinutes = _daysPerWeek * _workoutDurationMinutes;
 
-      await repo.updateProfile(
-        userId,
-        username: _username.trim().isEmpty ? null : _username.trim(),
-        weeklyExerciseTargetMinutes: weeklyTargetMinutes,
-      );
-      await repo.updateScreenTimeSetup(
-        userId,
-        dailyPhoneHours: _dailyPhoneHours,
-        weeklySmallSessions: _weeklySmallSessions,
-        weeklyBigSessions: _weeklyBigSessions,
-      );
+      await repo.updateProfile(userId,
+          username: _username.trim().isEmpty ? null : _username.trim(),
+          weeklyExerciseTargetMinutes: weeklyTargetMinutes);
+      await repo.updateScreenTimeSetup(userId,
+          dailyPhoneHours: _dailyPhoneHours,
+          weeklySmallSessions: _weeklySmallSessions,
+          weeklyBigSessions: _weeklyBigSessions);
 
       if (_selectedAppPackages.isNotEmpty) {
         try {
@@ -179,7 +99,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       }
 
       await repo.updateStatus(userId, UserStatus.onboarded);
-
       Log.auth('onboarding complete');
       if (mounted) appCoordinator.showDashboard();
     } catch (e) {
@@ -187,26 +106,112 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       setState(() => _isSaving = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Could not save preferences. Please try again.')),
+          const SnackBar(content: Text('Could not save preferences. Please try again.')),
         );
       }
     }
   }
-}
-
-// ── Pages ─────────────────────────────────────────────────────────────────────
-
-class _WelcomePage extends StatefulWidget {
-  final ValueChanged<String> onNext;
-  const _WelcomePage({required this.onNext});
 
   @override
-  State<_WelcomePage> createState() => _WelcomePageState();
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: _step == 0,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _step > 0) setState(() => _step--);
+      },
+      child: _buildStep(context),
+    );
+  }
+
+  Widget _buildStep(BuildContext context) {
+    switch (_step) {
+      case 0:
+        return AppStepScaffold(
+          totalSteps: _kTotalSteps,
+          currentStep: 0,
+          nextLabel: "Let's Go",
+          onNext: _goNext,
+          body: _WelcomeStep(
+            initial: _username,
+            onChanged: (v) => _username = v,
+          ),
+        );
+      case 1:
+        return AppStepScaffold(
+          totalSteps: _kTotalSteps,
+          currentStep: 1,
+          onNext: _goNext,
+          body: _DaysPerWeekStep(
+            value: _daysPerWeek,
+            onChanged: (v) => setState(() => _daysPerWeek = v),
+          ),
+        );
+      case 2:
+        return AppStepScaffold(
+          totalSteps: _kTotalSteps,
+          currentStep: 2,
+          onNext: _goNext,
+          body: _WorkoutDurationStep(
+            value: _workoutDurationMinutes,
+            onChanged: (v) => setState(() => _workoutDurationMinutes = v),
+          ),
+        );
+      case 3:
+        return AppStepScaffold(
+          totalSteps: _kTotalSteps,
+          currentStep: 3,
+          onNext: _goNext,
+          body: _DailyPhoneHoursStep(
+            value: _dailyPhoneHours,
+            onChanged: (v) => setState(() => _dailyPhoneHours = v),
+          ),
+        );
+      case 4:
+        return AppStepScaffold(
+          totalSteps: _kTotalSteps,
+          currentStep: 4,
+          onNext: _goNext,
+          body: _RewardPreviewStep(
+            daysPerWeek: _daysPerWeek,
+            workoutDurationMinutes: _workoutDurationMinutes,
+            dailyPhoneHours: _dailyPhoneHours,
+            weeklySmallSessions: _weeklySmallSessions,
+            weeklyBigSessions: _weeklyBigSessions,
+            onSmallChanged: (v) => setState(() => _weeklySmallSessions = v),
+            onBigChanged: (v) => setState(() => _weeklyBigSessions = v),
+          ),
+        );
+      case 5:
+        return _BlockingStep(
+          isSaving: _isSaving,
+          onContinue: (packages) => _handleFinish(packages: packages),
+          onSkip: () => _handleFinish(),
+        );
+      default:
+        return const SizedBox.shrink();
+    }
+  }
 }
 
-class _WelcomePageState extends State<_WelcomePage> {
-  final _ctrl = TextEditingController();
+// ── Step 0 — Welcome / username ───────────────────────────────────────────────
+
+class _WelcomeStep extends StatefulWidget {
+  final String initial;
+  final ValueChanged<String> onChanged;
+  const _WelcomeStep({required this.initial, required this.onChanged});
+
+  @override
+  State<_WelcomeStep> createState() => _WelcomeStepState();
+}
+
+class _WelcomeStepState extends State<_WelcomeStep> {
+  late final TextEditingController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController(text: widget.initial);
+  }
 
   @override
   void dispose() {
@@ -216,59 +221,29 @@ class _WelcomePageState extends State<_WelcomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final tt = Theme.of(context).textTheme;
-
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(32, 40, 32, 32),
+      padding: const EdgeInsets.fromLTRB(AppSpacing.xl, AppSpacing.xl, AppSpacing.xl, AppSpacing.base),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Center(
-            child: Icon(Icons.fitness_center, size: 80, color: cs.primary),
-          ),
-          const SizedBox(height: 24),
-          Center(
-            child: Text(
-              'Welcome to Nashaat',
-              style: tt.headlineMedium?.copyWith(fontWeight: FontWeight.w700),
-              textAlign: TextAlign.center,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Center(
-            child: Text(
-              'Earn screen time by working out.\nBuild discipline. Build consistency.',
-              style: tt.bodyLarge?.copyWith(color: cs.onSurfaceVariant),
-              textAlign: TextAlign.center,
-            ),
-          ),
-          const SizedBox(height: 40),
+          Text('WELCOME TO\nNASHAAT', style: AppTypography.display),
+          const SizedBox(height: AppSpacing.md),
           Text(
-            'What should we call you?',
-            style: tt.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+            'Earn screen time by working out.\nBuild discipline. Build consistency.',
+            style: AppTypography.bodyMuted,
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.xl),
+          Text('What should we call you?', style: AppTypography.heading.copyWith(fontSize: 15)),
+          const SizedBox(height: AppSpacing.sm),
           TextField(
             controller: _ctrl,
             decoration: const InputDecoration(
               labelText: 'Username (optional)',
               hintText: 'e.g. fitnessathlete',
-              border: OutlineInputBorder(),
             ),
-            inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9_]')),
-            ],
+            inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9_]'))],
             textCapitalization: TextCapitalization.none,
-            onSubmitted: (_) => widget.onNext(_ctrl.text),
-          ),
-          const SizedBox(height: 40),
-          FilledButton(
-            onPressed: () => widget.onNext(_ctrl.text),
-            style: FilledButton.styleFrom(
-              minimumSize: const Size(double.infinity, 52),
-            ),
-            child: const Text("Let's Get Started"),
+            onChanged: widget.onChanged,
           ),
         ],
       ),
@@ -276,236 +251,227 @@ class _WelcomePageState extends State<_WelcomePage> {
   }
 }
 
-class _ExerciseTargetPage extends StatelessWidget {
+// ── Step 1 — Days per week ────────────────────────────────────────────────────
+
+class _DaysPerWeekStep extends StatelessWidget {
+  final int value;
+  final ValueChanged<int> onChanged;
+  const _DaysPerWeekStep({required this.value, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(AppSpacing.xl, AppSpacing.xl, AppSpacing.xl, AppSpacing.base),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('HOW MANY DAYS\nPER WEEK?', style: AppTypography.display.copyWith(fontSize: 28)),
+          const SizedBox(height: AppSpacing.lg),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: List.generate(7, (i) {
+              final day = i + 1;
+              return AppDayChip(
+                label: '$day',
+                selected: day <= value,
+                onTap: () => onChanged(day),
+              );
+            }),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            '$value day${value == 1 ? '' : 's'} per week',
+            style: AppTypography.mono.copyWith(color: AppColors.inkMuted),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Step 2 — Workout duration ─────────────────────────────────────────────────
+
+class _WorkoutDurationStep extends StatelessWidget {
+  final int value;
+  final ValueChanged<int> onChanged;
+  const _WorkoutDurationStep({required this.value, required this.onChanged});
+
+  static const _durations = [15, 30, 45, 60, 90];
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(AppSpacing.xl, AppSpacing.xl, AppSpacing.xl, AppSpacing.base),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('HOW LONG PER\nWORKOUT?', style: AppTypography.display.copyWith(fontSize: 28)),
+          const SizedBox(height: AppSpacing.lg),
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
+            children: _durations.map((d) {
+              return AppSelectChip(
+                label: '${d}m',
+                selected: d == value,
+                onTap: () => onChanged(d),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Step 3 — Daily phone hours ────────────────────────────────────────────────
+
+class _DailyPhoneHoursStep extends StatelessWidget {
+  final int value;
+  final ValueChanged<int> onChanged;
+  const _DailyPhoneHoursStep({required this.value, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(AppSpacing.xl, AppSpacing.xl, AppSpacing.xl, AppSpacing.base),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('DAILY PHONE\nUSAGE?', style: AppTypography.display.copyWith(fontSize: 28)),
+          const SizedBox(height: AppSpacing.sm),
+          Text('We use this to calibrate your screen time economy.', style: AppTypography.bodyMuted),
+          const SizedBox(height: AppSpacing.xl),
+          Center(
+            child: Text(
+              '${value}h',
+              style: AppTypography.display.copyWith(fontSize: 64),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.base),
+          Slider(
+            value: value.toDouble(),
+            min: 1, max: 16, divisions: 15,
+            label: '${value}h',
+            onChanged: (v) => onChanged(v.round()),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('1h', style: AppTypography.labelMuted),
+              Text('16h', style: AppTypography.labelMuted),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Step 4 — Reward preview + session setup ───────────────────────────────────
+
+class _RewardPreviewStep extends StatelessWidget {
   final int daysPerWeek;
   final int workoutDurationMinutes;
   final int dailyPhoneHours;
   final int weeklySmallSessions;
   final int weeklyBigSessions;
-  final ValueChanged<int> onDaysChanged;
-  final ValueChanged<int> onDurationChanged;
-  final ValueChanged<int> onDailyHoursChanged;
-  final ValueChanged<int> onSmallSessionsChanged;
-  final ValueChanged<int> onBigSessionsChanged;
-  final VoidCallback onNext;
+  final ValueChanged<int> onSmallChanged;
+  final ValueChanged<int> onBigChanged;
 
-  const _ExerciseTargetPage({
+  const _RewardPreviewStep({
     required this.daysPerWeek,
     required this.workoutDurationMinutes,
     required this.dailyPhoneHours,
     required this.weeklySmallSessions,
     required this.weeklyBigSessions,
-    required this.onDaysChanged,
-    required this.onDurationChanged,
-    required this.onDailyHoursChanged,
-    required this.onSmallSessionsChanged,
-    required this.onBigSessionsChanged,
-    required this.onNext,
+    required this.onSmallChanged,
+    required this.onBigChanged,
   });
+
+  String _fmt(int m) {
+    final h = m ~/ 60;
+    final min = m % 60;
+    return h > 0 ? '${h}h ${min}m' : '${min}m';
+  }
 
   @override
   Widget build(BuildContext context) {
-    final tt = Theme.of(context).textTheme;
-    final cs = Theme.of(context).colorScheme;
-    final weeklyTargetMinutes = daysPerWeek * workoutDurationMinutes;
-
     final rewards = ScreenTimeEconomy.calculateRaw(
       dailyPhoneHours: dailyPhoneHours,
       weeklySmallSessions: weeklySmallSessions,
       weeklyBigSessions: weeklyBigSessions,
     );
-
-    String fmt(int m) {
-      final h = m ~/ 60;
-      final min = m % 60;
-      return h > 0 ? '${h}h ${min}m' : '${min}m';
-    }
-
-    const durations = [15, 30, 45, 60, 90];
+    final weeklyTargetMinutes = daysPerWeek * workoutDurationMinutes;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(32, 32, 32, 32),
+      padding: const EdgeInsets.fromLTRB(AppSpacing.xl, AppSpacing.xl, AppSpacing.xl, AppSpacing.base),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Exercise Target',
-            style: tt.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'How often and how long do you want to work out?',
-            style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
-          ),
-          const SizedBox(height: 24),
+          Text('YOUR REWARD\nPREVIEW', style: AppTypography.display.copyWith(fontSize: 28)),
+          const SizedBox(height: AppSpacing.lg),
 
-          // Days per week
-          Text('Days per week',
-              style: tt.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
-          const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: List.generate(7, (i) {
-              final day = i + 1;
-              final selected = day <= daysPerWeek;
-              return GestureDetector(
-                onTap: () => onDaysChanged(day),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: selected ? cs.primary : cs.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    '$day',
-                    style: tt.labelLarge?.copyWith(
-                      color: selected ? cs.onPrimary : cs.onSurfaceVariant,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              );
-            }),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '$daysPerWeek day${daysPerWeek == 1 ? '' : 's'} per week',
-            style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-          ),
-          const SizedBox(height: 24),
-
-          // Workout duration
-          Text('Workout duration',
-              style: tt.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            children: durations.map((d) {
-              final selected = d == workoutDurationMinutes;
-              return ChoiceChip(
-                label: Text('${d}m'),
-                selected: selected,
-                onSelected: (_) => onDurationChanged(d),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 8),
+          // Summary block
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: cs.primaryContainer,
-              borderRadius: BorderRadius.circular(10),
+            padding: const EdgeInsets.all(AppSpacing.base),
+            color: AppColors.paperAlt,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _RewardRow('Weekly target', _fmt(weeklyTargetMinutes)),
+                const SizedBox(height: 8),
+                _RewardRow('Free time / week', _fmt(rewards.freeMinutes)),
+                const SizedBox(height: 8),
+                _RewardRow('Per small session', _fmt(rewards.smallRewardMinutes)),
+                const SizedBox(height: 8),
+                _RewardRow('Per big session', _fmt(rewards.bigRewardMinutes)),
+              ],
             ),
-            child: Text(
-              'Weekly target: ${fmt(weeklyTargetMinutes)}',
-              style: tt.bodyMedium?.copyWith(
-                color: cs.onPrimaryContainer,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
           ),
-          const SizedBox(height: 28),
 
-          // Daily phone usage
-          Text('Daily phone usage',
-              style: tt.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              Expanded(
-                child: Slider(
-                  value: dailyPhoneHours.toDouble(),
-                  min: 1,
-                  max: 16,
-                  divisions: 15,
-                  label: '${dailyPhoneHours}h',
-                  onChanged: (v) => onDailyHoursChanged(v.round()),
-                ),
-              ),
-              SizedBox(
-                width: 44,
-                child: Text(
-                  '${dailyPhoneHours}h',
-                  style:
-                      tt.titleSmall?.copyWith(fontWeight: FontWeight.w600),
-                  textAlign: TextAlign.right,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // Weekly sessions
-          Text('Weekly workout sessions',
-              style: tt.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
-          const SizedBox(height: 10),
-          _SessionCounter(
-            label: 'Small sessions',
-            sublabel: '1× reward',
-            icon: Icons.fitness_center,
-            value: weeklySmallSessions,
-            onChanged: onSmallSessionsChanged,
-          ),
+          const SizedBox(height: AppSpacing.lg),
+          Text('Weekly session split', style: AppTypography.heading.copyWith(fontSize: 15)),
+          const SizedBox(height: AppSpacing.sm),
+          AppCounter(label: 'Small sessions (1×)', value: weeklySmallSessions, onChanged: onSmallChanged),
           const SizedBox(height: 8),
-          _SessionCounter(
-            label: 'Big sessions',
-            sublabel: '2× reward',
-            icon: Icons.local_fire_department,
-            value: weeklyBigSessions,
-            onChanged: onBigSessionsChanged,
-          ),
-          const SizedBox(height: 20),
-
-          if ((weeklySmallSessions + weeklyBigSessions) > 0) ...[
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: cs.secondaryContainer,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                '${fmt(rewards.freeMinutes)} free + earn up to '
-                '${fmt(rewards.smallRewardMinutes)} per small session '
-                'or ${fmt(rewards.bigRewardMinutes)} per big session.',
-                style: tt.bodySmall?.copyWith(color: cs.onSecondaryContainer),
-              ),
-            ),
-            const SizedBox(height: 20),
-          ],
-
-          FilledButton(
-            onPressed: onNext,
-            style: FilledButton.styleFrom(
-              minimumSize: const Size(double.infinity, 52),
-            ),
-            child: const Text('Continue'),
-          ),
+          AppCounter(label: 'Big sessions (2×)', value: weeklyBigSessions, onChanged: onBigChanged),
         ],
       ),
     );
   }
 }
 
-class _BlockingPreferencesPage extends StatefulWidget {
-  final VoidCallback onSkip;
-  final Future<void> Function(List<String> packages) onContinue;
-  final bool isSaving;
-
-  const _BlockingPreferencesPage({
-    required this.onSkip,
-    required this.onContinue,
-    required this.isSaving,
-  });
+class _RewardRow extends StatelessWidget {
+  final String label;
+  final String value;
+  const _RewardRow(this.label, this.value);
 
   @override
-  State<_BlockingPreferencesPage> createState() =>
-      _BlockingPreferencesPageState();
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(child: Text(label, style: AppTypography.body)),
+        Text(value, style: AppTypography.monoStrong),
+      ],
+    );
+  }
 }
 
-class _BlockingPreferencesPageState extends State<_BlockingPreferencesPage> {
+// ── Step 5 — Blocking preferences ────────────────────────────────────────────
+
+class _BlockingStep extends StatefulWidget {
+  final bool isSaving;
+  final Future<void> Function(List<String>) onContinue;
+  final VoidCallback onSkip;
+
+  const _BlockingStep({required this.isSaving, required this.onContinue, required this.onSkip});
+
+  @override
+  State<_BlockingStep> createState() => _BlockingStepState();
+}
+
+class _BlockingStepState extends State<_BlockingStep> {
   final _platform = BlockingPlatformService();
   List<InstalledApp> _installedApps = [];
   final Set<String> _selected = {};
@@ -515,9 +481,7 @@ class _BlockingPreferencesPageState extends State<_BlockingPreferencesPage> {
   @override
   void initState() {
     super.initState();
-    if (Platform.isAndroid) {
-      _loadApps();
-    }
+    if (Platform.isAndroid) _loadApps();
   }
 
   Future<void> _loadApps() async {
@@ -534,182 +498,95 @@ class _BlockingPreferencesPageState extends State<_BlockingPreferencesPage> {
   Future<void> _openIosPicker() async {
     try {
       final count = await _platform.presentIosPicker();
-      if (count > 0) {
-        setState(() => _iosPickerDone = true);
-      }
+      if (count > 0) setState(() => _iosPickerDone = true);
     } catch (_) {}
   }
 
   @override
   Widget build(BuildContext context) {
-    final tt = Theme.of(context).textTheme;
-    final cs = Theme.of(context).colorScheme;
-
-    return Column(
-      children: [
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(32, 32, 32, 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Set Up App Blocking',
-                  style:
-                      tt.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Choose apps to block when your screen time runs out. You can change this later.',
-                  style:
-                      tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
-                ),
-                const SizedBox(height: 28),
-
-                if (Platform.isIOS) ...[
-                  FilledButton.tonal(
-                    onPressed: _openIosPicker,
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size(double.infinity, 48),
-                    ),
-                    child: const Text('Select Apps via Screen Time'),
-                  ),
-                  if (_iosPickerDone) ...[
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Icon(Icons.check_circle,
-                            color: cs.primary, size: 18),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Apps selected via Screen Time',
-                          style: tt.bodyMedium
-                              ?.copyWith(color: cs.primary),
-                        ),
-                      ],
-                    ),
-                  ],
-                ] else ...[
-                  if (_loadingApps)
-                    const Center(child: CircularProgressIndicator())
-                  else if (_installedApps.isEmpty)
-                    Text(
-                      'No apps found.',
-                      style:
-                          tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
-                    )
-                  else
-                    ..._installedApps.map((app) {
-                      final checked = _selected.contains(app.packageId);
-                      return CheckboxListTile(
-                        value: checked,
-                        onChanged: (v) {
-                          setState(() {
-                            if (v == true) {
-                              _selected.add(app.packageId);
-                            } else {
-                              _selected.remove(app.packageId);
-                            }
-                          });
-                        },
-                        title: Text(app.name),
-                        subtitle: Text(
-                          app.packageId,
-                          style: tt.bodySmall,
-                        ),
-                        controlAffinity: ListTileControlAffinity.leading,
-                        contentPadding: EdgeInsets.zero,
-                      );
-                    }),
-                ],
-              ],
+    return AppStepScaffold(
+      totalSteps: _kTotalSteps,
+      currentStep: 5,
+      nextLabel: 'Finish Setup',
+      isLoading: widget.isSaving,
+      onNext: () => widget.onContinue(_selected.toList()),
+      skipLabel: 'Skip for Now',
+      onSkip: widget.isSaving ? null : widget.onSkip,
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(AppSpacing.xl, AppSpacing.xl, AppSpacing.xl, AppSpacing.base),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('SET UP APP\nBLOCKING', style: AppTypography.display.copyWith(fontSize: 28)),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              'Choose apps to block when your screen time runs out.\nYou can change this later.',
+              style: AppTypography.bodyMuted,
             ),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(32, 0, 32, 24),
-          child: Column(
-            children: [
-              FilledButton(
-                onPressed: widget.isSaving
-                    ? null
-                    : () => widget.onContinue(_selected.toList()),
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 52),
-                ),
-                child: widget.isSaving
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Continue'),
-              ),
-              TextButton(
-                onPressed: widget.isSaving ? null : widget.onSkip,
-                child: Text(
-                  'Skip for Now',
-                  style: TextStyle(color: cs.onSurfaceVariant),
-                ),
-              ),
+            const SizedBox(height: AppSpacing.xl),
+            if (Platform.isIOS) ...[
+              _IosPickerSection(iosDone: _iosPickerDone, onTap: _openIosPicker),
+            ] else ...[
+              if (_loadingApps)
+                const Center(child: CircularProgressIndicator(color: AppColors.ink))
+              else if (_installedApps.isEmpty)
+                Text('No apps found.', style: AppTypography.bodyMuted)
+              else
+                ..._installedApps.map((app) {
+                  final checked = _selected.contains(app.packageId);
+                  return CheckboxListTile(
+                    value: checked,
+                    onChanged: (v) {
+                      setState(() {
+                        if (v == true) { _selected.add(app.packageId); }
+                        else { _selected.remove(app.packageId); }
+                      });
+                    },
+                    title: Text(app.name, style: AppTypography.body),
+                    subtitle: Text(app.packageId, style: AppTypography.labelMuted),
+                    controlAffinity: ListTileControlAffinity.leading,
+                    contentPadding: EdgeInsets.zero,
+                  );
+                }),
             ],
-          ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
 
-class _SessionCounter extends StatelessWidget {
-  final String label;
-  final String sublabel;
-  final IconData icon;
-  final int value;
-  final ValueChanged<int> onChanged;
-
-  const _SessionCounter({
-    required this.label,
-    required this.sublabel,
-    required this.icon,
-    required this.value,
-    required this.onChanged,
-  });
+class _IosPickerSection extends StatelessWidget {
+  final bool iosDone;
+  final VoidCallback onTap;
+  const _IosPickerSection({required this.iosDone, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final tt = Theme.of(context).textTheme;
-    final cs = Theme.of(context).colorScheme;
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 20, color: cs.primary),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        InkWell(
+          onTap: onTap,
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(AppSpacing.base),
+            decoration: BoxDecoration(
+              border: Border.all(color: AppColors.ink, width: 1),
+            ),
+            child: Text('Select Apps via Screen Time', style: AppTypography.label.copyWith(fontSize: 14), textAlign: TextAlign.center),
+          ),
+        ),
+        if (iosDone) ...[
+          const SizedBox(height: AppSpacing.md),
+          Row(
             children: [
-              Text(label, style: tt.bodyMedium),
-              Text(sublabel,
-                  style:
-                      tt.bodySmall?.copyWith(color: cs.onSurfaceVariant)),
+              Container(width: 8, height: 8, color: AppColors.acid),
+              const SizedBox(width: 8),
+              Text('Apps selected via Screen Time', style: AppTypography.body),
             ],
           ),
-        ),
-        IconButton(
-          icon: const Icon(Icons.remove_circle_outline),
-          onPressed: value > 0 ? () => onChanged(value - 1) : null,
-        ),
-        SizedBox(
-          width: 32,
-          child: Text(
-            '$value',
-            textAlign: TextAlign.center,
-            style: tt.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-          ),
-        ),
-        IconButton(
-          icon: const Icon(Icons.add_circle_outline),
-          onPressed: value < 7 ? () => onChanged(value + 1) : null,
-        ),
+        ],
       ],
     );
   }

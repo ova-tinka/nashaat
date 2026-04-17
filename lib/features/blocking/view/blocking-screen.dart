@@ -6,12 +6,16 @@ import '../../../core/entities/enums.dart';
 import '../../../infra/blocking/blocking-platform-service.dart';
 import '../../../infra/permissions/permission-service.dart';
 import '../../../infra/repository-locator.dart';
+import '../../../shared/design/atoms/app-button.dart';
+import '../../../shared/design/atoms/app-divider.dart';
+import '../../../shared/design/molecules/app-card.dart';
+import '../../../shared/design/organisms/app-empty-state.dart';
+import '../../../shared/design/tokens/app-colors.dart';
+import '../../../shared/design/tokens/app-spacing.dart';
+import '../../../shared/design/tokens/app-typography.dart';
 import '../coordinator/blocking-coordinator.dart';
 import '../view-model/blocking-view-model.dart';
 
-/// Entry point for UC-08 Mobile App Blocking.
-///
-/// Usage: push this route and pass the authenticated [userId].
 class BlockingScreen extends StatefulWidget {
   final String userId;
 
@@ -52,17 +56,34 @@ class _BlockingScreenState extends State<BlockingScreen> {
       listenable: _vm,
       builder: (context, _) {
         return Scaffold(
-          appBar: AppBar(title: const Text('App Blocking')),
+          backgroundColor: AppColors.paper,
+          appBar: AppBar(
+            backgroundColor: AppColors.paper,
+            surfaceTintColor: Colors.transparent,
+            scrolledUnderElevation: 0,
+            title: Text(
+              'APP BLOCKING',
+              style: AppTypography.sectionHeader.copyWith(fontSize: 13, letterSpacing: 2),
+            ),
+            bottom: const PreferredSize(
+              preferredSize: Size.fromHeight(1),
+              child: AppDivider(),
+            ),
+          ),
           body: _vm.isLoading
-              ? const Center(child: CircularProgressIndicator())
+              ? const Center(child: CircularProgressIndicator(color: AppColors.ink))
               : _buildBody(context),
           floatingActionButton: _vm.permissions.isFullyGranted
               ? FloatingActionButton.extended(
                   onPressed: _vm.isIos
                       ? () => _vm.openIosPicker()
                       : () => _coordinator.showAppPicker(context, _vm),
+                  backgroundColor: AppColors.ink,
+                  foregroundColor: AppColors.paper,
+                  shape: const RoundedRectangleBorder(),
+                  elevation: 0,
                   icon: const Icon(Icons.add),
-                  label: const Text('Add App'),
+                  label: Text('Add App', style: AppTypography.label.copyWith(color: AppColors.paper)),
                 )
               : null,
         );
@@ -72,18 +93,20 @@ class _BlockingScreenState extends State<BlockingScreen> {
 
   Widget _buildBody(BuildContext context) {
     return RefreshIndicator(
+      color: AppColors.ink,
       onRefresh: _vm.initialize,
       child: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpacing.base),
         children: [
-          if (_vm.error != null) _ErrorBanner(message: _vm.error!, onDismiss: _vm.clearError),
+          if (_vm.error != null)
+            _ErrorBanner(message: _vm.error!, onDismiss: _vm.clearError),
           if (!_vm.permissions.isFullyGranted) ...[
             _PermissionsSection(vm: _vm),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpacing.base),
           ],
           if (_vm.permissions.isFullyGranted) ...[
             _BlockingToggle(vm: _vm),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpacing.base),
           ],
           _BlockedAppsList(vm: _vm, coordinator: _coordinator),
         ],
@@ -96,41 +119,33 @@ class _BlockingScreenState extends State<BlockingScreen> {
 
 class _PermissionsSection extends StatelessWidget {
   final BlockingViewModel vm;
-
   const _PermissionsSection({required this.vm});
 
   @override
   Widget build(BuildContext context) {
     final missing = vm.permissions.missing;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.warning_amber_rounded,
-                  color: Theme.of(context).colorScheme.error,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Permissions Required',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Nashaat needs the following permissions to block apps.',
-            ),
-            const SizedBox(height: 12),
-            ...missing.map(
-              (p) => _PermissionRow(permission: p, onGrant: () => vm.requestPermission(p)),
-            ),
-          ],
-        ),
+    return AppCard.signal(
+      padding: const EdgeInsets.all(AppSpacing.base),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded, color: AppColors.ink, size: 18),
+              const SizedBox(width: AppSpacing.sm),
+              Text('Permissions Required', style: AppTypography.heading.copyWith(fontSize: 14)),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            'Nashaat needs the following permissions to block apps.',
+            style: AppTypography.body,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          ...missing.map(
+            (p) => _PermissionRow(permission: p, onGrant: () => vm.requestPermission(p)),
+          ),
+        ],
       ),
     );
   }
@@ -148,23 +163,19 @@ class _PermissionRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
-          const Icon(Icons.circle, size: 8),
-          const SizedBox(width: 8),
+          Container(width: 6, height: 6, color: AppColors.ink),
+          const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(permission.label,
-                    style: const TextStyle(fontWeight: FontWeight.w600)),
-                Text(
-                  permission.description,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
+                Text(permission.label, style: AppTypography.body.copyWith(fontWeight: FontWeight.w600)),
+                Text(permission.description, style: AppTypography.labelMuted),
               ],
             ),
           ),
-          const SizedBox(width: 8),
-          TextButton(onPressed: onGrant, child: const Text('Grant')),
+          const SizedBox(width: AppSpacing.sm),
+          AppButton.ghost('Grant', onPressed: onGrant),
         ],
       ),
     );
@@ -175,24 +186,39 @@ class _PermissionRow extends StatelessWidget {
 
 class _BlockingToggle extends StatelessWidget {
   final BlockingViewModel vm;
-
   const _BlockingToggle({required this.vm});
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: SwitchListTile(
-        title: const Text('Blocking Active'),
-        subtitle: Text(
-          vm.isBlockingActive
-              ? '${vm.activeRules.length} app(s) are currently blocked.'
-              : 'Toggle on to start blocking selected apps.',
-        ),
-        value: vm.isBlockingActive,
-        onChanged: vm.rules.isEmpty
-            ? null
-            : (on) =>
-                on ? vm.activateBlocking() : vm.deactivateBlocking(),
+    return AppCard(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.base, vertical: AppSpacing.md,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Blocking Active', style: AppTypography.body.copyWith(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 2),
+                Text(
+                  vm.isBlockingActive
+                      ? '${vm.activeRules.length} app(s) currently blocked.'
+                      : 'Toggle on to start blocking selected apps.',
+                  style: AppTypography.labelMuted,
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            value: vm.isBlockingActive,
+            onChanged: vm.rules.isEmpty
+                ? null
+                : (on) => on ? vm.activateBlocking() : vm.deactivateBlocking(),
+            activeThumbColor: AppColors.acid,
+          ),
+        ],
       ),
     );
   }
@@ -209,17 +235,21 @@ class _BlockedAppsList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (vm.rules.isEmpty) {
-      return const _EmptyState();
+      return AppEmptyState(
+        title: 'No apps blocked yet',
+        body: 'Tap "Add App" to choose which apps to restrict when your balance runs out.',
+        icon: Icons.block,
+      );
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
           child: Text(
             '${vm.rules.length} rule(s) active',
-            style: Theme.of(context).textTheme.titleSmall,
+            style: AppTypography.labelMuted,
           ),
         ),
         ...vm.rules.map((rule) {
@@ -252,72 +282,58 @@ class _IosSelectionCard extends StatelessWidget {
         ? summary.displayText
         : 'Tap Modify to see selected apps';
 
-    return Card(
+    return Container(
       margin: const EdgeInsets.symmetric(vertical: 4),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                  child: Icon(
-                    Icons.shield_outlined,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.paperBorder),
+      ),
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                color: AppColors.paperAlt,
+                child: const Icon(Icons.shield_outlined, color: AppColors.ink, size: 20),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('iOS Screen Time', style: AppTypography.body.copyWith(fontWeight: FontWeight.w600)),
+                    Text(subtitleText, style: AppTypography.labelMuted),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'iOS Screen Time',
-                        style: Theme.of(context).textTheme.titleSmall,
-                      ),
-                      Text(
-                        subtitleText,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Switch(
-                  value: isActive,
-                  onChanged: (_) => vm.toggleRule(rule.id),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton.icon(
-                  icon: const Icon(Icons.edit_outlined, size: 16),
-                  label: const Text('Modify'),
-                  onPressed: () => vm.openIosPicker(),
-                ),
-                const SizedBox(width: 8),
-                TextButton.icon(
-                  icon: Icon(
-                    Icons.delete_outline,
-                    size: 16,
-                    color: Theme.of(context).colorScheme.error,
-                  ),
-                  label: Text(
-                    'Remove',
-                    style: TextStyle(color: Theme.of(context).colorScheme.error),
-                  ),
-                  onPressed: () => _confirmDelete(context),
-                ),
-              ],
-            ),
-          ],
-        ),
+              ),
+              Switch(
+                value: isActive,
+                onChanged: (_) => vm.toggleRule(rule.id),
+                activeThumbColor: AppColors.acid,
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              AppButton.ghost(
+                'Modify',
+                icon: Icons.edit_outlined,
+                onPressed: () => vm.openIosPicker(),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              AppButton.destructive(
+                'Remove',
+                icon: Icons.delete_outline,
+                onPressed: () => _confirmDelete(context),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -326,15 +342,16 @@ class _IosSelectionCard extends StatelessWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Remove Blocking'),
-        content: const Text('Remove all blocked apps? This will turn off Screen Time blocking.'),
+        backgroundColor: AppColors.paper,
+        shape: const RoundedRectangleBorder(),
+        title: Text('Remove Blocking', style: AppTypography.heading),
+        content: Text(
+          'Remove all blocked apps? This will turn off Screen Time blocking.',
+          style: AppTypography.body,
+        ),
         actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel')),
-          FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Remove')),
+          AppButton.ghost('Cancel', onPressed: () => Navigator.pop(context, false)),
+          AppButton.destructive('Remove', onPressed: () => Navigator.pop(context, true)),
         ],
       ),
     );
@@ -353,33 +370,48 @@ class _AppRuleCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isActive = rule.status == RuleStatus.active;
-    return Card(
+    final appLabel = rule.itemIdentifier.split('.').last;
+
+    return Container(
       margin: const EdgeInsets.symmetric(vertical: 4),
-      child: ListTile(
-        leading: CircleAvatar(
-          child: Text(
-            rule.itemIdentifier.split('.').last.substring(0, 1).toUpperCase(),
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.paperBorder),
+      ),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.base, vertical: AppSpacing.md,
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            color: AppColors.ink,
+            alignment: Alignment.center,
+            child: Text(
+              appLabel.substring(0, 1).toUpperCase(),
+              style: AppTypography.monoStrong.copyWith(color: AppColors.paper),
+            ),
           ),
-        ),
-        title: Text(rule.itemIdentifier.split('.').last),
-        subtitle: Text(
-          rule.itemIdentifier,
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Switch(
-              value: isActive,
-              onChanged: (_) => vm.toggleRule(rule.id),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(appLabel, style: AppTypography.body.copyWith(fontWeight: FontWeight.w600)),
+                Text(rule.itemIdentifier, style: AppTypography.labelMuted),
+              ],
             ),
-            IconButton(
-              icon: const Icon(Icons.delete_outline),
-              color: Theme.of(context).colorScheme.error,
-              onPressed: () => _confirmDelete(context),
-            ),
-          ],
-        ),
+          ),
+          Switch(
+            value: isActive,
+            onChanged: (_) => vm.toggleRule(rule.id),
+            activeThumbColor: AppColors.acid,
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline, color: AppColors.error, size: 20),
+            onPressed: () => _confirmDelete(context),
+          ),
+        ],
       ),
     );
   }
@@ -388,54 +420,22 @@ class _AppRuleCard extends StatelessWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Remove App'),
+        backgroundColor: AppColors.paper,
+        shape: const RoundedRectangleBorder(),
+        title: Text('Remove App', style: AppTypography.heading),
         content: Text(
-            'Remove "${rule.itemIdentifier.split('.').last}" from your block list?'),
+          'Remove "${rule.itemIdentifier.split('.').last}" from your block list?',
+          style: AppTypography.body,
+        ),
         actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel')),
-          FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Remove')),
+          AppButton.ghost('Cancel', onPressed: () => Navigator.pop(context, false)),
+          AppButton.destructive('Remove', onPressed: () => Navigator.pop(context, true)),
         ],
       ),
     );
     if (confirmed == true) {
       await vm.removeRule(rule.id);
     }
-  }
-}
-
-class _EmptyState extends StatelessWidget {
-  const _EmptyState();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 48),
-        child: Column(
-          children: [
-            Icon(
-              Icons.block,
-              size: 64,
-              color: Theme.of(context).colorScheme.outlineVariant,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'No apps blocked yet',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Tap "Add App" to choose which apps\nto restrict when your balance runs out.',
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }
 
@@ -450,28 +450,22 @@ class _ErrorBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      margin: const EdgeInsets.only(bottom: AppSpacing.md),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.base, vertical: 10),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.errorContainer,
-        borderRadius: BorderRadius.circular(12),
+        color: AppColors.errorMuted,
+        border: Border.all(color: AppColors.error),
       ),
       child: Row(
         children: [
-          Icon(Icons.error_outline,
-              color: Theme.of(context).colorScheme.onErrorContainer),
+          const Icon(Icons.error_outline, color: AppColors.error, size: 16),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              message,
-              style: TextStyle(
-                  color: Theme.of(context).colorScheme.onErrorContainer),
-            ),
+            child: Text(message, style: AppTypography.body.copyWith(color: AppColors.error)),
           ),
-          IconButton(
-            icon: const Icon(Icons.close),
-            color: Theme.of(context).colorScheme.onErrorContainer,
-            onPressed: onDismiss,
+          GestureDetector(
+            onTap: onDismiss,
+            child: const Icon(Icons.close, color: AppColors.error, size: 16),
           ),
         ],
       ),
