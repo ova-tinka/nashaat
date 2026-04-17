@@ -444,7 +444,10 @@ class _CompletedViewState extends State<_CompletedView> {
   @override
   void initState() {
     super.initState();
-    _autoSave();
+    // Defer until after the current build frame completes — calling saveSession()
+    // synchronously in initState fires notifyListeners() while ListenableBuilder
+    // is still rebuilding, which triggers a !_dirty assertion.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _autoSave());
   }
 
   Future<void> _autoSave() async {
@@ -506,8 +509,8 @@ class _CompletedViewState extends State<_CompletedView> {
                   icon: Icons.phone_android,
                   label: 'Earned',
                   value: vm.earnedMinutes > 0
-                      ? '${_formatMinutes(vm.earnedMinutes)} screen time'
-                      : 'Set up phone time in Focus tab',
+                      ? '+${_formatMinutes(vm.earnedMinutes)} screen time'
+                      : 'Configure in Settings → Screen Time',
                 ),
                 if (vm.error != null) ...[
                   const SizedBox(height: 12),

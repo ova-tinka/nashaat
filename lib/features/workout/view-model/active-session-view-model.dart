@@ -107,24 +107,25 @@ class ActiveSessionViewModel extends ChangeNotifier {
     if (_setIndex >= _setCompletions[_exerciseIndex].length) return;
 
     _setCompletions[_exerciseIndex][_setIndex] = true;
-    notifyListeners();
 
     final ex = currentExercise;
     final restSeconds = ex?.restSeconds ?? 60;
 
-    // Move to next set or exercise after a brief rest
     if (_setIndex < totalSetsForCurrent - 1) {
       _setIndex++;
       if (mode == SessionMode.guided && restSeconds > 0) {
         _startRestCountdown(restSeconds);
+        return; // _startRestCountdown calls notifyListeners
       }
     } else {
       _setIndex = 0;
       _exerciseIndex++;
       if (_exerciseIndex >= plan.exercises.length) {
         _finishSession();
+        return; // _finishSession calls notifyListeners
       } else if (mode == SessionMode.guided && restSeconds > 0) {
         _startRestCountdown(restSeconds);
+        return;
       }
     }
     notifyListeners();
@@ -147,9 +148,10 @@ class ActiveSessionViewModel extends ChangeNotifier {
     _exerciseIndex = exerciseIdx + 1;
     _setIndex = 0;
     if (_exerciseIndex >= plan.exercises.length) {
-      _finishSession();
+      _finishSession(); // calls notifyListeners
+    } else {
+      notifyListeners();
     }
-    notifyListeners();
   }
 
   void markAllComplete() {
@@ -158,7 +160,7 @@ class ActiveSessionViewModel extends ChangeNotifier {
         sets[i] = true;
       }
     }
-    _finishSession();
+    _finishSession(); // calls notifyListeners
   }
 
   void _finishSession() {

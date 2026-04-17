@@ -36,11 +36,41 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
     super.dispose();
   }
 
+  void _showFilterSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _FilterBottomSheet(vm: _vm),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.selectionMode ? 'Add Exercise' : 'Exercise Library'),
+        actions: [
+          ListenableBuilder(
+            listenable: _vm,
+            builder: (_, child) {
+              final count = (_vm.selectedMuscleGroup != null ? 1 : 0) +
+                  (_vm.selectedDifficulty != null ? 1 : 0);
+              return Badge(
+                isLabelVisible: count > 0,
+                label: Text('$count'),
+                child: IconButton(
+                  icon: const Icon(Icons.tune),
+                  tooltip: 'Filter',
+                  onPressed: _showFilterSheet,
+                ),
+              );
+            },
+          ),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(56),
           child: Padding(
@@ -52,7 +82,7 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
               trailing: [
                 ListenableBuilder(
                   listenable: _vm,
-                  builder: (_, __) => _vm.searchQuery.isNotEmpty
+                  builder: (_, child) => _vm.searchQuery.isNotEmpty
                       ? IconButton(
                           icon: const Icon(Icons.clear),
                           onPressed: () {
@@ -81,125 +111,127 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
             );
           }
 
-          return Column(
-            children: [
-              _FilterRow(vm: _vm),
-              Expanded(
-                child: _vm.exercises.isEmpty
-                    ? _EmptyState(hasFilters: _vm.searchQuery.isNotEmpty ||
-                        _vm.selectedMuscleGroup != null ||
-                        _vm.selectedDifficulty != null)
-                    : ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(12, 4, 12, 16),
-                        itemCount: _vm.exercises.length,
-                        itemBuilder: (context, i) {
-                          final exercise = _vm.exercises[i];
-                          return _ExerciseCard(
-                            exercise: exercise,
-                            selectionMode: widget.selectionMode,
-                            onTap: () {
-                              if (widget.selectionMode) {
-                                Navigator.pop(context, exercise);
-                              } else {
-                                Navigator.pushNamed(
-                                  context,
-                                  '/exercise-detail',
-                                  arguments: exercise,
-                                );
-                              }
-                            },
+          return _vm.exercises.isEmpty
+              ? _EmptyState(
+                  hasFilters: _vm.searchQuery.isNotEmpty ||
+                      _vm.selectedMuscleGroup != null ||
+                      _vm.selectedDifficulty != null,
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(12, 4, 12, 16),
+                  itemCount: _vm.exercises.length,
+                  itemBuilder: (context, i) {
+                    final exercise = _vm.exercises[i];
+                    return _ExerciseCard(
+                      exercise: exercise,
+                      selectionMode: widget.selectionMode,
+                      onTap: () {
+                        if (widget.selectionMode) {
+                          Navigator.pop(context, exercise);
+                        } else {
+                          Navigator.pushNamed(
+                            context,
+                            '/exercise-detail',
+                            arguments: exercise,
                           );
-                        },
-                      ),
-              ),
-            ],
-          );
+                        }
+                      },
+                    );
+                  },
+                );
         },
       ),
     );
   }
 }
 
-// ── Filter row ────────────────────────────────────────────────────────────────
+// ── Filter bottom sheet ───────────────────────────────────────────────────────
 
-class _FilterRow extends StatelessWidget {
+class _FilterBottomSheet extends StatelessWidget {
   final ExerciseLibraryViewModel vm;
-  const _FilterRow({required this.vm});
+  const _FilterBottomSheet({required this.vm});
 
   @override
   Widget build(BuildContext context) {
-    final hasActiveFilter = vm.selectedMuscleGroup != null ||
-        vm.selectedDifficulty != null;
+    final tt = Theme.of(context).textTheme;
 
-    return SizedBox(
-      height: 48,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        children: [
-          if (hasActiveFilter)
-            Padding(
-              padding: const EdgeInsets.only(right: 6),
-              child: ActionChip(
-                label: const Text('Clear'),
-                avatar: const Icon(Icons.close, size: 16),
-                onPressed: vm.clearFilters,
+    return ListenableBuilder(
+      listenable: vm,
+      builder: (context, _) {
+        final hasActiveFilter =
+            vm.selectedMuscleGroup != null || vm.selectedDifficulty != null;
+
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Row(
+                children: [
+                  Text('Filter Exercises', style: tt.titleMedium),
+                  const Spacer(),
+                  if (hasActiveFilter)
+                    TextButton(
+                      onPressed: () {
+                        vm.setMuscleGroup(null);
+                        vm.setDifficulty(null);
+                      },
+                      child: const Text('Clear all'),
+                    ),
+                ],
               ),
-            ),
-          _MuscleGroupMenu(vm: vm),
-          const SizedBox(width: 6),
-          ...DifficultyLevel.values.map((d) {
-            final selected = vm.selectedDifficulty == d;
-            return Padding(
-              padding: const EdgeInsets.only(right: 6),
-              child: FilterChip(
-                label: Text(_difficultyLabel(d)),
-                selected: selected,
-                onSelected: (_) =>
-                    vm.setDifficulty(selected ? null : d),
+              const Divider(height: 24),
+
+              // Muscle group
+              Text('Muscle Group', style: tt.labelLarge),
+              const SizedBox(height: 10),
+              if (vm.availableMuscleGroups.isEmpty)
+                Text('No data yet', style: tt.bodySmall)
+              else
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: vm.availableMuscleGroups.map((g) {
+                    final selected =
+                        vm.selectedMuscleGroup?.toLowerCase() == g.toLowerCase();
+                    return FilterChip(
+                      label: Text(g),
+                      selected: selected,
+                      onSelected: (_) =>
+                          vm.setMuscleGroup(selected ? null : g),
+                    );
+                  }).toList(),
+                ),
+
+              const SizedBox(height: 20),
+
+              // Difficulty
+              Text('Difficulty', style: tt.labelLarge),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                children: DifficultyLevel.values.map((d) {
+                  final selected = vm.selectedDifficulty == d;
+                  final label = switch (d) {
+                    DifficultyLevel.easy => 'Easy',
+                    DifficultyLevel.medium => 'Medium',
+                    DifficultyLevel.hard => 'Hard',
+                  };
+                  return FilterChip(
+                    label: Text(label),
+                    selected: selected,
+                    onSelected: (_) =>
+                        vm.setDifficulty(selected ? null : d),
+                  );
+                }).toList(),
               ),
-            );
-          }),
-        ],
-      ),
-    );
-  }
-
-  String _difficultyLabel(DifficultyLevel d) => switch (d) {
-        DifficultyLevel.easy => 'Easy',
-        DifficultyLevel.medium => 'Medium',
-        DifficultyLevel.hard => 'Hard',
-      };
-}
-
-class _MuscleGroupMenu extends StatelessWidget {
-  final ExerciseLibraryViewModel vm;
-  const _MuscleGroupMenu({required this.vm});
-
-  @override
-  Widget build(BuildContext context) {
-    final groups = vm.availableMuscleGroups;
-    final selected = vm.selectedMuscleGroup;
-
-    return PopupMenuButton<String>(
-      initialValue: selected,
-      onSelected: (value) =>
-          vm.setMuscleGroup(value == selected ? null : value),
-      itemBuilder: (_) => [
-        const PopupMenuItem(
-          value: '',
-          child: Text('All Muscles'),
-        ),
-        ...groups.map(
-          (g) => PopupMenuItem(value: g, child: Text(g)),
-        ),
-      ],
-      child: FilterChip(
-        label: Text(selected ?? 'Muscle Group'),
-        avatar: const Icon(Icons.expand_more, size: 18),
-        selected: selected != null,
-        onSelected: (_) {},
-      ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
     );
   }
 }

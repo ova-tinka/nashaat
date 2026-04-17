@@ -159,7 +159,15 @@ class FocusViewModel extends ChangeNotifier {
   }
 
   Future<void> _onTick() async {
-    if (!_appsUnblocked) return;
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) return;
+
+    if (!_appsUnblocked) {
+      // Refresh balance from DB to pick up screen time earned by recent workouts.
+      await _loadProfile(userId);
+      await _syncBlockingState();
+      return;
+    }
 
     // Determine whether to drain this tick.
     // Android: only drain if a blocked-app is currently in the foreground.
@@ -167,9 +175,6 @@ class FocusViewModel extends ChangeNotifier {
     //          FamilyControls; Flutter cannot inspect the foreground app).
     final shouldDrain = await _shouldDrainThisTick();
     if (!shouldDrain) return;
-
-    final userId = Supabase.instance.client.auth.currentUser?.id;
-    if (userId == null) return;
 
     final current = _profile?.screenTimeBalanceMinutes ?? 0;
     if (current <= 0) {
