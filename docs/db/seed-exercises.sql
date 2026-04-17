@@ -1,4 +1,4 @@
--- Seed data: 70+ exercises for the Nashaat exercise library.
+-- Seed data: 62 curated exercises for the Nashaat exercise library.
 -- Run after migration-exercise-schema.sql.
 
 INSERT INTO exercises (name, description, muscle_groups, steps, difficulty_level, measurement_type, is_system) VALUES

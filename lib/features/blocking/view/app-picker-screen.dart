@@ -24,7 +24,15 @@ class _AppPickerScreenState extends State<AppPickerScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    if (_vm.isIos) {
+      // On iOS the native picker does everything — skip this screen entirely.
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        await _vm.openIosPicker();
+        if (mounted) Navigator.of(context).pop([]);
+      });
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    }
   }
 
   @override

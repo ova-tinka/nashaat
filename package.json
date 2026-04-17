@@ -1,4 +1,7 @@
 {
+  "scripts": {
+    "import:free-exercise-db": "node scripts/import-free-exercise-db.mjs"
+  },
   "dependencies": {
     "supabase": "^2.76.15"
   }
