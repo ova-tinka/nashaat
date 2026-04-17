@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../app/app-coordinator.dart';
 import '../view/app-picker-screen.dart';
-import '../view_model/blocking-view-model.dart';
+import '../view-model/blocking-view-model.dart';
 
 class BlockingCoordinator {
   final AppCoordinator _app;

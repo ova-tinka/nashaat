@@ -1,17 +1,12 @@
 import Flutter
 import UIKit
 
-// FamilyControls and ManagedSettings are imported conditionally so the project
-// compiles on simulators that don't support all Screen Time APIs.
 #if canImport(FamilyControls)
 import FamilyControls
 import ManagedSettings
+import SwiftUI
 #endif
 
-/// Handles the "com.nashaat/blocking" Flutter method channel on iOS.
-///
-/// Requires the `com.apple.developer.family-controls` entitlement and
-/// iOS 16+. On older OS versions all blocking calls are no-ops.
 @objc class BlockingPlugin: NSObject, FlutterPlugin {
 
     static func register(with registrar: FlutterPluginRegistrar) {
@@ -19,48 +14,35 @@ import ManagedSettings
             name: "com.nashaat/blocking",
             binaryMessenger: registrar.messenger()
         )
-        let instance = BlockingPlugin()
-        registrar.addMethodCallDelegate(instance, channel: channel)
+        registrar.addMethodCallDelegate(BlockingPlugin(), channel: channel)
     }
 
     func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         if #available(iOS 16.0, *) {
             switch call.method {
-            case "checkPermissions":
-                checkPermissions(result: result)
-            case "requestPermission":
-                requestPermission(result: result)
-            case "presentAppPicker":
-                presentAppPicker(result: result)
-            case "startBlocking":
-                startBlocking(result: result)
-            case "stopBlocking":
-                stopBlocking(result: result)
-            case "isBlockingActive":
-                isBlockingActive(result: result)
-            default:
-                result(FlutterMethodNotImplemented)
+            case "checkPermissions": checkPermissions(result: result)
+            case "requestPermission": requestPermission(result: result)
+            case "presentAppPicker": presentAppPicker(result: result)
+            case "startBlocking":   startBlocking(result: result)
+            case "stopBlocking":    stopBlocking(result: result)
+            case "isBlockingActive": isBlockingActive(result: result)
+            default: result(FlutterMethodNotImplemented)
             }
         } else {
-            // iOS < 16: return safe defaults
             switch call.method {
-            case "checkPermissions":
-                result(["familyControls": false])
-            case "isBlockingActive":
-                result(false)
-            default:
-                result(nil)
+            case "checkPermissions": result(["familyControls": false])
+            case "isBlockingActive": result(false)
+            default: result(nil)
             }
         }
     }
 
-    // ── Permission ────────────────────────────────────────────────────────────
+    // ── Permissions ───────────────────────────────────────────────────────────
 
     @available(iOS 16.0, *)
     private func checkPermissions(result: @escaping FlutterResult) {
         #if canImport(FamilyControls)
-        let granted = AuthorizationCenter.shared.authorizationStatus == .approved
-        result(["familyControls": granted])
+        result(["familyControls": AuthorizationCenter.shared.authorizationStatus == .approved])
         #else
         result(["familyControls": false])
         #endif
@@ -84,8 +66,6 @@ import ManagedSettings
 
     // ── App picker ────────────────────────────────────────────────────────────
 
-    /// Presents the native FamilyActivityPicker in a UIHostingController.
-    /// When the user confirms, the selection is persisted and blocking is applied.
     @available(iOS 16.0, *)
     private func presentAppPicker(result: @escaping FlutterResult) {
         #if canImport(FamilyControls)
@@ -97,16 +77,33 @@ import ManagedSettings
                 return
             }
 
-            let pickerVC = FamilyActivityPickerViewController { selection in
-                // Persist and apply the selection
-                BlockingStore.shared.saveSelection(selection)
-                BlockingStore.shared.applyBlocking()
-                result(nil)
-            } onCancel: {
-                result(nil)
+            // Restore previously saved selection so checked apps stay checked.
+            var restored = FamilyActivitySelection()
+            if let data = UserDefaults.standard.data(forKey: BlockingStore.selectionKey),
+               let saved = try? JSONDecoder().decode(FamilyActivitySelection.self, from: data) {
+                restored = saved
             }
 
-            rootVC.present(pickerVC, animated: true)
+            // Present a transparent host view whose only job is to open the
+            // picker as a sheet. The picker supplies its own Done / Cancel —
+            // we never wrap it in our own NavigationView.
+            var hostVC: UIHostingController<PickerHost>?
+
+            let host = PickerHost(initial: restored) { finalSelection in
+                BlockingStore.shared.saveSelection(finalSelection)
+                BlockingStore.shared.applyBlocking()
+                let count = finalSelection.applicationTokens.count
+                           + finalSelection.webDomainTokens.count
+                           + finalSelection.categoryTokens.count
+                result(["appCount": count])
+                // Dismiss the transparent host after the picker sheet is gone.
+                DispatchQueue.main.async { hostVC?.dismiss(animated: false) }
+            }
+
+            hostVC = UIHostingController(rootView: host)
+            hostVC!.view.backgroundColor = .clear
+            // Present without animation — the sheet inside will animate on its own.
+            rootVC.present(hostVC!, animated: false)
         }
         #else
         result(nil)
@@ -120,10 +117,8 @@ import ManagedSettings
         #if canImport(ManagedSettings)
         BlockingStore.shared.applyBlocking()
         UserDefaults.standard.set(true, forKey: "nashaat_blocking_active")
-        result(nil)
-        #else
-        result(nil)
         #endif
+        result(nil)
     }
 
     @available(iOS 16.0, *)
@@ -131,10 +126,8 @@ import ManagedSettings
         #if canImport(ManagedSettings)
         BlockingStore.shared.removeBlocking()
         UserDefaults.standard.set(false, forKey: "nashaat_blocking_active")
-        result(nil)
-        #else
-        result(nil)
         #endif
+        result(nil)
     }
 
     @available(iOS 16.0, *)
@@ -143,99 +136,98 @@ import ManagedSettings
     }
 }
 
-// ── FamilyActivityPicker wrapper ──────────────────────────────────────────────
+// ── PickerHost ────────────────────────────────────────────────────────────────
+//
+// Transparent SwiftUI view that presents FamilyActivityPicker as a sheet.
+// The picker owns its Done/Cancel buttons and its own navigation stack —
+// we don't interfere with either.
+//
+// PickerCoordinator is a class so the onDismiss closure captures a reference
+// and always reads the current selection, not a value-type snapshot.
 
-#if canImport(FamilyControls) && canImport(SwiftUI)
-import SwiftUI
+#if canImport(FamilyControls)
 
 @available(iOS 16.0, *)
-class FamilyActivityPickerViewController: UIViewController {
-    private let onDone: (FamilyActivitySelection) -> Void
-    private let onCancel: () -> Void
+private final class PickerCoordinator: ObservableObject {
+    @Published var selection: FamilyActivitySelection
+    @Published var isPresented = true
+    var confirmed = false   // set to true only on Done tap
 
-    init(
-        onDone: @escaping (FamilyActivitySelection) -> Void,
-        onCancel: @escaping () -> Void
-    ) {
-        self.onDone = onDone
-        self.onCancel = onCancel
-        super.init(nibName: nil, bundle: nil)
-    }
-
-    required init?(coder: NSCoder) { fatalError() }
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-
-        let pickerView = FamilyActivityPickerView(
-            onDone: { [weak self] sel in
-                self?.dismiss(animated: true) { self?.onDone(sel) }
-            },
-            onCancel: { [weak self] in
-                self?.dismiss(animated: true) { self?.onCancel() }
-            }
-        )
-
-        let host = UIHostingController(rootView: pickerView)
-        addChild(host)
-        view.addSubview(host.view)
-        host.view.frame = view.bounds
-        host.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        host.didMove(toParent: self)
+    init(initial: FamilyActivitySelection) {
+        selection = initial
     }
 }
 
 @available(iOS 16.0, *)
-private struct FamilyActivityPickerView: View {
-    let onDone: (FamilyActivitySelection) -> Void
-    let onCancel: () -> Void
+private struct PickerHost: View {
+    @StateObject private var coordinator: PickerCoordinator
+    private let onFinish: (FamilyActivitySelection) -> Void
 
-    @State private var selection = FamilyActivitySelection()
+    init(initial: FamilyActivitySelection, onFinish: @escaping (FamilyActivitySelection) -> Void) {
+        _coordinator = StateObject(wrappedValue: PickerCoordinator(initial: initial))
+        self.onFinish = onFinish
+    }
 
     var body: some View {
-        NavigationView {
-            FamilyActivityPicker(selection: $selection)
-                .navigationTitle("Select Apps to Block")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancel", action: onCancel)
-                    }
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Done") { onDone(selection) }
-                    }
+        Color.clear
+            .ignoresSafeArea()
+            .sheet(isPresented: $coordinator.isPresented, onDismiss: {
+                // Only forward the selection when the user explicitly tapped Done.
+                onFinish(coordinator.confirmed ? coordinator.selection : FamilyActivitySelection())
+            }) {
+                // FamilyActivityPicker does NOT render its own Done/Cancel when
+                // presented programmatically — we must supply them via toolbar.
+                // NavigationStack (not the deprecated NavigationView) gives a
+                // single-stack context that doesn't fight the picker's own navigation.
+                NavigationStack {
+                    FamilyActivityPicker(selection: $coordinator.selection)
+                        .navigationTitle("Block Apps")
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .topBarLeading) {
+                                Button("Cancel") {
+                                    coordinator.confirmed = false
+                                    coordinator.isPresented = false
+                                }
+                            }
+                            ToolbarItem(placement: .topBarTrailing) {
+                                Button("Done") {
+                                    coordinator.confirmed = true
+                                    coordinator.isPresented = false
+                                }
+                                .fontWeight(.semibold)
+                            }
+                        }
                 }
-        }
+            }
     }
 }
-#endif
 
 // ── BlockingStore ─────────────────────────────────────────────────────────────
 
-#if canImport(ManagedSettings) && canImport(FamilyControls)
 @available(iOS 16.0, *)
 class BlockingStore {
     static let shared = BlockingStore()
+    static let selectionKey = "nashaat_family_selection"
+
     private let store = ManagedSettingsStore()
-    private let selectionKey = "nashaat_family_selection"
 
     func saveSelection(_ selection: FamilyActivitySelection) {
         if let data = try? JSONEncoder().encode(selection) {
-            UserDefaults.standard.set(data, forKey: selectionKey)
+            UserDefaults.standard.set(data, forKey: BlockingStore.selectionKey)
         }
     }
 
     func loadSelection() -> FamilyActivitySelection? {
-        guard let data = UserDefaults.standard.data(forKey: selectionKey) else { return nil }
+        guard let data = UserDefaults.standard.data(forKey: BlockingStore.selectionKey) else { return nil }
         return try? JSONDecoder().decode(FamilyActivitySelection.self, from: data)
     }
 
     func applyBlocking() {
-        guard let selection = loadSelection() else { return }
-        store.shield.applications = selection.applicationTokens.isEmpty ? nil : selection.applicationTokens
-        store.shield.applicationCategories = selection.categoryTokens.isEmpty
-            ? nil
-            : .specific(selection.categoryTokens)
+        guard let sel = loadSelection() else { return }
+        store.shield.applications = sel.applicationTokens.isEmpty ? nil : sel.applicationTokens
+        store.shield.applicationCategories = sel.categoryTokens.isEmpty
+            ? nil : .specific(sel.categoryTokens)
     }
 
     func removeBlocking() {
@@ -243,4 +235,5 @@ class BlockingStore {
         store.shield.applicationCategories = nil
     }
 }
+
 #endif

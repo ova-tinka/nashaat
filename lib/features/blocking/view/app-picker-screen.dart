@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../infra/blocking/blocking-platform-service.dart';
-import '../view_model/blocking-view-model.dart';
+import '../view-model/blocking-view-model.dart';
 
 /// Android: searchable list of installed apps for multi-select.
 /// iOS: button that opens the native FamilyActivityPicker sheet.
@@ -24,7 +24,7 @@ class _AppPickerScreenState extends State<AppPickerScreen> {
   @override
   void initState() {
     super.initState();
-    _load();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
   }
 
   @override

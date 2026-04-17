@@ -104,10 +104,32 @@ class BlockingViewModel extends ChangeNotifier {
 
   Future<void> openIosPicker() async {
     Log.blocking('opening iOS native picker');
-    await _platform.presentIosPicker();
-    // Reload rules after the picker closes (native side may have updated them)
-    await _loadRules();
-    Log.blocking('iOS picker closed — ${_rules.length} rule(s) now');
+    final count = await _platform.presentIosPicker();
+    if (count == 0) {
+      Log.blocking('iOS picker closed — no apps selected');
+      return;
+    }
+    // Remove any existing synthetic iOS rule before writing the new one
+    final existing = _rules
+        .where((r) => r.itemIdentifier.startsWith('ios_selection:'))
+        .toList();
+    for (final rule in existing) {
+      await _blockingRepo.deleteRule(rule.id);
+      _rules.remove(rule);
+    }
+    final rule = BlockingRuleEntity(
+      id: '',
+      userId: userId,
+      itemType: ItemType.app,
+      itemIdentifier: 'ios_selection:$count',
+      status: RuleStatus.active,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+    final created = await _blockingRepo.createRule(rule);
+    _rules.add(created);
+    _isBlockingActive = true;
+    Log.blocking('iOS picker done — $count item(s) selected, blocking active');
     notifyListeners();
   }
 
@@ -125,9 +147,19 @@ class BlockingViewModel extends ChangeNotifier {
 
   Future<void> removeRule(String id) async {
     try {
+      final rule = _rules.firstWhere((r) => r.id == id);
       await _blockingRepo.deleteRule(id);
       _rules.removeWhere((r) => r.id == id);
-      if (_isBlockingActive) await _syncToNative();
+      if (_isBlockingActive) {
+        if (Platform.isIOS &&
+            rule.itemIdentifier.startsWith('ios_selection:')) {
+          // Clear native ManagedSettingsStore shields
+          await _platform.stopBlocking();
+          _isBlockingActive = false;
+        } else {
+          await _syncToNative();
+        }
+      }
       Log.blocking('rule removed — ${_rules.length} rule(s) remaining');
       notifyListeners();
     } catch (e) {

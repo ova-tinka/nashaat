@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/entities/workout-plan-entity.dart';
 import '../shared/logger.dart';
 
 class AppCoordinator {
@@ -31,16 +32,48 @@ class AppCoordinator {
     _navigator?.pushNamedAndRemoveUntil('/dashboard', (_) => false);
   }
 
-  // ── Feature navigation ────────────────────────────────────────────────────
+  // ── Workout feature ───────────────────────────────────────────────────────
+
+  void showWorkoutBuilder({String? editPlanId}) {
+    Log.nav('showWorkoutBuilder${editPlanId != null ? ' (edit)' : ''}');
+    _navigator?.pushNamed(
+      '/workout-builder',
+      arguments: editPlanId != null ? {'planId': editPlanId} : null,
+    );
+  }
+
+  void showExerciseLibrary() {
+    Log.nav('showExerciseLibrary');
+    _navigator?.pushNamed('/exercise-library');
+  }
+
+  void showActiveSession(WorkoutPlanEntity plan) {
+    Log.nav('showActiveSession: ${plan.title}');
+    _navigator?.pushNamed('/active-session', arguments: plan);
+  }
+
+  void showAiGeneration() {
+    Log.nav('showAiGeneration');
+    _navigator?.pushNamed('/ai-generation');
+  }
+
+  // ── Settings ─────────────────────────────────────────────────────────────
+
+  void showSettings() {
+    Log.nav('showSettings');
+    _navigator?.pushNamed('/settings');
+  }
+
+  // ── Legacy / other features ───────────────────────────────────────────────
 
   void showLogActivity() {
-    Log.nav('showLogActivity');
-    _navigator?.pushNamed('/log-activity');
+    Log.nav('showLogActivity → dashboard');
+    showDashboard();
   }
 
   void showBlocking({required String userId}) {
-    Log.nav('showBlocking');
-    _navigator?.pushNamed('/blocking', arguments: {'userId': userId});
+    Log.nav('showBlocking — available via shell Focus tab');
+    showDashboard();
   }
 
   void showSubscription() {

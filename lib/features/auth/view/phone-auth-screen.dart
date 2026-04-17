@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../model/auth-models.dart';
-import '../view_model/auth-view-model.dart';
+import '../view-model/auth-view-model.dart';
 import 'otp-verification-screen.dart';
 
 class PhoneAuthScreen extends StatefulWidget {

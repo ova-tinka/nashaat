@@ -5,9 +5,9 @@ import '../../../main.dart';
 import '../../../core/entities/enums.dart';
 import '../../../infra/blocking/blocking-platform-service.dart';
 import '../../../infra/permissions/permission-service.dart';
-import '../../../infra/supabase/blocking-repository-impl.dart';
+import '../../../infra/repository-locator.dart';
 import '../coordinator/blocking-coordinator.dart';
-import '../view_model/blocking-view-model.dart';
+import '../view-model/blocking-view-model.dart';
 
 /// Entry point for UC-08 Mobile App Blocking.
 ///
@@ -31,7 +31,7 @@ class _BlockingScreenState extends State<BlockingScreen> {
     final platform = BlockingPlatformService();
     _vm = BlockingViewModel(
       userId: widget.userId,
-      blockingRepo: SupabaseBlockingRepository(),
+      blockingRepo: RepositoryLocator.instance.blocking,
       platform: platform,
       permissionService: PermissionService(platform),
     );

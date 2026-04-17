@@ -17,6 +17,12 @@ class ProfileEntity {
   final DateTime createdAt;
   final DateTime updatedAt;
 
+  // Screen-time economy setup
+  final int dailyPhoneHours;
+  final int weeklySmallSessions;
+  final int weeklyBigSessions;
+  final DateTime? lastWeeklyResetAt;
+
   const ProfileEntity({
     required this.id,
     required this.email,
@@ -33,7 +39,15 @@ class ProfileEntity {
     this.avatarMediaId,
     required this.createdAt,
     required this.updatedAt,
+    this.dailyPhoneHours = 0,
+    this.weeklySmallSessions = 0,
+    this.weeklyBigSessions = 0,
+    this.lastWeeklyResetAt,
   });
+
+  bool get isScreenTimeConfigured =>
+      dailyPhoneHours > 0 &&
+      (weeklySmallSessions + weeklyBigSessions) > 0;
 
   ProfileEntity copyWith({
     String? username,
@@ -48,6 +62,10 @@ class ProfileEntity {
     String? fcmToken,
     String? avatarMediaId,
     DateTime? updatedAt,
+    int? dailyPhoneHours,
+    int? weeklySmallSessions,
+    int? weeklyBigSessions,
+    DateTime? lastWeeklyResetAt,
   }) {
     return ProfileEntity(
       id: id,
@@ -67,6 +85,10 @@ class ProfileEntity {
       avatarMediaId: avatarMediaId ?? this.avatarMediaId,
       createdAt: createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      dailyPhoneHours: dailyPhoneHours ?? this.dailyPhoneHours,
+      weeklySmallSessions: weeklySmallSessions ?? this.weeklySmallSessions,
+      weeklyBigSessions: weeklyBigSessions ?? this.weeklyBigSessions,
+      lastWeeklyResetAt: lastWeeklyResetAt ?? this.lastWeeklyResetAt,
     );
   }
 }

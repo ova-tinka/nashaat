@@ -1,5 +1,5 @@
 import '../../../app/app-coordinator.dart';
-import '../view_model/auth-view-model.dart';
+import '../view-model/auth-view-model.dart';
 
 class AuthCoordinator {
   final AppCoordinator _app;

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
-import '../../../infra/supabase/auth-repository-impl.dart';
+import '../../../infra/repository-locator.dart';
 import '../../../main.dart';
 import '../coordinator/auth-coordinator.dart';
 import '../model/auth-models.dart';
-import '../view_model/auth-view-model.dart';
+import '../view-model/auth-view-model.dart';
 import 'auth-widgets.dart';
 import 'otp-verification-screen.dart';
 import 'phone-auth-screen.dart';
@@ -26,7 +26,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   void initState() {
     super.initState();
-    _vm = AuthViewModel(SupabaseAuthRepository());
+    _vm = AuthViewModel(RepositoryLocator.instance.auth);
     _coordinator = AuthCoordinator(appCoordinator);
     _vm.addListener(_onVmChanged);
   }

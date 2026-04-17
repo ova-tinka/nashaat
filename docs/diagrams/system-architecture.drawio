@@ -1,0 +1,255 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" modified="2026-04-14" agent="Claude" version="21.0.0">
+  <diagram name="High-Level System Architecture" id="nashaat-arch">
+    <mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <!-- Title -->
+        <mxCell id="title" value="Nashaat - High-Level System Architecture" style="text;html=1;fontSize=22;fontStyle=1;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="450" y="10" width="500" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- ===== PRESENTATION LAYER ZONE ===== -->
+        <mxCell id="zone_pres" value="Presentation Layer" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=1;verticalAlign=top;dashed=0;opacity=40;" vertex="1" parent="1">
+          <mxGeometry x="30" y="70" width="370" height="580" as="geometry"/>
+        </mxCell>
+
+        <!-- Auth Screens -->
+        <mxCell id="auth_v" value="Auth Screens&lt;br&gt;(Login, Register, OTP, Phone)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#a5d8ff;strokeColor=#4a9eed;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="50" y="110" width="160" height="50" as="geometry"/>
+        </mxCell>
+        <!-- Auth ViewModel -->
+        <mxCell id="auth_vm" value="Auth ViewModel" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#a5d8ff;strokeColor=#4a9eed;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="50" y="180" width="160" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="a1" style="endArrow=classic;strokeColor=#4a9eed;" edge="1" parent="1" source="auth_v" target="auth_vm">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Blocking Screens -->
+        <mxCell id="block_v" value="Blocking Screens&lt;br&gt;(Rules, App Picker)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#a5d8ff;strokeColor=#4a9eed;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="220" y="110" width="160" height="50" as="geometry"/>
+        </mxCell>
+        <!-- Blocking ViewModel -->
+        <mxCell id="block_vm" value="Blocking ViewModel" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#a5d8ff;strokeColor=#4a9eed;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="220" y="180" width="160" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="a2" style="endArrow=classic;strokeColor=#4a9eed;" edge="1" parent="1" source="block_v" target="block_vm">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Dashboard -->
+        <mxCell id="dash_v" value="Dashboard Screens" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#a5d8ff;strokeColor=#4a9eed;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="50" y="240" width="160" height="40" as="geometry"/>
+        </mxCell>
+        <!-- Log Activity -->
+        <mxCell id="log_v" value="Log Activity Screens" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#a5d8ff;strokeColor=#4a9eed;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="220" y="240" width="160" height="40" as="geometry"/>
+        </mxCell>
+        <!-- Onboarding -->
+        <mxCell id="onboard_v" value="Onboarding Screens" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#a5d8ff;strokeColor=#4a9eed;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="50" y="300" width="160" height="40" as="geometry"/>
+        </mxCell>
+        <!-- Subscription -->
+        <mxCell id="sub_v" value="Subscription Screens" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#a5d8ff;strokeColor=#4a9eed;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="220" y="300" width="160" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- AppCoordinator -->
+        <mxCell id="coordinator" value="AppCoordinator + AppRouter&lt;br&gt;(Global Navigation)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3bf;strokeColor=#f59e0b;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="70" y="370" width="280" height="45" as="geometry"/>
+        </mxCell>
+
+        <!-- Shared -->
+        <mxCell id="shared_theme" value="Material 3 Theme" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3bf;strokeColor=#f59e0b;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="70" y="440" width="130" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="shared_logger" value="Logger Service" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3bf;strokeColor=#f59e0b;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="210" y="440" width="130" height="35" as="geometry"/>
+        </mxCell>
+
+        <!-- User Icon -->
+        <mxCell id="user" value="User&lt;br&gt;(Mobile)" style="shape=mxgraph.basic.person;whiteSpace=wrap;html=1;fillColor=#fff3bf;strokeColor=#f59e0b;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="50" y="520" width="60" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="a_user" style="endArrow=classic;strokeColor=#1e1e1e;strokeWidth=2;" edge="1" parent="1" source="user" target="auth_v">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ===== DOMAIN LAYER ZONE ===== -->
+        <mxCell id="zone_domain" value="Domain Layer (core/)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e5dbff;strokeColor=#8b5cf6;fontSize=14;fontStyle=1;verticalAlign=top;dashed=0;opacity=40;" vertex="1" parent="1">
+          <mxGeometry x="430" y="70" width="240" height="580" as="geometry"/>
+        </mxCell>
+
+        <!-- Entities -->
+        <mxCell id="entities" value="&lt;b&gt;Entities (13)&lt;/b&gt;&lt;br&gt;Profile, Exercise,&lt;br&gt;WorkoutPlan, WorkoutLog,&lt;br&gt;BlockingRule, Friendship,&lt;br&gt;Leaderboard, Notification,&lt;br&gt;UserReward, ScreenTimeTx" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d0bfff;strokeColor=#8b5cf6;fontSize=11;align=center;" vertex="1" parent="1">
+          <mxGeometry x="460" y="110" width="180" height="120" as="geometry"/>
+        </mxCell>
+
+        <!-- Repository Interfaces -->
+        <mxCell id="repos" value="&lt;b&gt;Repository Interfaces (14)&lt;/b&gt;&lt;br&gt;AuthRepo, BlockingRepo,&lt;br&gt;ProfileRepo, WorkoutPlanRepo,&lt;br&gt;WorkoutLogRepo, ExerciseRepo,&lt;br&gt;FriendshipRepo, LeaderboardRepo,&lt;br&gt;NotificationRepo, etc." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d0bfff;strokeColor=#8b5cf6;fontSize=11;align=center;" vertex="1" parent="1">
+          <mxGeometry x="460" y="260" width="180" height="120" as="geometry"/>
+        </mxCell>
+
+        <!-- Enums -->
+        <mxCell id="enums" value="&lt;b&gt;Domain Enums (10)&lt;/b&gt;&lt;br&gt;ItemType, FriendshipStatus,&lt;br&gt;SubscriptionTier, UserStatus,&lt;br&gt;RuleStatus, TransactionType,&lt;br&gt;ExerciseMeasurement, etc." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d0bfff;strokeColor=#8b5cf6;fontSize=11;align=center;" vertex="1" parent="1">
+          <mxGeometry x="460" y="410" width="180" height="100" as="geometry"/>
+        </mxCell>
+
+        <!-- Domain internal arrows -->
+        <mxCell id="a_ent_repo" style="endArrow=classic;strokeColor=#8b5cf6;" edge="1" parent="1" source="entities" target="repos">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a_repo_enum" style="endArrow=classic;strokeColor=#8b5cf6;" edge="1" parent="1" source="repos" target="enums">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- VM to Repos arrows -->
+        <mxCell id="a_avm_repo" value="calls" style="endArrow=classic;strokeColor=#333333;strokeWidth=2;fontColor=#333333;fontSize=11;" edge="1" parent="1" source="auth_vm" target="repos">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a_bvm_repo" value="calls" style="endArrow=classic;strokeColor=#333333;strokeWidth=2;fontColor=#333333;fontSize=11;" edge="1" parent="1" source="block_vm" target="repos">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ===== INFRASTRUCTURE LAYER ZONE ===== -->
+        <mxCell id="zone_infra" value="Infrastructure Layer (infra/)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d3f9d8;strokeColor=#22c55e;fontSize=14;fontStyle=1;verticalAlign=top;dashed=0;opacity=40;" vertex="1" parent="1">
+          <mxGeometry x="700" y="70" width="260" height="580" as="geometry"/>
+        </mxCell>
+
+        <!-- Supabase Auth Impl -->
+        <mxCell id="supa_auth" value="Supabase Auth&lt;br&gt;Repository Impl" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b2f2bb;strokeColor=#22c55e;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="730" y="110" width="200" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- Supabase Blocking Impl -->
+        <mxCell id="supa_block" value="Supabase Blocking&lt;br&gt;Repository Impl" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b2f2bb;strokeColor=#22c55e;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="730" y="180" width="200" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- Supabase Client -->
+        <mxCell id="supa_client" value="Supabase Client&lt;br&gt;(Singleton)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b2f2bb;strokeColor=#22c55e;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="730" y="260" width="200" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- Native Bridge -->
+        <mxCell id="native" value="Native Platform Bridge&lt;br&gt;(Flutter MethodChannel)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b2f2bb;strokeColor=#22c55e;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="730" y="340" width="200" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- Permission Service -->
+        <mxCell id="perms" value="Permission Service" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b2f2bb;strokeColor=#22c55e;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="730" y="420" width="200" height="45" as="geometry"/>
+        </mxCell>
+
+        <!-- Implements arrows -->
+        <mxCell id="a_impl1" value="implements" style="endArrow=classic;dashed=1;strokeColor=#22c55e;fontColor=#22c55e;fontSize=11;" edge="1" parent="1" source="repos" target="supa_auth">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a_impl2" value="implements" style="endArrow=classic;dashed=1;strokeColor=#22c55e;fontColor=#22c55e;fontSize=11;" edge="1" parent="1" source="repos" target="supa_block">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Infra internal arrows -->
+        <mxCell id="a_auth_cli" style="endArrow=classic;strokeColor=#22c55e;" edge="1" parent="1" source="supa_auth" target="supa_client">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a_block_cli" style="endArrow=classic;strokeColor=#22c55e;" edge="1" parent="1" source="supa_block" target="supa_client">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ===== EXTERNAL SERVICES ZONE ===== -->
+        <mxCell id="zone_ext" value="External Services" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffd8a8;strokeColor=#f59e0b;fontSize=14;fontStyle=1;verticalAlign=top;dashed=0;opacity=40;" vertex="1" parent="1">
+          <mxGeometry x="1000" y="70" width="250" height="580" as="geometry"/>
+        </mxCell>
+
+        <!-- Supabase Backend -->
+        <mxCell id="supa_be" value="&lt;b&gt;Supabase Backend&lt;/b&gt;&lt;br&gt;PostgreSQL + GoTrue Auth&lt;br&gt;Real-time + Storage" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffd8a8;strokeColor=#f59e0b;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1020" y="110" width="210" height="70" as="geometry"/>
+        </mxCell>
+
+        <!-- Database -->
+        <mxCell id="db" value="&lt;b&gt;PostgreSQL DB&lt;/b&gt;&lt;br&gt;13 Tables + Triggers&lt;br&gt;+ RLS Policies" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#ffd8a8;strokeColor=#f59e0b;fontSize=11;size=10;" vertex="1" parent="1">
+          <mxGeometry x="1040" y="200" width="160" height="70" as="geometry"/>
+        </mxCell>
+
+        <!-- Google -->
+        <mxCell id="google" value="Google Sign-In" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffd8a8;strokeColor=#f59e0b;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1020" y="300" width="100" height="45" as="geometry"/>
+        </mxCell>
+
+        <!-- Apple -->
+        <mxCell id="apple" value="Sign in&lt;br&gt;with Apple" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffd8a8;strokeColor=#f59e0b;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1130" y="300" width="100" height="45" as="geometry"/>
+        </mxCell>
+
+        <!-- Android OS -->
+        <mxCell id="android" value="&lt;b&gt;Android OS&lt;/b&gt;&lt;br&gt;AccessibilityService&lt;br&gt;UsageStats, Overlay" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffc9c9;strokeColor=#ef4444;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1020" y="380" width="100" height="70" as="geometry"/>
+        </mxCell>
+
+        <!-- iOS -->
+        <mxCell id="ios" value="&lt;b&gt;iOS&lt;/b&gt;&lt;br&gt;FamilyControls&lt;br&gt;ActivityPicker" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffc9c9;strokeColor=#ef4444;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1130" y="380" width="100" height="70" as="geometry"/>
+        </mxCell>
+
+        <!-- .env -->
+        <mxCell id="dotenv" value=".env Config&lt;br&gt;(SUPABASE_URL,&lt;br&gt;ANON_KEY)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3bf;strokeColor=#f59e0b;fontSize=11;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="480" width="120" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- External arrows -->
+        <mxCell id="a_cli_supa" value="HTTPS REST" style="endArrow=classic;strokeColor=#f59e0b;strokeWidth=2;fontColor=#b45309;fontSize=11;" edge="1" parent="1" source="supa_client" target="supa_be">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a_supa_db" style="endArrow=classic;strokeColor=#f59e0b;" edge="1" parent="1" source="supa_be" target="db">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a_auth_goog" value="OAuth" style="endArrow=classic;strokeColor=#f59e0b;fontColor=#b45309;fontSize=11;" edge="1" parent="1" source="supa_auth" target="google">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a_auth_apple" value="OAuth" style="endArrow=classic;strokeColor=#f59e0b;fontColor=#b45309;fontSize=11;" edge="1" parent="1" source="supa_auth" target="apple">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a_nat_and" value="MethodChannel" style="endArrow=classic;strokeColor=#ef4444;strokeWidth=2;fontColor=#ef4444;fontSize=11;" edge="1" parent="1" source="native" target="android">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a_nat_ios" value="MethodChannel" style="endArrow=classic;strokeColor=#ef4444;strokeWidth=2;fontColor=#ef4444;fontSize=11;" edge="1" parent="1" source="native" target="ios">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Legend -->
+        <mxCell id="legend_title" value="&lt;b&gt;Legend&lt;/b&gt;" style="text;html=1;fontSize=12;align=left;" vertex="1" parent="1">
+          <mxGeometry x="130" y="560" width="60" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg1" value="" style="rounded=1;fillColor=#a5d8ff;strokeColor=#4a9eed;" vertex="1" parent="1">
+          <mxGeometry x="130" y="585" width="20" height="14" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg1t" value="Views / ViewModels" style="text;html=1;fontSize=10;align=left;" vertex="1" parent="1">
+          <mxGeometry x="155" y="582" width="110" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg2" value="" style="rounded=1;fillColor=#d0bfff;strokeColor=#8b5cf6;" vertex="1" parent="1">
+          <mxGeometry x="130" y="605" width="20" height="14" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg2t" value="Domain (Entities, Repos)" style="text;html=1;fontSize=10;align=left;" vertex="1" parent="1">
+          <mxGeometry x="155" y="602" width="130" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg3" value="" style="rounded=1;fillColor=#b2f2bb;strokeColor=#22c55e;" vertex="1" parent="1">
+          <mxGeometry x="290" y="585" width="20" height="14" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg3t" value="Infrastructure" style="text;html=1;fontSize=10;align=left;" vertex="1" parent="1">
+          <mxGeometry x="315" y="582" width="80" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg4" value="" style="rounded=1;fillColor=#ffd8a8;strokeColor=#f59e0b;" vertex="1" parent="1">
+          <mxGeometry x="290" y="605" width="20" height="14" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg4t" value="External Services" style="text;html=1;fontSize=10;align=left;" vertex="1" parent="1">
+          <mxGeometry x="315" y="602" width="100" height="20" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

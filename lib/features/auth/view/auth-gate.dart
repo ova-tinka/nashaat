@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../infra/supabase/auth-repository-impl.dart';
+import '../../../infra/repository-locator.dart';
 import '../../../main.dart';
 
 /// Entry point of the app. Checks for an active Supabase session and routes
@@ -32,7 +32,7 @@ class _AuthGateState extends State<AuthGate> {
     }
 
     try {
-      final repo = SupabaseAuthRepository();
+      final repo = RepositoryLocator.instance.auth;
       final needsOnboarding = await repo.needsOnboarding();
       if (!mounted) return;
       if (needsOnboarding) {

@@ -53,11 +53,13 @@ class BlockingPlatformService {
   }
 
   /// iOS only — presents the native FamilyActivityPicker sheet.
-  /// The user selects apps through the native UI; selection is stored natively
-  /// and immediately applied to ManagedSettingsStore.
-  Future<void> presentIosPicker() async {
-    if (!Platform.isIOS) return;
-    await _channel.invokeMethod<void>('presentAppPicker');
+  /// Returns the total number of selected items (apps + categories + domains).
+  /// 0 means the user dismissed without selecting anything.
+  Future<int> presentIosPicker() async {
+    if (!Platform.isIOS) return 0;
+    final result =
+        await _channel.invokeMapMethod<String, dynamic>('presentAppPicker');
+    return (result?['appCount'] as int?) ?? 0;
   }
 
   /// Activates blocking for the given package/bundle IDs.
@@ -74,5 +76,20 @@ class BlockingPlatformService {
   /// Returns whether the blocking service is currently running.
   Future<bool> isBlockingActive() async {
     return await _channel.invokeMethod<bool>('isBlockingActive') ?? false;
+  }
+
+  /// Returns the package/bundle ID of the app currently in the foreground,
+  /// or null if it cannot be determined or is a system app.
+  ///
+  /// Android: UsageStatsManager (requires usageStats permission).
+  /// iOS:     Returns null — iOS does not expose the foreground app to the
+  ///          calling process outside of a DeviceActivityMonitor extension.
+  ///          Screen-time drain on iOS falls back to continuous mode.
+  Future<String?> getForegroundAppId() async {
+    try {
+      return await _channel.invokeMethod<String?>('getForegroundApp');
+    } catch (_) {
+      return null;
+    }
   }
 }

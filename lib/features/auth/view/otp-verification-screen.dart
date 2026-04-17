@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 import '../../../main.dart';
 import '../coordinator/auth-coordinator.dart';
 import '../model/auth-models.dart';
-import '../view_model/auth-view-model.dart';
+import '../view-model/auth-view-model.dart';
 
 class OtpVerificationScreen extends StatefulWidget {
   final AuthViewModel vm;
@@ -181,13 +181,13 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                   controller: _otpController,
                   keyboardType: TextInputType.number,
                   textAlign: TextAlign.center,
-                  maxLength: 6,
+                  maxLength: 8, // ← change this number to adjust OTP length
                   autofocus: true,
                   style: theme.textTheme.headlineSmall
                       ?.copyWith(letterSpacing: 12, fontWeight: FontWeight.bold),
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   decoration: InputDecoration(
-                    hintText: '──────',
+                    hintText: '────────',
                     counterText: '',
                     border: const OutlineInputBorder(),
                     enabledBorder: OutlineInputBorder(
@@ -200,8 +200,8 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                     ),
                   ),
                   validator: (v) {
-                    if (v == null || v.length != 6) {
-                      return 'Enter the 6-digit code';
+                    if (v == null || v.length != 8) {
+                      return 'Enter the 8-digit code';
                     }
                     return null;
                   },

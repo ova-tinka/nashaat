@@ -23,4 +23,13 @@ abstract class ProfileRepository {
     int streakCount,
     DateTime? lastWorkoutDate,
   );
+
+  Future<void> updateScreenTimeSetup(
+    String userId, {
+    required int dailyPhoneHours,
+    required int weeklySmallSessions,
+    required int weeklyBigSessions,
+  });
+
+  Future<void> updateLastWeeklyReset(String userId, DateTime resetAt);
 }
