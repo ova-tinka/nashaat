@@ -4,6 +4,8 @@ import '../core/entities/workout-plan-entity.dart';
 import '../features/auth/view/auth-gate.dart';
 import '../features/auth/view/login-screen.dart';
 import '../features/auth/view/register-screen.dart';
+import '../features/onboarding/coordinator/onboarding-coordinator.dart';
+import '../features/onboarding/view-model/onboarding-view-model.dart';
 import '../features/onboarding/view/onboarding-screen.dart';
 import '../features/settings/view/settings-screen.dart';
 import '../features/shell/view/app-shell-screen.dart';
@@ -12,6 +14,8 @@ import '../features/workout/view/ai-generation-screen.dart';
 import '../features/workout/view/exercise-detail-screen.dart';
 import '../features/workout/view/exercise-library-screen.dart';
 import '../features/workout/view/workout-builder-screen.dart';
+import '../infra/repository-locator.dart';
+import '../main.dart';
 import '../shared/logger.dart';
 
 class AppRouter {
@@ -54,7 +58,15 @@ class AppRouter {
         return MaterialPageRoute(builder: (_) => const RegisterScreen());
 
       case onboarding:
-        return MaterialPageRoute(builder: (_) => const OnboardingScreen());
+        return MaterialPageRoute(
+          builder: (_) => OnboardingScreen(
+            vm: OnboardingViewModel(
+              profileRepo: RepositoryLocator.instance.profile,
+              blockingRepo: RepositoryLocator.instance.blocking,
+            ),
+            coordinator: OnboardingCoordinator(appCoordinator),
+          ),
+        );
 
       case dashboard:
         return MaterialPageRoute(builder: (_) => const AppShellScreen());

@@ -2,190 +2,139 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../core/entities/blocking-rule-entity.dart';
-import '../../../core/entities/enums.dart';
 import '../../../infra/blocking/blocking-platform-service.dart';
-import '../../../infra/permissions/permission-service.dart';
-import '../../../infra/repository-locator.dart';
-import '../../../main.dart';
 import '../../../shared/design/atoms/app-chip.dart';
 import '../../../shared/design/molecules/app-counter.dart';
 import '../../../shared/design/organisms/app-step-scaffold.dart';
 import '../../../shared/design/tokens/app-colors.dart';
 import '../../../shared/design/tokens/app-spacing.dart';
 import '../../../shared/design/tokens/app-typography.dart';
-import '../../../shared/logger.dart';
 import '../../../shared/utils/screen-time-economy.dart';
+import '../coordinator/onboarding-coordinator.dart';
+import '../view-model/onboarding-view-model.dart';
 
-// Total steps: 0-based index, 6 steps total
 const _kTotalSteps = 6;
 
 class OnboardingScreen extends StatefulWidget {
-  const OnboardingScreen({super.key});
+  final OnboardingViewModel vm;
+  final OnboardingCoordinator coordinator;
+
+  const OnboardingScreen({
+    super.key,
+    required this.vm,
+    required this.coordinator,
+  });
 
   @override
   State<OnboardingScreen> createState() => _OnboardingScreenState();
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
-  int _step = 0;
-
-  // Step 0 — Username
-  String _username = '';
-  // Step 1 — Days per week
-  int _daysPerWeek = 4;
-  // Step 2 — Workout duration
-  int _workoutDurationMinutes = 30;
-  // Step 3 — Daily phone hours
-  int _dailyPhoneHours = 8;
-  // Step 4 — Reward preview (read-only + optional session counters)
-  int _weeklySmallSessions = 2;
-  int _weeklyBigSessions = 3;
-  // Step 5 — Blocking preferences
-  List<String> _selectedAppPackages = [];
-
-  bool _isSaving = false;
-
-  void _goNext() {
-    if (_step < _kTotalSteps - 1) {
-      setState(() => _step++);
-    }
+  @override
+  void initState() {
+    super.initState();
+    widget.vm.addListener(_onVmChanged);
   }
 
-  Future<void> _handleFinish({List<String>? packages}) async {
-    if (packages != null) _selectedAppPackages = packages;
-    setState(() => _isSaving = true);
+  @override
+  void dispose() {
+    widget.vm.removeListener(_onVmChanged);
+    super.dispose();
+  }
 
-    try {
-      final userId = Supabase.instance.client.auth.currentUser!.id;
-      final repo = RepositoryLocator.instance.profile;
-      final weeklyTargetMinutes = _daysPerWeek * _workoutDurationMinutes;
-
-      await repo.updateProfile(userId,
-          username: _username.trim().isEmpty ? null : _username.trim(),
-          weeklyExerciseTargetMinutes: weeklyTargetMinutes);
-      await repo.updateScreenTimeSetup(userId,
-          dailyPhoneHours: _dailyPhoneHours,
-          weeklySmallSessions: _weeklySmallSessions,
-          weeklyBigSessions: _weeklyBigSessions);
-
-      if (_selectedAppPackages.isNotEmpty) {
-        try {
-          final blockingRepo = RepositoryLocator.instance.blocking;
-          for (final pkg in _selectedAppPackages) {
-            await blockingRepo.createRule(BlockingRuleEntity(
-              id: '',
-              userId: userId,
-              itemType: ItemType.app,
-              itemIdentifier: pkg,
-              status: RuleStatus.active,
-              createdAt: DateTime.now(),
-              updatedAt: DateTime.now(),
-            ));
-          }
-          final platform = BlockingPlatformService();
-          final permService = PermissionService(platform);
-          final perms = await permService.checkAll();
-          if (!perms.isFullyGranted) {
-            for (final p in perms.missing) {
-              await permService.request(p);
-            }
-          }
-        } catch (e) {
-          Log.error('OnboardingScreen.blocking', e);
-        }
-      }
-
-      await repo.updateStatus(userId, UserStatus.onboarded);
-      Log.auth('onboarding complete');
-      if (mounted) appCoordinator.showDashboard();
-    } catch (e) {
-      Log.error('OnboardingScreen', e);
-      setState(() => _isSaving = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not save preferences. Please try again.')),
-        );
-      }
+  void _onVmChanged() {
+    if (widget.vm.isDone) {
+      widget.coordinator.done();
+      return;
+    }
+    if (widget.vm.error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(widget.vm.error!)),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      canPop: _step == 0,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && _step > 0) setState(() => _step--);
+    return ListenableBuilder(
+      listenable: widget.vm,
+      builder: (context, _) {
+        return PopScope(
+          canPop: widget.vm.step == 0,
+          onPopInvokedWithResult: (didPop, _) {
+            if (!didPop) widget.vm.goBack();
+          },
+          child: _buildStep(context),
+        );
       },
-      child: _buildStep(context),
     );
   }
 
   Widget _buildStep(BuildContext context) {
-    switch (_step) {
+    final vm = widget.vm;
+    switch (vm.step) {
       case 0:
         return AppStepScaffold(
           totalSteps: _kTotalSteps,
           currentStep: 0,
           nextLabel: "Let's Go",
-          onNext: _goNext,
+          onNext: vm.goNext,
           body: _WelcomeStep(
-            initial: _username,
-            onChanged: (v) => _username = v,
+            initial: vm.username,
+            onChanged: vm.setUsername,
           ),
         );
       case 1:
         return AppStepScaffold(
           totalSteps: _kTotalSteps,
           currentStep: 1,
-          onNext: _goNext,
+          onNext: vm.goNext,
           body: _DaysPerWeekStep(
-            value: _daysPerWeek,
-            onChanged: (v) => setState(() => _daysPerWeek = v),
+            value: vm.daysPerWeek,
+            onChanged: vm.setDaysPerWeek,
           ),
         );
       case 2:
         return AppStepScaffold(
           totalSteps: _kTotalSteps,
           currentStep: 2,
-          onNext: _goNext,
+          onNext: vm.goNext,
           body: _WorkoutDurationStep(
-            value: _workoutDurationMinutes,
-            onChanged: (v) => setState(() => _workoutDurationMinutes = v),
+            value: vm.workoutDurationMinutes,
+            onChanged: vm.setWorkoutDurationMinutes,
           ),
         );
       case 3:
         return AppStepScaffold(
           totalSteps: _kTotalSteps,
           currentStep: 3,
-          onNext: _goNext,
+          onNext: vm.goNext,
           body: _DailyPhoneHoursStep(
-            value: _dailyPhoneHours,
-            onChanged: (v) => setState(() => _dailyPhoneHours = v),
+            value: vm.dailyPhoneHours,
+            onChanged: vm.setDailyPhoneHours,
           ),
         );
       case 4:
         return AppStepScaffold(
           totalSteps: _kTotalSteps,
           currentStep: 4,
-          onNext: _goNext,
+          onNext: vm.goNext,
           body: _RewardPreviewStep(
-            daysPerWeek: _daysPerWeek,
-            workoutDurationMinutes: _workoutDurationMinutes,
-            dailyPhoneHours: _dailyPhoneHours,
-            weeklySmallSessions: _weeklySmallSessions,
-            weeklyBigSessions: _weeklyBigSessions,
-            onSmallChanged: (v) => setState(() => _weeklySmallSessions = v),
-            onBigChanged: (v) => setState(() => _weeklyBigSessions = v),
+            daysPerWeek: vm.daysPerWeek,
+            workoutDurationMinutes: vm.workoutDurationMinutes,
+            dailyPhoneHours: vm.dailyPhoneHours,
+            weeklySmallSessions: vm.weeklySmallSessions,
+            weeklyBigSessions: vm.weeklyBigSessions,
+            onSmallChanged: vm.setWeeklySmallSessions,
+            onBigChanged: vm.setWeeklyBigSessions,
           ),
         );
       case 5:
         return _BlockingStep(
-          isSaving: _isSaving,
-          onContinue: (packages) => _handleFinish(packages: packages),
-          onSkip: () => _handleFinish(),
+          isSaving: vm.isSaving,
+          onContinue: (packages) => vm.finish(packages: packages),
+          onSkip: vm.finish,
         );
       default:
         return const SizedBox.shrink();
@@ -412,7 +361,6 @@ class _RewardPreviewStep extends StatelessWidget {
           Text('YOUR REWARD\nPREVIEW', style: AppTypography.display.copyWith(fontSize: 28)),
           const SizedBox(height: AppSpacing.lg),
 
-          // Summary block
           Container(
             padding: const EdgeInsets.all(AppSpacing.base),
             color: AppColors.paperAlt,
@@ -433,9 +381,9 @@ class _RewardPreviewStep extends StatelessWidget {
           const SizedBox(height: AppSpacing.lg),
           Text('Weekly session split', style: AppTypography.heading.copyWith(fontSize: 15)),
           const SizedBox(height: AppSpacing.sm),
-          AppCounter(label: 'Small sessions (1×)', value: weeklySmallSessions, onChanged: onSmallChanged),
+          AppCounter(label: 'Small sessions (1x)', value: weeklySmallSessions, onChanged: onSmallChanged),
           const SizedBox(height: 8),
-          AppCounter(label: 'Big sessions (2×)', value: weeklyBigSessions, onChanged: onBigChanged),
+          AppCounter(label: 'Big sessions (2x)', value: weeklyBigSessions, onChanged: onBigChanged),
         ],
       ),
     );
@@ -463,7 +411,7 @@ class _RewardRow extends StatelessWidget {
 class _BlockingStep extends StatefulWidget {
   final bool isSaving;
   final Future<void> Function(List<String>) onContinue;
-  final VoidCallback onSkip;
+  final Future<void> Function() onSkip;
 
   const _BlockingStep({required this.isSaving, required this.onContinue, required this.onSkip});
 
