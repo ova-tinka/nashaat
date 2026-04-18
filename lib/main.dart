@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'l10n/app_localizations.dart';
+import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app/app-coordinator.dart';
 import 'app/app-router.dart';
+import 'app/locale-provider.dart';
 import 'shared/logger.dart';
 import 'shared/design/theme.dart';
+import 'shared/design/tokens/app-typography.dart';
 
 final appCoordinator = AppCoordinator();
 
@@ -23,7 +28,12 @@ Future<void> main() async {
   );
   Log.boot('Supabase ready → ${Uri.parse(url).host}');
 
-  runApp(const NashaatApp());
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) => LocaleProvider(),
+      child: const NashaatApp(),
+    ),
+  );
 }
 
 class NashaatApp extends StatelessWidget {
@@ -31,11 +41,29 @@ class NashaatApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final localeProvider = context.watch<LocaleProvider>();
+    final locale = localeProvider.currentLocale;
+
+    final theme = AppTheme.light.copyWith(
+      textTheme: AppTypography.getTextTheme(locale: locale),
+    );
+
     return MaterialApp(
       title: 'Nashaat',
-      theme: AppTheme.light,
-      darkTheme: AppTheme.light,
+      theme: theme,
+      darkTheme: theme,
       themeMode: ThemeMode.light,
+      locale: locale,
+      supportedLocales: const [
+        Locale('en'),
+        Locale('ar'),
+      ],
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       navigatorKey: appCoordinator.navigatorKey,
       onGenerateRoute: AppRouter.generateRoute,
       initialRoute: AppRouter.splash,

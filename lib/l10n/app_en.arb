@@ -1,0 +1,116 @@
+{
+  "@@locale": "en",
+  "appName": "Nashaat",
+  "@appName": { "description": "Application name" },
+
+  "dashboard": "Dashboard",
+  "@dashboard": { "description": "Bottom nav / screen title" },
+
+  "workouts": "Workouts",
+  "@workouts": { "description": "Bottom nav / screen title" },
+
+  "settings": "Settings",
+  "@settings": { "description": "Bottom nav / screen title" },
+
+  "profile": "Profile",
+  "@profile": { "description": "Bottom nav / screen title" },
+
+  "leaderboard": "Leaderboard",
+  "@leaderboard": { "description": "Bottom nav / screen title" },
+
+  "friends": "Friends",
+  "@friends": { "description": "Bottom nav / screen title" },
+
+  "subscription": "Subscription",
+  "@subscription": { "description": "Subscription screen title" },
+
+  "logWorkout": "Log Workout",
+  "@logWorkout": { "description": "Action to log a completed workout" },
+
+  "startWorkout": "Start Workout",
+  "@startWorkout": { "description": "Action to begin a workout session" },
+
+  "completeWorkout": "Complete Workout",
+  "@completeWorkout": { "description": "Action to mark workout as done" },
+
+  "screenTimeBalance": "Screen Time Balance",
+  "@screenTimeBalance": { "description": "Label for the user's screen time balance" },
+
+  "earnedToday": "Earned Today",
+  "@earnedToday": { "description": "Label showing screen time earned today" },
+
+  "currentStreak": "Current Streak",
+  "@currentStreak": { "description": "Label for the user's workout streak" },
+
+  "register": "Create Account",
+  "@register": { "description": "Register action label" },
+
+  "login": "Log In",
+  "@login": { "description": "Login action label" },
+
+  "logout": "Log Out",
+  "@logout": { "description": "Logout action label" },
+
+  "email": "Email",
+  "@email": { "description": "Email field label" },
+
+  "password": "Password",
+  "@password": { "description": "Password field label" },
+
+  "confirmPassword": "Confirm Password",
+  "@confirmPassword": { "description": "Confirm password field label" },
+
+  "save": "Save",
+  "@save": { "description": "Save action" },
+
+  "cancel": "Cancel",
+  "@cancel": { "description": "Cancel action" },
+
+  "confirm": "Confirm",
+  "@confirm": { "description": "Confirm action" },
+
+  "delete": "Delete",
+  "@delete": { "description": "Delete action" },
+
+  "edit": "Edit",
+  "@edit": { "description": "Edit action" },
+
+  "back": "Back",
+  "@back": { "description": "Back navigation action" },
+
+  "next": "Next",
+  "@next": { "description": "Next step action" },
+
+  "done": "Done",
+  "@done": { "description": "Done / finish action" },
+
+  "loading": "Loading...",
+  "@loading": { "description": "Generic loading state label" },
+
+  "networkError": "Network connection error",
+  "@networkError": { "description": "Error shown when network is unavailable" },
+
+  "authError": "Authentication error",
+  "@authError": { "description": "Error shown for auth failures" },
+
+  "genericError": "Something went wrong",
+  "@genericError": { "description": "Fallback error message" },
+
+  "appBlocking": "App Blocking",
+  "@appBlocking": { "description": "App blocking feature label" },
+
+  "webBlocking": "Web Blocking",
+  "@webBlocking": { "description": "Web blocking feature label" },
+
+  "manageRules": "Manage Rules",
+  "@manageRules": { "description": "Action to manage blocking rules" },
+
+  "welcome": "Welcome",
+  "@welcome": { "description": "Onboarding welcome screen title" },
+
+  "setGoals": "Set Your Goals",
+  "@setGoals": { "description": "Onboarding goals screen title" },
+
+  "setupBlocking": "Set Up Blocking",
+  "@setupBlocking": { "description": "Onboarding blocking setup screen title" }
+}

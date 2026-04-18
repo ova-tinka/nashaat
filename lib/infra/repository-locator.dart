@@ -24,6 +24,7 @@ import 'supabase/screen-time-transaction-repository-impl.dart';
 import 'supabase/user-reward-repository-impl.dart';
 import 'supabase/workout-log-repository-impl.dart';
 import 'supabase/workout-plan-repository-impl.dart';
+import 'translation/groq-translation-service.dart';
 
 class RepositoryLocator {
   static final RepositoryLocator _instance = RepositoryLocator._();
@@ -46,4 +47,5 @@ class RepositoryLocator {
       SupabaseNotificationRepository();
   final UserRewardRepository userReward = SupabaseUserRewardRepository();
   final MediaRepository media = SupabaseMediaRepository();
+  final GroqTranslationService translation = GroqTranslationService();
 }
