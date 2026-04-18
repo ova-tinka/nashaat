@@ -28,12 +28,16 @@ class LeaderboardEntry {
 class LeaderboardViewModel extends ChangeNotifier {
   final LeaderboardRepository _leaderboardRepo;
   final ProfileRepository _profileRepo;
+  final String Function() _getUserId;
 
   LeaderboardViewModel({
     required LeaderboardRepository leaderboardRepo,
     required ProfileRepository profileRepo,
+    String Function()? getUserId,
   })  : _leaderboardRepo = leaderboardRepo,
-        _profileRepo = profileRepo;
+        _profileRepo = profileRepo,
+        _getUserId = getUserId ??
+            (() => Supabase.instance.client.auth.currentUser?.id ?? '');
 
   List<LeaderboardEntity> _leaderboards = [];
   LeaderboardEntity? _selectedLeaderboard;
@@ -50,8 +54,7 @@ class LeaderboardViewModel extends ChangeNotifier {
   bool get isLoadingRankings => _isLoadingRankings;
   String? get error => _error;
 
-  String get currentUserId =>
-      Supabase.instance.client.auth.currentUser?.id ?? '';
+  String get currentUserId => _getUserId();
 
   int get myRank {
     final idx = _rankings.indexWhere((r) => r.userId == currentUserId);

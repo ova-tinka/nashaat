@@ -14,12 +14,16 @@ const _kTotalSteps = 6;
 class OnboardingViewModel extends ChangeNotifier {
   final ProfileRepository _profileRepo;
   final BlockingRepository _blockingRepo;
+  final String Function() _getUserId;
 
   OnboardingViewModel({
     required ProfileRepository profileRepo,
     required BlockingRepository blockingRepo,
+    String Function()? getUserId,
   })  : _profileRepo = profileRepo,
-        _blockingRepo = blockingRepo;
+        _blockingRepo = blockingRepo,
+        _getUserId = getUserId ??
+            (() => Supabase.instance.client.auth.currentUser!.id);
 
   // ── State ─────────────────────────────────────────────────────────────────
 
@@ -102,7 +106,7 @@ class OnboardingViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final userId = Supabase.instance.client.auth.currentUser!.id;
+      final userId = _getUserId();
       final weeklyTargetMinutes = _daysPerWeek * _workoutDurationMinutes;
 
       await _profileRepo.updateProfile(

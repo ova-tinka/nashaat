@@ -13,12 +13,16 @@ import '../model/workout-models.dart';
 class WorkoutBuilderViewModel extends ChangeNotifier {
   final WorkoutPlanRepository _planRepo;
   final ExerciseRepository _exerciseRepo;
+  final String Function() _getUserId;
 
   WorkoutBuilderViewModel({
     required WorkoutPlanRepository planRepo,
     required ExerciseRepository exerciseRepo,
+    String Function()? getUserId,
   })  : _planRepo = planRepo,
-        _exerciseRepo = exerciseRepo;
+        _exerciseRepo = exerciseRepo,
+        _getUserId = getUserId ??
+            (() => Supabase.instance.client.auth.currentUser!.id);
 
   // ── State ─────────────────────────────────────────────────────────────────
 
@@ -160,7 +164,7 @@ class WorkoutBuilderViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final userId = Supabase.instance.client.auth.currentUser!.id;
+      final userId = _getUserId();
       final exercises = entries
           .map((e) => WorkoutPlanExercise(
                 exerciseId: e.exercise.id,

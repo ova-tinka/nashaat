@@ -9,12 +9,16 @@ import '../../../shared/logger.dart';
 class SettingsViewModel extends ChangeNotifier {
   final ProfileRepository _profileRepo;
   final AuthRepository _authRepo;
+  final String Function() _getUserId;
 
   SettingsViewModel({
     required ProfileRepository profileRepo,
     required AuthRepository authRepo,
+    String Function()? getUserId,
   })  : _profileRepo = profileRepo,
-        _authRepo = authRepo;
+        _authRepo = authRepo,
+        _getUserId = getUserId ??
+            (() => Supabase.instance.client.auth.currentUser!.id);
 
   ProfileEntity? _profile;
   bool _isLoading = false;
@@ -36,7 +40,7 @@ class SettingsViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final userId = Supabase.instance.client.auth.currentUser!.id;
+      final userId = _getUserId();
       _profile = await _profileRepo.getProfile(userId);
     } catch (e) {
       Log.error('SettingsViewModel', e);
@@ -58,7 +62,7 @@ class SettingsViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final userId = Supabase.instance.client.auth.currentUser!.id;
+      final userId = _getUserId();
       await _profileRepo.updateScreenTimeSetup(
         userId,
         dailyPhoneHours: dailyPhoneHours,
@@ -88,7 +92,7 @@ class SettingsViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final userId = Supabase.instance.client.auth.currentUser!.id;
+      final userId = _getUserId();
       _profile = await _profileRepo.updateProfile(
         userId,
         username: username,
@@ -113,8 +117,7 @@ class SettingsViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await Supabase.instance.client.auth
-          .updateUser(UserAttributes(password: newPassword));
+      await _authRepo.changePassword(newPassword);
       _successMessage = 'Password updated successfully.';
     } catch (e) {
       Log.error('SettingsViewModel.changePassword', e);
@@ -131,11 +134,7 @@ class SettingsViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await Supabase.instance.client.auth.updateUser(
-        UserAttributes(
-          data: {'deleted_at': DateTime.now().toIso8601String()},
-        ),
-      );
+      await _authRepo.deleteAccount();
       _isDeleted = true;
       notifyListeners();
       await _authRepo.signOut();

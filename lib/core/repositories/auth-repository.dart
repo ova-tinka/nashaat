@@ -41,4 +41,8 @@ abstract class AuthRepository {
   /// Returns true when the current user has not yet completed onboarding
   /// (i.e. profiles.status != 'onboarded').
   Future<bool> needsOnboarding();
+
+  Future<void> changePassword(String newPassword);
+
+  Future<void> deleteAccount();
 }

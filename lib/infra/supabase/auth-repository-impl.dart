@@ -148,6 +148,20 @@ class SupabaseAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<void> changePassword(String newPassword) async {
+    Log.auth('changing password');
+    await _auth.updateUser(UserAttributes(password: newPassword));
+  }
+
+  @override
+  Future<void> deleteAccount() async {
+    Log.auth('deleting account');
+    await _auth.updateUser(UserAttributes(
+      data: {'deleted_at': DateTime.now().toIso8601String()},
+    ));
+  }
+
+  @override
   Future<bool> needsOnboarding() async {
     final userId = currentUserId;
     if (userId == null) {

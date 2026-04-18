@@ -20,6 +20,7 @@ class ActiveSessionViewModel extends ChangeNotifier {
   final ProfileRepository _profileRepo;
   final ScreenTimeTransactionRepository _txnRepo;
   final SessionMode mode;
+  final String Function() _getUserId;
 
   ActiveSessionViewModel({
     required this.plan,
@@ -27,9 +28,12 @@ class ActiveSessionViewModel extends ChangeNotifier {
     required WorkoutLogRepository logRepo,
     required ProfileRepository profileRepo,
     required ScreenTimeTransactionRepository txnRepo,
+    String Function()? getUserId,
   })  : _logRepo = logRepo,
         _profileRepo = profileRepo,
-        _txnRepo = txnRepo {
+        _txnRepo = txnRepo,
+        _getUserId = getUserId ??
+            (() => Supabase.instance.client.auth.currentUser!.id) {
     _initSets();
   }
 
@@ -212,7 +216,7 @@ class ActiveSessionViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final userId = Supabase.instance.client.auth.currentUser!.id;
+      final userId = _getUserId();
       final durationMinutes = (_elapsedSeconds / 60).ceil().clamp(1, 9999);
 
       // Reward is fixed per session size — no partial rewards.
