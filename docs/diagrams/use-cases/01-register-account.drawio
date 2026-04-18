@@ -1,0 +1,91 @@
+<mxfile host="app.diagrams.net" modified="2026-03-01" agent="Nashaat" version="24.7.6" type="device">
+  <diagram name="UC-01 — Register Account" id="register-001">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- System Boundary -->
+        <mxCell id="sb1" value="Use Case Diagram for Register Account" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#A3E4D7;strokeColor=#E74C3C;strokeWidth=2;fontSize=18;fontStyle=1;fontColor=#C0392B;verticalAlign=top;align=left;spacingLeft=15;spacingTop=10;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="240" y="30" width="820" height="520" as="geometry" />
+        </mxCell>
+
+        <!-- PRIMARY ACTOR (LEFT, navy) -->
+        <mxCell id="a_guest" value="Guest" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#3498DB;strokeColor=#2980B9;fontStyle=1;fontSize=12;fontColor=#2980B9;" vertex="1" parent="1">
+          <mxGeometry x="60" y="200" width="44" height="66" as="geometry" />
+        </mxCell>
+
+        <!-- EXTERNAL ACTORS (RIGHT, teal) -->
+        <mxCell id="a_supabase" value="Supabase Auth" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#3498DB;strokeColor=#2980B9;fontStyle=1;fontSize=11;fontColor=#2980B9;" vertex="1" parent="1">
+          <mxGeometry x="1200" y="60" width="44" height="66" as="geometry" />
+        </mxCell>
+        <mxCell id="a_email" value="Email Provider" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#3498DB;strokeColor=#2980B9;fontStyle=1;fontSize=11;fontColor=#2980B9;" vertex="1" parent="1">
+          <mxGeometry x="1200" y="200" width="44" height="66" as="geometry" />
+        </mxCell>
+        <mxCell id="a_apple" value="Apple ID" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#3498DB;strokeColor=#2980B9;fontStyle=1;fontSize=11;fontColor=#2980B9;" vertex="1" parent="1">
+          <mxGeometry x="1200" y="360" width="44" height="66" as="geometry" />
+        </mxCell>
+        <mxCell id="a_google" value="Google Accounts" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#3498DB;strokeColor=#2980B9;fontStyle=1;fontSize=11;fontColor=#2980B9;" vertex="1" parent="1">
+          <mxGeometry x="1200" y="500" width="44" height="66" as="geometry" />
+        </mxCell>
+        <!-- USE CASES -->
+        <mxCell id="uc_reg_email" value="Register via&#xa;Email / Password" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F5B041;strokeColor=#D35400;strokeWidth=1.5;fontSize=12;shadow=1;fontColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="320" y="70" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="uc_reg_apple" value="Register via&#xa;Apple Sign-In" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F5B041;strokeColor=#D35400;strokeWidth=1.5;fontSize=12;shadow=1;fontColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="320" y="180" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="uc_reg_google" value="Register via&#xa;Google Sign-In" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F5B041;strokeColor=#D35400;strokeWidth=1.5;fontSize=12;shadow=1;fontColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="320" y="290" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="uc_verify" value="Verify Email (OTP)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F5B041;strokeColor=#D35400;strokeWidth=1.5;fontSize=12;shadow=1;fontColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="700" y="70" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="uc_onboard" value="Onboarding" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F5B041;strokeColor=#D35400;strokeWidth=1.5;fontSize=12;shadow=1;fontColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="510" y="380" width="200" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- ASSOCIATIONS (solid line: actor ↔ use case) -->
+        <mxCell id="assoc_g1" style="endArrow=none;strokeColor=#2C3E50;strokeWidth=2;html=1;" edge="1" source="a_guest" target="uc_reg_email" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc_g2" style="endArrow=none;strokeColor=#2C3E50;strokeWidth=2;html=1;" edge="1" source="a_guest" target="uc_reg_apple" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc_g3" style="endArrow=none;strokeColor=#2C3E50;strokeWidth=2;html=1;" edge="1" source="a_guest" target="uc_reg_google" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc_sb1" style="endArrow=none;strokeColor=#2C3E50;strokeWidth=2;html=1;" edge="1" source="a_supabase" target="uc_reg_email" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc_sb2" style="endArrow=none;strokeColor=#2C3E50;strokeWidth=2;html=1;" edge="1" source="a_supabase" target="uc_verify" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc_em1" style="endArrow=none;strokeColor=#2C3E50;strokeWidth=2;html=1;" edge="1" source="a_email" target="uc_verify" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc_ap1" style="endArrow=none;strokeColor=#2C3E50;strokeWidth=2;html=1;" edge="1" source="a_apple" target="uc_reg_apple" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="assoc_go1" style="endArrow=none;strokeColor=#2C3E50;strokeWidth=2;html=1;" edge="1" source="a_google" target="uc_reg_google" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- INCLUDE (dashed arrow, base to included) -->
+        <mxCell id="inc1" value="&amp;laquo;include&amp;raquo;" style="endArrow=open;endSize=12;dashed=1;dashPattern=10 5;strokeColor=#2C3E50;strokeWidth=1.5;html=1;fontSize=11;fontStyle=3;fontColor=#2C3E50;labelBackgroundColor=#FFFFFF;" edge="1" source="uc_reg_email" target="uc_verify" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="inc2" value="&amp;laquo;include&amp;raquo;" style="endArrow=open;endSize=12;dashed=1;dashPattern=10 5;strokeColor=#2C3E50;strokeWidth=1.5;html=1;fontSize=11;fontStyle=3;fontColor=#2C3E50;labelBackgroundColor=#FFFFFF;" edge="1" source="uc_reg_email" target="uc_onboard" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="inc3" value="&amp;laquo;include&amp;raquo;" style="endArrow=open;endSize=12;dashed=1;dashPattern=10 5;strokeColor=#2C3E50;strokeWidth=1.5;html=1;fontSize=11;fontStyle=3;fontColor=#2C3E50;labelBackgroundColor=#FFFFFF;" edge="1" source="uc_reg_apple" target="uc_onboard" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="inc4" value="&amp;laquo;include&amp;raquo;" style="endArrow=open;endSize=12;dashed=1;dashPattern=10 5;strokeColor=#2C3E50;strokeWidth=1.5;html=1;fontSize=11;fontStyle=3;fontColor=#2C3E50;labelBackgroundColor=#FFFFFF;" edge="1" source="uc_reg_google" target="uc_onboard" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

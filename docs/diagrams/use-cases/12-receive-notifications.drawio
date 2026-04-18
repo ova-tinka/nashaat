@@ -1,0 +1,99 @@
+<mxfile host="app.diagrams.net" modified="2026-03-01" agent="Nashaat" version="24.7.6" type="device">
+  <diagram name="UC-12 — Receive Notifications" id="uc12-receive-notifications">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- System Boundary -->
+        <mxCell id="sb1" value="Use Case Diagram for Receive Notifications" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#A3E4D7;strokeColor=#E74C3C;strokeWidth=2;fontSize=18;fontStyle=1;fontColor=#C0392B;verticalAlign=top;align=left;spacingLeft=15;spacingTop=10;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="240" y="30" width="820" height="750" as="geometry" />
+        </mxCell>
+
+        <!-- Primary Actor: Authenticated User -->
+        <mxCell id="actor_user" value="Authenticated&#xa;User" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#3498DB;strokeColor=#2980B9;fontStyle=1;fontSize=12;fontColor=#2980B9;" vertex="1" parent="1">
+          <mxGeometry x="60" y="300" width="44" height="66" as="geometry" />
+        </mxCell>
+
+        <!-- External Actor: System Event Triggers -->
+        <mxCell id="actor_events" value="System Event&#xa;Triggers" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#3498DB;strokeColor=#2980B9;fontStyle=1;fontSize=11;fontColor=#2980B9;" vertex="1" parent="1">
+          <mxGeometry x="1260" y="100" width="44" height="66" as="geometry" />
+        </mxCell>
+
+        <!-- External Actor: FCM / APNs -->
+        <mxCell id="actor_fcm" value="FCM /&#xa;APNs" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#3498DB;strokeColor=#2980B9;fontStyle=1;fontSize=11;fontColor=#2980B9;" vertex="1" parent="1">
+          <mxGeometry x="1260" y="450" width="44" height="66" as="geometry" />
+        </mxCell>
+
+        <!-- Use Cases -->
+        <mxCell id="uc_send_push" value="Send Push&#xa;Notification" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F5B041;strokeColor=#D35400;strokeWidth=1.5;fontSize=12;shadow=1;fontColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="340" y="80" width="200" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="uc_send_inapp" value="Send In-App&#xa;Notification" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F5B041;strokeColor=#D35400;strokeWidth=1.5;fontSize=12;shadow=1;fontColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="700" y="80" width="200" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="uc_send_email" value="Send Email&#xa;Notification" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F5B041;strokeColor=#D35400;strokeWidth=1.5;fontSize=12;shadow=1;fontColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="700" y="230" width="200" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="uc_manage_prefs" value="Manage Notification&#xa;Preferences" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F5B041;strokeColor=#D35400;strokeWidth=1.5;fontSize=12;shadow=1;fontColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="340" y="380" width="200" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="uc_view_center" value="View Notification&#xa;Center" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F5B041;strokeColor=#D35400;strokeWidth=1.5;fontSize=12;shadow=1;fontColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="340" y="530" width="200" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="uc_clear_notifs" value="Clear&#xa;Notifications" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F5B041;strokeColor=#D35400;strokeWidth=1.5;fontSize=12;shadow=1;fontColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="700" y="530" width="200" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="uc_quiet_hours" value="Configure&#xa;Quiet Hours" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F5B041;strokeColor=#D35400;strokeWidth=1.5;fontSize=12;shadow=1;fontColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="700" y="380" width="200" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- Associations: Authenticated User -->
+        <mxCell id="assoc_user_prefs" style="endArrow=none;strokeColor=#2C3E50;strokeWidth=2;html=1;" edge="1" source="actor_user" target="uc_manage_prefs" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="assoc_user_center" style="endArrow=none;strokeColor=#2C3E50;strokeWidth=2;html=1;" edge="1" source="actor_user" target="uc_view_center" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Associations: System Event Triggers -->
+        <mxCell id="assoc_events_push" style="endArrow=none;strokeColor=#2C3E50;strokeWidth=2;html=1;" edge="1" source="actor_events" target="uc_send_push" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Associations: FCM / APNs -->
+        <mxCell id="assoc_fcm_push" style="endArrow=none;strokeColor=#2C3E50;strokeWidth=2;html=1;" edge="1" source="actor_fcm" target="uc_send_push" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Include: Send Push → Send In-App -->
+        <mxCell id="inc_push_inapp" value="&amp;laquo;include&amp;raquo;" style="endArrow=open;endSize=12;dashed=1;dashPattern=10 5;strokeColor=#2C3E50;strokeWidth=1.5;html=1;fontSize=11;fontStyle=3;fontColor=#2C3E50;labelBackgroundColor=#FFFFFF;" edge="1" source="uc_send_push" target="uc_send_inapp" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Extend: Send Email → Send Push -->
+        <mxCell id="ext_email_push" value="&amp;laquo;extend&amp;raquo;" style="endArrow=open;endSize=12;dashed=1;dashPattern=10 5;strokeColor=#27AE60;strokeWidth=1.5;html=1;fontSize=11;fontStyle=3;fontColor=#27AE60;labelBackgroundColor=#FFFFFF;" edge="1" source="uc_send_email" target="uc_send_push" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Extend: Configure Quiet Hours → Manage Preferences -->
+        <mxCell id="ext_quiet_prefs" value="&amp;laquo;extend&amp;raquo;" style="endArrow=open;endSize=12;dashed=1;dashPattern=10 5;strokeColor=#27AE60;strokeWidth=1.5;html=1;fontSize=11;fontStyle=3;fontColor=#27AE60;labelBackgroundColor=#FFFFFF;" edge="1" source="uc_quiet_hours" target="uc_manage_prefs" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Extend: Clear Notifications → View Notification Center -->
+        <mxCell id="ext_clear_center" value="&amp;laquo;extend&amp;raquo;" style="endArrow=open;endSize=12;dashed=1;dashPattern=10 5;strokeColor=#27AE60;strokeWidth=1.5;html=1;fontSize=11;fontStyle=3;fontColor=#27AE60;labelBackgroundColor=#FFFFFF;" edge="1" source="uc_clear_notifs" target="uc_view_center" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

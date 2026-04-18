@@ -1,0 +1,86 @@
+<mxfile host="app.diagrams.net" modified="2026-03-01" agent="Nashaat" version="24.7.6" type="device">
+  <diagram name="UC-13 — Private Leaderboards" id="uc13-private-leaderboards">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- System Boundary -->
+        <mxCell id="sb1" value="Use Case Diagram for Private Leaderboards" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#A3E4D7;strokeColor=#E74C3C;strokeWidth=2;fontSize=18;fontStyle=1;fontColor=#C0392B;verticalAlign=top;align=left;spacingLeft=15;spacingTop=10;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="240" y="30" width="820" height="650" as="geometry" />
+        </mxCell>
+
+        <!-- Primary Actor: Authenticated User -->
+        <mxCell id="actor_user" value="Authenticated&#xa;User" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#3498DB;strokeColor=#2980B9;fontStyle=1;fontSize=12;fontColor=#2980B9;" vertex="1" parent="1">
+          <mxGeometry x="60" y="200" width="44" height="66" as="geometry" />
+        </mxCell>
+
+        <!-- External Actor: Scoring Engine -->
+        <mxCell id="actor_scoring" value="Scoring&#xa;Engine" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#3498DB;strokeColor=#2980B9;fontStyle=1;fontSize=11;fontColor=#2980B9;" vertex="1" parent="1">
+          <mxGeometry x="1260" y="100" width="44" height="66" as="geometry" />
+        </mxCell>
+
+        <!-- External Actor: Weekly Reset Scheduler -->
+        <mxCell id="actor_scheduler" value="Weekly Reset&#xa;Scheduler" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#3498DB;strokeColor=#2980B9;fontStyle=1;fontSize=11;fontColor=#2980B9;" vertex="1" parent="1">
+          <mxGeometry x="1260" y="400" width="44" height="66" as="geometry" />
+        </mxCell>
+
+        <!-- Use Cases -->
+        <mxCell id="uc_view_leaderboard" value="View Weekly&#xa;Leaderboard" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F5B041;strokeColor=#D35400;strokeWidth=1.5;fontSize=12;shadow=1;fontColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="340" y="80" width="200" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="uc_view_breakdown" value="View Score&#xa;Breakdown" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F5B041;strokeColor=#D35400;strokeWidth=1.5;fontSize=12;shadow=1;fontColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="340" y="250" width="200" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="uc_calc_score" value="Calculate&#xa;Score" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F5B041;strokeColor=#D35400;strokeWidth=1.5;fontSize=12;shadow=1;fontColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="700" y="80" width="200" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="uc_weekly_reset" value="Weekly&#xa;Reset" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F5B041;strokeColor=#D35400;strokeWidth=1.5;fontSize=12;shadow=1;fontColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="340" y="430" width="200" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="uc_award_champion" value="Award Weekly&#xa;Champion" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F5B041;strokeColor=#D35400;strokeWidth=1.5;fontSize=12;shadow=1;fontColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="700" y="430" width="200" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- Associations: Authenticated User -->
+        <mxCell id="assoc_user_leaderboard" style="endArrow=none;strokeColor=#2C3E50;strokeWidth=2;html=1;" edge="1" source="actor_user" target="uc_view_leaderboard" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="assoc_user_breakdown" style="endArrow=none;strokeColor=#2C3E50;strokeWidth=2;html=1;" edge="1" source="actor_user" target="uc_view_breakdown" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Associations: Scoring Engine -->
+        <mxCell id="assoc_scoring_calc" style="endArrow=none;strokeColor=#2C3E50;strokeWidth=2;html=1;" edge="1" source="actor_scoring" target="uc_calc_score" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Associations: Weekly Reset Scheduler -->
+        <mxCell id="assoc_scheduler_reset" style="endArrow=none;strokeColor=#2C3E50;strokeWidth=2;html=1;" edge="1" source="actor_scheduler" target="uc_weekly_reset" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Include: View Weekly Leaderboard → Calculate Score -->
+        <mxCell id="inc_leaderboard_calc" value="&amp;laquo;include&amp;raquo;" style="endArrow=open;endSize=12;dashed=1;dashPattern=10 5;strokeColor=#2C3E50;strokeWidth=1.5;html=1;fontSize=11;fontStyle=3;fontColor=#2C3E50;labelBackgroundColor=#FFFFFF;" edge="1" source="uc_view_leaderboard" target="uc_calc_score" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Include: Weekly Reset → Award Weekly Champion -->
+        <mxCell id="inc_reset_award" value="&amp;laquo;include&amp;raquo;" style="endArrow=open;endSize=12;dashed=1;dashPattern=10 5;strokeColor=#2C3E50;strokeWidth=1.5;html=1;fontSize=11;fontStyle=3;fontColor=#2C3E50;labelBackgroundColor=#FFFFFF;" edge="1" source="uc_weekly_reset" target="uc_award_champion" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Extend: View Score Breakdown → View Weekly Leaderboard -->
+        <mxCell id="ext_breakdown_leaderboard" value="&amp;laquo;extend&amp;raquo;" style="endArrow=open;endSize=12;dashed=1;dashPattern=10 5;strokeColor=#27AE60;strokeWidth=1.5;html=1;fontSize=11;fontStyle=3;fontColor=#27AE60;labelBackgroundColor=#FFFFFF;" edge="1" source="uc_view_breakdown" target="uc_view_leaderboard" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

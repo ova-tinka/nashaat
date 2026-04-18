@@ -1,0 +1,99 @@
+<mxfile host="app.diagrams.net" modified="2026-03-01" agent="Nashaat" version="24.7.6" type="device">
+  <diagram name="UC-08 — Mobile App Blocking" id="uc08-mobile-app-blocking">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- System Boundary -->
+        <mxCell id="sb1" value="Use Case Diagram for Mobile App Blocking" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#A3E4D7;strokeColor=#E74C3C;strokeWidth=2;fontSize=18;fontStyle=1;fontColor=#C0392B;verticalAlign=top;align=left;spacingLeft=15;spacingTop=10;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="240" y="30" width="820" height="780" as="geometry" />
+        </mxCell>
+
+        <!-- Primary Actor: Authenticated User -->
+        <mxCell id="actor_user" value="Authenticated&#xa;User" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#3498DB;strokeColor=#2980B9;fontStyle=1;fontSize=12;fontColor=#2980B9;" vertex="1" parent="1">
+          <mxGeometry x="60" y="250" width="44" height="66" as="geometry" />
+        </mxCell>
+
+        <!-- External Actor: System Background Service -->
+        <mxCell id="actor_bg_service" value="System Background&#xa;Service" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#3498DB;strokeColor=#2980B9;fontStyle=1;fontSize=11;fontColor=#2980B9;" vertex="1" parent="1">
+          <mxGeometry x="1260" y="100" width="44" height="66" as="geometry" />
+        </mxCell>
+
+        <!-- External Actor: Device OS Permissions -->
+        <mxCell id="actor_os_perms" value="Device OS&#xa;Permissions" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#3498DB;strokeColor=#2980B9;fontStyle=1;fontSize=11;fontColor=#2980B9;" vertex="1" parent="1">
+          <mxGeometry x="1260" y="500" width="44" height="66" as="geometry" />
+        </mxCell>
+
+        <!-- Use Cases -->
+        <mxCell id="uc_grant_perms" value="Grant Device&#xa;Permissions" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F5B041;strokeColor=#D35400;strokeWidth=1.5;fontSize=12;shadow=1;fontColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="340" y="80" width="200" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="uc_select_apps" value="Select Apps&#xa;to Block" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F5B041;strokeColor=#D35400;strokeWidth=1.5;fontSize=12;shadow=1;fontColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="340" y="220" width="200" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="uc_monitor_usage" value="Monitor App&#xa;Usage" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F5B041;strokeColor=#D35400;strokeWidth=1.5;fontSize=12;shadow=1;fontColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="340" y="380" width="200" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="uc_enforce_blocking" value="Enforce&#xa;Blocking" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F5B041;strokeColor=#D35400;strokeWidth=1.5;fontSize=12;shadow=1;fontColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="700" y="380" width="200" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="uc_view_stats" value="View App Usage&#xa;Statistics" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F5B041;strokeColor=#D35400;strokeWidth=1.5;fontSize=12;shadow=1;fontColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="700" y="220" width="200" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="uc_trigger_lock" value="Trigger&#xa;Screen Lock" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F5B041;strokeColor=#D35400;strokeWidth=1.5;fontSize=12;shadow=1;fontColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="700" y="560" width="200" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- Associations: Authenticated User -->
+        <mxCell id="assoc_user_grant" style="endArrow=none;strokeColor=#2C3E50;strokeWidth=2;html=1;" edge="1" source="actor_user" target="uc_grant_perms" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="assoc_user_select" style="endArrow=none;strokeColor=#2C3E50;strokeWidth=2;html=1;" edge="1" source="actor_user" target="uc_select_apps" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="assoc_user_stats" style="endArrow=none;strokeColor=#2C3E50;strokeWidth=2;html=1;" edge="1" source="actor_user" target="uc_view_stats" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Associations: System Background Service -->
+        <mxCell id="assoc_bg_monitor" style="endArrow=none;strokeColor=#2C3E50;strokeWidth=2;html=1;" edge="1" source="actor_bg_service" target="uc_monitor_usage" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Associations: Device OS Permissions -->
+        <mxCell id="assoc_os_grant" style="endArrow=none;strokeColor=#2C3E50;strokeWidth=2;html=1;" edge="1" source="actor_os_perms" target="uc_grant_perms" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Include: Select Apps → Grant Device Permissions -->
+        <mxCell id="inc_select_grant" value="&amp;laquo;include&amp;raquo;" style="endArrow=open;endSize=12;dashed=1;dashPattern=10 5;strokeColor=#2C3E50;strokeWidth=1.5;html=1;fontSize=11;fontStyle=3;fontColor=#2C3E50;labelBackgroundColor=#FFFFFF;" edge="1" source="uc_select_apps" target="uc_grant_perms" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Include: Monitor App Usage → Enforce Blocking -->
+        <mxCell id="inc_monitor_enforce" value="&amp;laquo;include&amp;raquo;" style="endArrow=open;endSize=12;dashed=1;dashPattern=10 5;strokeColor=#2C3E50;strokeWidth=1.5;html=1;fontSize=11;fontStyle=3;fontColor=#2C3E50;labelBackgroundColor=#FFFFFF;" edge="1" source="uc_monitor_usage" target="uc_enforce_blocking" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Include: Enforce Blocking → Trigger Screen Lock -->
+        <mxCell id="inc_enforce_lock" value="&amp;laquo;include&amp;raquo;" style="endArrow=open;endSize=12;dashed=1;dashPattern=10 5;strokeColor=#2C3E50;strokeWidth=1.5;html=1;fontSize=11;fontStyle=3;fontColor=#2C3E50;labelBackgroundColor=#FFFFFF;" edge="1" source="uc_enforce_blocking" target="uc_trigger_lock" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Extend: View App Usage Statistics → Monitor App Usage -->
+        <mxCell id="ext_stats_monitor" value="&amp;laquo;extend&amp;raquo;" style="endArrow=open;endSize=12;dashed=1;dashPattern=10 5;strokeColor=#27AE60;strokeWidth=1.5;html=1;fontSize=11;fontStyle=3;fontColor=#27AE60;labelBackgroundColor=#FFFFFF;" edge="1" source="uc_view_stats" target="uc_monitor_usage" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

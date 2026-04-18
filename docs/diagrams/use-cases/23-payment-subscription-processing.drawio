@@ -1,0 +1,57 @@
+<mxfile host="app.diagrams.net" modified="2026-04-18" agent="Nashaat" version="24.7.6" type="device">
+  <diagram name="UC-23 — Payment and Subscription Processing" id="uc23-usecase">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <!-- System Boundary -->
+        <mxCell id="uc23_sb1" value="Use Case Diagram — Payment and Subscription Processing" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#A3E4D7;strokeColor=#E74C3C;strokeWidth=2;fontSize=18;fontStyle=1;fontColor=#C0392B;verticalAlign=top;align=left;spacingLeft=15;spacingTop=10;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="240" y="30" width="950" height="820" as="geometry" />
+        </mxCell>
+        <!-- Actors left -->
+        <mxCell id="uc23_a_user" value="Authenticated&#xa;User" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#3498DB;strokeColor=#2980B9;fontStyle=1;fontSize=12;fontColor=#2980B9;" vertex="1" parent="1">
+          <mxGeometry x="60" y="320" width="44" height="66" as="geometry" />
+        </mxCell>
+        <!-- Actors right -->
+        <mxCell id="uc23_a_stripe" value="Stripe" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#3498DB;strokeColor=#2980B9;fontStyle=1;fontSize=11;fontColor=#2980B9;" vertex="1" parent="1">
+          <mxGeometry x="1270" y="100" width="44" height="66" as="geometry" />
+        </mxCell>
+        <mxCell id="uc23_a_store" value="App Store /&#xa;Play Store" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#3498DB;strokeColor=#2980B9;fontStyle=1;fontSize=11;fontColor=#2980B9;" vertex="1" parent="1">
+          <mxGeometry x="1270" y="380" width="44" height="66" as="geometry" />
+        </mxCell>
+        <!-- Use cases -->
+        <mxCell id="uc23_uc_select" value="Select VIP Plan" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F5B041;strokeColor=#D35400;strokeWidth=1.5;fontSize=12;shadow=1;fontColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="330" y="70" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="uc23_uc_stripe" value="Pay via Stripe" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F5B041;strokeColor=#D35400;strokeWidth=1.5;fontSize=12;shadow=1;fontColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="720" y="70" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="uc23_uc_iap" value="Pay via App Store /&#xa;Play Store" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F5B041;strokeColor=#D35400;strokeWidth=1.5;fontSize=12;shadow=1;fontColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="720" y="230" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="uc23_uc_manage" value="Manage&#xa;Subscription" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F5B041;strokeColor=#D35400;strokeWidth=1.5;fontSize=12;shadow=1;fontColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="330" y="260" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="uc23_uc_cancel" value="Cancel&#xa;Subscription" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F5B041;strokeColor=#D35400;strokeWidth=1.5;fontSize=12;shadow=1;fontColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="330" y="450" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="uc23_uc_b2b" value="B2B Gym Billing&#xa;(see UC25)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F5B041;strokeColor=#D35400;strokeWidth=1.5;fontSize=12;shadow=1;fontColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="330" y="630" width="200" height="70" as="geometry" />
+        </mxCell>
+        <!-- Associations -->
+        <mxCell id="uc23_assoc1" style="endArrow=none;strokeColor=#2C3E50;strokeWidth=2;html=1;" edge="1" source="uc23_a_user" target="uc23_uc_select" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="uc23_assoc2" style="endArrow=none;strokeColor=#2C3E50;strokeWidth=2;html=1;" edge="1" source="uc23_a_user" target="uc23_uc_manage" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="uc23_assoc3" style="endArrow=none;strokeColor=#2C3E50;strokeWidth=2;html=1;" edge="1" source="uc23_a_user" target="uc23_uc_cancel" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="uc23_assoc4" style="endArrow=none;strokeColor=#2C3E50;strokeWidth=2;html=1;" edge="1" source="uc23_a_user" target="uc23_uc_b2b" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="uc23_assoc5" style="endArrow=none;strokeColor=#2C3E50;strokeWidth=2;html=1;" edge="1" source="uc23_a_stripe" target="uc23_uc_stripe" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="uc23_assoc6" style="endArrow=none;strokeColor=#2C3E50;strokeWidth=2;html=1;" edge="1" source="uc23_a_store" target="uc23_uc_iap" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <!-- Include -->
+        <mxCell id="uc23_inc1" value="&amp;laquo;include&amp;raquo;" style="endArrow=open;endSize=12;dashed=1;dashPattern=10 5;strokeColor=#2C3E50;strokeWidth=1.5;html=1;fontSize=11;fontStyle=3;fontColor=#2C3E50;labelBackgroundColor=#FFFFFF;" edge="1" source="uc23_uc_select" target="uc23_uc_stripe" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="uc23_inc2" value="&amp;laquo;include&amp;raquo;" style="endArrow=open;endSize=12;dashed=1;dashPattern=10 5;strokeColor=#2C3E50;strokeWidth=1.5;html=1;fontSize=11;fontStyle=3;fontColor=#2C3E50;labelBackgroundColor=#FFFFFF;" edge="1" source="uc23_uc_select" target="uc23_uc_iap" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="uc23_inc3" value="&amp;laquo;include&amp;raquo;" style="endArrow=open;endSize=12;dashed=1;dashPattern=10 5;strokeColor=#2C3E50;strokeWidth=1.5;html=1;fontSize=11;fontStyle=3;fontColor=#2C3E50;labelBackgroundColor=#FFFFFF;" edge="1" source="uc23_uc_cancel" target="uc23_uc_manage" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <!-- Extend -->
+        <mxCell id="uc23_ext1" value="&amp;laquo;extend&amp;raquo;" style="endArrow=open;endSize=12;dashed=1;dashPattern=10 5;strokeColor=#8E44AD;strokeWidth=1.5;html=1;fontSize=11;fontStyle=3;fontColor=#8E44AD;labelBackgroundColor=#FFFFFF;" edge="1" source="uc23_uc_b2b" target="uc23_uc_manage" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

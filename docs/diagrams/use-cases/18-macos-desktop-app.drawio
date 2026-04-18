@@ -1,0 +1,60 @@
+<mxfile host="app.diagrams.net" modified="2026-04-18" agent="Nashaat" version="24.7.6" type="device">
+  <diagram name="UC-18 — macOS Desktop App" id="uc18-usecase">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <!-- System Boundary -->
+        <mxCell id="uc18_sb1" value="Use Case Diagram — macOS Desktop App" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#A3E4D7;strokeColor=#E74C3C;strokeWidth=2;fontSize=18;fontStyle=1;fontColor=#C0392B;verticalAlign=top;align=left;spacingLeft=15;spacingTop=10;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="240" y="30" width="950" height="760" as="geometry" />
+        </mxCell>
+        <!-- Actors left -->
+        <mxCell id="uc18_a_user" value="Authenticated&#xa;User" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#3498DB;strokeColor=#2980B9;fontStyle=1;fontSize=12;fontColor=#2980B9;" vertex="1" parent="1">
+          <mxGeometry x="60" y="320" width="44" height="66" as="geometry" />
+        </mxCell>
+        <!-- Actors right -->
+        <mxCell id="uc18_a_macos" value="macOS System" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#3498DB;strokeColor=#2980B9;fontStyle=1;fontSize=11;fontColor=#2980B9;" vertex="1" parent="1">
+          <mxGeometry x="1270" y="100" width="44" height="66" as="geometry" />
+        </mxCell>
+        <mxCell id="uc18_a_supabase" value="Supabase&#xa;Backend" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#3498DB;strokeColor=#2980B9;fontStyle=1;fontSize=11;fontColor=#2980B9;" vertex="1" parent="1">
+          <mxGeometry x="1270" y="300" width="44" height="66" as="geometry" />
+        </mxCell>
+        <mxCell id="uc18_a_ext" value="Browser&#xa;Extension" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#3498DB;strokeColor=#2980B9;fontStyle=1;fontSize=11;fontColor=#2980B9;" vertex="1" parent="1">
+          <mxGeometry x="1270" y="500" width="44" height="66" as="geometry" />
+        </mxCell>
+        <!-- Use cases -->
+        <mxCell id="uc18_uc_install" value="Install macOS App" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F5B041;strokeColor=#D35400;strokeWidth=1.5;fontSize=12;shadow=1;fontColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="330" y="70" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="uc18_uc_cfg_app" value="Configure App&#xa;Blocking (Mac)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F5B041;strokeColor=#D35400;strokeWidth=1.5;fontSize=12;shadow=1;fontColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="330" y="200" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="uc18_uc_cfg_web" value="Configure Web&#xa;Blocking (Mac)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F5B041;strokeColor=#D35400;strokeWidth=1.5;fontSize=12;shadow=1;fontColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="330" y="340" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="uc18_uc_sync" value="Sync Rules&#xa;with Mobile" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F5B041;strokeColor=#D35400;strokeWidth=1.5;fontSize=12;shadow=1;fontColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="330" y="480" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="uc18_uc_monitor" value="Monitor Running&#xa;Processes" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F5B041;strokeColor=#D35400;strokeWidth=1.5;fontSize=12;shadow=1;fontColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="720" y="200" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="uc18_uc_dns_web" value="Enforce DNS&#xa;Web Blocking" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F5B041;strokeColor=#D35400;strokeWidth=1.5;fontSize=12;shadow=1;fontColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="720" y="370" width="200" height="70" as="geometry" />
+        </mxCell>
+        <!-- Associations -->
+        <mxCell id="uc18_assoc1" style="endArrow=none;strokeColor=#2C3E50;strokeWidth=2;html=1;" edge="1" source="uc18_a_user" target="uc18_uc_install" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="uc18_assoc2" style="endArrow=none;strokeColor=#2C3E50;strokeWidth=2;html=1;" edge="1" source="uc18_a_user" target="uc18_uc_cfg_app" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="uc18_assoc3" style="endArrow=none;strokeColor=#2C3E50;strokeWidth=2;html=1;" edge="1" source="uc18_a_user" target="uc18_uc_cfg_web" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="uc18_assoc4" style="endArrow=none;strokeColor=#2C3E50;strokeWidth=2;html=1;" edge="1" source="uc18_a_user" target="uc18_uc_sync" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="uc18_assoc5" style="endArrow=none;strokeColor=#2C3E50;strokeWidth=2;html=1;" edge="1" source="uc18_a_macos" target="uc18_uc_monitor" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="uc18_assoc6" style="endArrow=none;strokeColor=#2C3E50;strokeWidth=2;html=1;" edge="1" source="uc18_a_supabase" target="uc18_uc_sync" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="uc18_assoc7" style="endArrow=none;strokeColor=#2C3E50;strokeWidth=2;html=1;" edge="1" source="uc18_a_ext" target="uc18_uc_dns_web" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <!-- Include -->
+        <mxCell id="uc18_inc1" value="&amp;laquo;include&amp;raquo;" style="endArrow=open;endSize=12;dashed=1;dashPattern=10 5;strokeColor=#2C3E50;strokeWidth=1.5;html=1;fontSize=11;fontStyle=3;fontColor=#2C3E50;labelBackgroundColor=#FFFFFF;" edge="1" source="uc18_uc_cfg_app" target="uc18_uc_monitor" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="uc18_inc2" value="&amp;laquo;include&amp;raquo;" style="endArrow=open;endSize=12;dashed=1;dashPattern=10 5;strokeColor=#2C3E50;strokeWidth=1.5;html=1;fontSize=11;fontStyle=3;fontColor=#2C3E50;labelBackgroundColor=#FFFFFF;" edge="1" source="uc18_uc_cfg_web" target="uc18_uc_dns_web" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <!-- Extend -->
+        <mxCell id="uc18_ext1" value="&amp;laquo;extend&amp;raquo;" style="endArrow=open;endSize=12;dashed=1;dashPattern=10 5;strokeColor=#8E44AD;strokeWidth=1.5;html=1;fontSize=11;fontStyle=3;fontColor=#8E44AD;labelBackgroundColor=#FFFFFF;" edge="1" source="uc18_uc_sync" target="uc18_uc_cfg_app" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -1,0 +1,50 @@
+<mxfile host="app.diagrams.net" modified="2026-04-18" agent="Nashaat" version="24.7.6" type="device">
+  <diagram name="UC-21 — Computer Vision Form Checking" id="uc21-usecase">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <!-- System Boundary -->
+        <mxCell id="uc21_sb1" value="Use Case Diagram — Computer Vision Form Checking" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#A3E4D7;strokeColor=#E74C3C;strokeWidth=2;fontSize=18;fontStyle=1;fontColor=#C0392B;verticalAlign=top;align=left;spacingLeft=15;spacingTop=10;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="240" y="30" width="950" height="700" as="geometry" />
+        </mxCell>
+        <!-- Actors left -->
+        <mxCell id="uc21_a_user" value="Authenticated&#xa;User" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#3498DB;strokeColor=#2980B9;fontStyle=1;fontSize=12;fontColor=#2980B9;" vertex="1" parent="1">
+          <mxGeometry x="60" y="300" width="44" height="66" as="geometry" />
+        </mxCell>
+        <!-- Actors right -->
+        <mxCell id="uc21_a_cam" value="Camera /&#xa;CV Service" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#3498DB;strokeColor=#2980B9;fontStyle=1;fontSize=11;fontColor=#2980B9;" vertex="1" parent="1">
+          <mxGeometry x="1270" y="100" width="44" height="66" as="geometry" />
+        </mxCell>
+        <mxCell id="uc21_a_ai" value="AI Model" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#3498DB;strokeColor=#2980B9;fontStyle=1;fontSize=11;fontColor=#2980B9;" vertex="1" parent="1">
+          <mxGeometry x="1270" y="380" width="44" height="66" as="geometry" />
+        </mxCell>
+        <!-- Use cases -->
+        <mxCell id="uc21_uc_enable" value="Enable Form&#xa;Check Camera" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F5B041;strokeColor=#D35400;strokeWidth=1.5;fontSize=12;shadow=1;fontColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="330" y="70" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="uc21_uc_analyse" value="Analyse Exercise&#xa;Posture" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F5B041;strokeColor=#D35400;strokeWidth=1.5;fontSize=12;shadow=1;fontColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="720" y="70" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="uc21_uc_feedback" value="Display Real-Time&#xa;Feedback" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F5B041;strokeColor=#D35400;strokeWidth=1.5;fontSize=12;shadow=1;fontColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="720" y="230" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="uc21_uc_pause" value="Pause Session on&#xa;Dangerous Form" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F5B041;strokeColor=#D35400;strokeWidth=1.5;fontSize=12;shadow=1;fontColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="330" y="260" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="uc21_uc_score" value="View Form Score&#xa;in Summary" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F5B041;strokeColor=#D35400;strokeWidth=1.5;fontSize=12;shadow=1;fontColor=#2C3E50;" vertex="1" parent="1">
+          <mxGeometry x="330" y="450" width="200" height="70" as="geometry" />
+        </mxCell>
+        <!-- Associations -->
+        <mxCell id="uc21_assoc1" style="endArrow=none;strokeColor=#2C3E50;strokeWidth=2;html=1;" edge="1" source="uc21_a_user" target="uc21_uc_enable" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="uc21_assoc2" style="endArrow=none;strokeColor=#2C3E50;strokeWidth=2;html=1;" edge="1" source="uc21_a_user" target="uc21_uc_pause" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="uc21_assoc3" style="endArrow=none;strokeColor=#2C3E50;strokeWidth=2;html=1;" edge="1" source="uc21_a_user" target="uc21_uc_score" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="uc21_assoc4" style="endArrow=none;strokeColor=#2C3E50;strokeWidth=2;html=1;" edge="1" source="uc21_a_cam" target="uc21_uc_analyse" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="uc21_assoc5" style="endArrow=none;strokeColor=#2C3E50;strokeWidth=2;html=1;" edge="1" source="uc21_a_ai" target="uc21_uc_feedback" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <!-- Include -->
+        <mxCell id="uc21_inc1" value="&amp;laquo;include&amp;raquo;" style="endArrow=open;endSize=12;dashed=1;dashPattern=10 5;strokeColor=#2C3E50;strokeWidth=1.5;html=1;fontSize=11;fontStyle=3;fontColor=#2C3E50;labelBackgroundColor=#FFFFFF;" edge="1" source="uc21_uc_enable" target="uc21_uc_analyse" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="uc21_inc2" value="&amp;laquo;include&amp;raquo;" style="endArrow=open;endSize=12;dashed=1;dashPattern=10 5;strokeColor=#2C3E50;strokeWidth=1.5;html=1;fontSize=11;fontStyle=3;fontColor=#2C3E50;labelBackgroundColor=#FFFFFF;" edge="1" source="uc21_uc_analyse" target="uc21_uc_feedback" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
