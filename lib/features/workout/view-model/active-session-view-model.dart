@@ -137,6 +137,14 @@ class ActiveSessionViewModel extends ChangeNotifier {
 
   void skipCurrentSet() => completeCurrentSet();
 
+  void skipRest() {
+    if (_status != ActiveSessionStatus.resting) return;
+    _restTimer?.cancel();
+    _restCountdown = 0;
+    _status = ActiveSessionStatus.running;
+    notifyListeners();
+  }
+
   void toggleSet(int exerciseIdx, int setIdx) {
     if (exerciseIdx >= _setCompletions.length) return;
     if (setIdx >= _setCompletions[exerciseIdx].length) return;

@@ -23,6 +23,10 @@ class ProfileEntity {
   final int weeklyBigSessions;
   final DateTime? lastWeeklyResetAt;
 
+  // When true, balance is only deducted while a blocked app is in the foreground.
+  // When false, balance drains continuously while apps are unblocked.
+  final bool strictBlockingOnly;
+
   const ProfileEntity({
     required this.id,
     required this.email,
@@ -43,6 +47,7 @@ class ProfileEntity {
     this.weeklySmallSessions = 0,
     this.weeklyBigSessions = 0,
     this.lastWeeklyResetAt,
+    this.strictBlockingOnly = true,
   });
 
   bool get isScreenTimeConfigured =>
@@ -66,6 +71,7 @@ class ProfileEntity {
     int? weeklySmallSessions,
     int? weeklyBigSessions,
     DateTime? lastWeeklyResetAt,
+    bool? strictBlockingOnly,
   }) {
     return ProfileEntity(
       id: id,
@@ -89,6 +95,7 @@ class ProfileEntity {
       weeklySmallSessions: weeklySmallSessions ?? this.weeklySmallSessions,
       weeklyBigSessions: weeklyBigSessions ?? this.weeklyBigSessions,
       lastWeeklyResetAt: lastWeeklyResetAt ?? this.lastWeeklyResetAt,
+      strictBlockingOnly: strictBlockingOnly ?? this.strictBlockingOnly,
     );
   }
 }

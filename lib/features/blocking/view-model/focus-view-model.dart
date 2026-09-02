@@ -209,11 +209,22 @@ class FocusViewModel extends ChangeNotifier {
 
   /// Returns true if screen time should be deducted this tick.
   ///
-  /// On Android we check whether any blocked app is in the foreground via the
-  /// native UsageStats API.  On iOS we always return true because the
-  /// foreground app is not accessible from Flutter code.
+  /// Strict mode (default): drain only when a blocked app is actively in the
+  /// foreground. On iOS, Flutter cannot inspect the foreground app, so strict
+  /// mode conserves balance completely on iOS.
+  ///
+  /// Non-strict mode (legacy): drain continuously while apps are unblocked,
+  /// regardless of which app the user is in.
   Future<bool> _shouldDrainThisTick() async {
-    if (Platform.isIOS) return true;
+    final strictMode = _profile?.strictBlockingOnly ?? true;
+
+    if (!strictMode) return true;
+
+    // Strict mode — only drain when a blocked app is in the foreground.
+    if (Platform.isIOS) {
+      // FamilyControls blocks at OS level; Flutter can't inspect foreground.
+      return false;
+    }
 
     final foreground = await _platform.getForegroundAppId();
     if (foreground == null) return false;

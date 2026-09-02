@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../app/app-router.dart';
 import '../../../core/entities/blocking-rule-entity.dart';
 import '../../../core/entities/enums.dart';
 import '../../../infra/blocking/blocking-platform-service.dart';
@@ -28,6 +29,7 @@ class FocusScreen extends StatefulWidget {
 class _FocusScreenState extends State<FocusScreen> {
   late final FocusViewModel _vm;
   late final BlockingCoordinator _coordinator;
+  bool _exhaustedShown = false;
 
   @override
   void initState() {
@@ -43,11 +45,27 @@ class _FocusScreenState extends State<FocusScreen> {
       userId: userId,
     );
     _coordinator = BlockingCoordinator(appCoordinator);
+    _vm.addListener(_checkExhausted);
     _vm.initialize();
+  }
+
+  void _checkExhausted() {
+    if (!mounted) return;
+    if (_exhaustedShown) return;
+    if (_vm.balanceMinutes == 0 && _vm.blockingVm.isBlockingActive) {
+      _exhaustedShown = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        Navigator.of(context)
+            .pushNamed(AppRouter.timeExhausted)
+            .then((_) => _exhaustedShown = false);
+      });
+    }
   }
 
   @override
   void dispose() {
+    _vm.removeListener(_checkExhausted);
     _vm.dispose();
     super.dispose();
   }

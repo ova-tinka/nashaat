@@ -231,6 +231,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
           width: double.infinity,
         ),
 
+        // Blocking behaviour
+        AppSectionHeader('Blocking Behaviour'),
+        AppCard(
+          padding: const EdgeInsets.all(AppSpacing.base),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Only deduct time from blocked apps',
+                          style: AppTypography.body.copyWith(fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'When on, your balance is only used while you\'re inside the apps you chose to block. When off, your balance drains any time you\'re using your phone while apps are unblocked.',
+                          style: AppTypography.labelMuted,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch(
+                    value: _vm.profile?.strictBlockingOnly ?? true,
+                    onChanged: _vm.isSaving ? null : (v) => _vm.setStrictBlockingOnly(v),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+
         // Premium
         AppSectionHeader('Premium'),
         Container(

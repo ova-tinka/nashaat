@@ -156,6 +156,24 @@ class SettingsViewModel extends ChangeNotifier {
     }
   }
 
+  Future<void> setStrictBlockingOnly(bool value) async {
+    _isSaving = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      final userId = _getUserId();
+      await _profileRepo.updateStrictBlockingOnly(userId, value);
+      _profile = _profile?.copyWith(strictBlockingOnly: value);
+    } catch (e) {
+      Log.error('SettingsViewModel.setStrictBlockingOnly', e);
+      _error = 'Could not update setting.';
+    } finally {
+      _isSaving = false;
+      notifyListeners();
+    }
+  }
+
   void clearMessages() {
     _error = null;
     _successMessage = null;

@@ -225,6 +225,14 @@ class _RestOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final nextEx = vm.currentExercise;
+    final isNewExercise = vm.setIndex == 0;
+    final nextLabel = nextEx == null
+        ? null
+        : isNewExercise
+            ? nextEx.exerciseName
+            : 'Set ${vm.setIndex + 1} of ${vm.totalSetsForCurrent}  ·  ${nextEx.exerciseName}';
+
     return Expanded(
       child: Center(
         child: Column(
@@ -238,8 +246,35 @@ class _RestOverlay extends StatelessWidget {
               '${vm.restCountdown}s',
               style: AppTypography.monoStrong.copyWith(fontSize: 48),
             ),
+            if (nextLabel != null) ...[
+              const SizedBox(height: AppSpacing.xl),
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+                padding: const EdgeInsets.all(AppSpacing.base),
+                color: AppColors.paperAlt,
+                child: Row(
+                  children: [
+                    const Icon(Icons.fitness_center, size: 20, color: AppColors.inkMuted),
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Up next', style: AppTypography.labelMuted),
+                          const SizedBox(height: 2),
+                          Text(
+                            nextLabel,
+                            style: AppTypography.body.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: AppSpacing.lg),
-            AppButton.ghost('Skip Rest', onPressed: vm.completeCurrentSet),
+            AppButton.ghost('Skip Rest', onPressed: vm.skipRest),
           ],
         ),
       ),

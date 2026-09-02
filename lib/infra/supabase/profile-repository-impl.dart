@@ -109,6 +109,15 @@ class SupabaseProfileRepository implements ProfileRepository {
     Log.db('weekly reset recorded ✓');
   }
 
+  @override
+  Future<void> updateStrictBlockingOnly(String userId, bool value) async {
+    await _db.from('profiles').update({
+      'strict_blocking_only': value,
+      'updated_at': DateTime.now().toIso8601String(),
+    }).eq('id', userId);
+    Log.db('strictBlockingOnly → $value');
+  }
+
   // ── Helpers ───────────────────────────────────────────────────────────────
 
   ProfileEntity _fromMap(Map<String, dynamic> map) => ProfileEntity(
@@ -138,6 +147,7 @@ class SupabaseProfileRepository implements ProfileRepository {
         lastWeeklyResetAt: map['last_weekly_reset_at'] != null
             ? DateTime.tryParse(map['last_weekly_reset_at'] as String)
             : null,
+        strictBlockingOnly: map['strict_blocking_only'] as bool? ?? true,
       );
 
   UserStatus _parseStatus(String s) => switch (s) {

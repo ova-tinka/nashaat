@@ -4,6 +4,7 @@ import '../core/entities/workout-plan-entity.dart';
 import '../features/auth/view/auth-gate.dart';
 import '../features/auth/view/login-screen.dart';
 import '../features/auth/view/register-screen.dart';
+import '../features/blocking/view/time-exhausted-screen.dart';
 import '../features/onboarding/coordinator/onboarding-coordinator.dart';
 import '../features/onboarding/view-model/onboarding-view-model.dart';
 import '../features/onboarding/view/onboarding-screen.dart';
@@ -37,6 +38,9 @@ class AppRouter {
 
   // ── Settings ──────────────────────────────────────────────────────────────
   static const String settings = '/settings';
+
+  // ── Blocking ──────────────────────────────────────────────────────────────
+  static const String timeExhausted = '/time-exhausted';
 
   // ── Legacy routes kept for compat ─────────────────────────────────────────
   static const String logActivity = '/log-activity';
@@ -109,6 +113,12 @@ class AppRouter {
 
       case settings:
         return MaterialPageRoute(builder: (_) => const SettingsScreen());
+
+      case timeExhausted:
+        return MaterialPageRoute(
+          builder: (_) => const TimeExhaustedScreen(),
+          fullscreenDialog: true,
+        );
 
       // ── Placeholder / legacy routes ──────────────────────────────────────
 

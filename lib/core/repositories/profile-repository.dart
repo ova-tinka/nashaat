@@ -32,4 +32,6 @@ abstract class ProfileRepository {
   });
 
   Future<void> updateLastWeeklyReset(String userId, DateTime resetAt);
+
+  Future<void> updateStrictBlockingOnly(String userId, bool value);
 }
