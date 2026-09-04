@@ -14,8 +14,6 @@ import '../../../shared/utils/screen-time-economy.dart';
 import '../coordinator/onboarding-coordinator.dart';
 import '../view-model/onboarding-view-model.dart';
 
-const _kTotalSteps = 6;
-
 class OnboardingScreen extends StatefulWidget {
   final OnboardingViewModel vm;
   final OnboardingCoordinator coordinator;
@@ -49,9 +47,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       return;
     }
     if (widget.vm.error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(widget.vm.error!)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(widget.vm.error!)));
     }
   }
 
@@ -76,18 +74,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     switch (vm.step) {
       case 0:
         return AppStepScaffold(
-          totalSteps: _kTotalSteps,
+          totalSteps: vm.totalSteps,
           currentStep: 0,
           nextLabel: "Let's Go",
           onNext: vm.goNext,
           body: _WelcomeStep(
             initial: vm.username,
             onChanged: vm.setUsername,
+            supportsScreenTime: vm.supportsScreenTime,
           ),
         );
       case 1:
         return AppStepScaffold(
-          totalSteps: _kTotalSteps,
+          totalSteps: vm.totalSteps,
           currentStep: 1,
           onNext: vm.goNext,
           body: _DaysPerWeekStep(
@@ -97,9 +96,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         );
       case 2:
         return AppStepScaffold(
-          totalSteps: _kTotalSteps,
+          totalSteps: vm.totalSteps,
           currentStep: 2,
-          onNext: vm.goNext,
+          nextLabel: vm.supportsScreenTime ? 'Continue' : 'Finish Setup',
+          onNext: vm.supportsScreenTime ? vm.goNext : () => vm.finish(),
           body: _WorkoutDurationStep(
             value: vm.workoutDurationMinutes,
             onChanged: vm.setWorkoutDurationMinutes,
@@ -107,7 +107,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         );
       case 3:
         return AppStepScaffold(
-          totalSteps: _kTotalSteps,
+          totalSteps: vm.totalSteps,
           currentStep: 3,
           onNext: vm.goNext,
           body: _DailyPhoneHoursStep(
@@ -117,7 +117,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         );
       case 4:
         return AppStepScaffold(
-          totalSteps: _kTotalSteps,
+          totalSteps: vm.totalSteps,
           currentStep: 4,
           onNext: vm.goNext,
           body: _RewardPreviewStep(
@@ -147,7 +147,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 class _WelcomeStep extends StatefulWidget {
   final String initial;
   final ValueChanged<String> onChanged;
-  const _WelcomeStep({required this.initial, required this.onChanged});
+  final bool supportsScreenTime;
+
+  const _WelcomeStep({
+    required this.initial,
+    required this.onChanged,
+    required this.supportsScreenTime,
+  });
 
   @override
   State<_WelcomeStep> createState() => _WelcomeStepState();
@@ -171,18 +177,28 @@ class _WelcomeStepState extends State<_WelcomeStep> {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.xl, AppSpacing.xl, AppSpacing.xl, AppSpacing.base),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.xl,
+        AppSpacing.xl,
+        AppSpacing.xl,
+        AppSpacing.base,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('WELCOME TO\nNASHAAT', style: AppTypography.display),
           const SizedBox(height: AppSpacing.md),
           Text(
-            'Earn screen time by working out.\nBuild discipline. Build consistency.',
+            widget.supportsScreenTime
+                ? 'Earn screen time by working out.\nBuild discipline. Build consistency.'
+                : 'Track your workouts and build consistency.',
             style: AppTypography.bodyMuted,
           ),
           const SizedBox(height: AppSpacing.xl),
-          Text('What should we call you?', style: AppTypography.heading.copyWith(fontSize: 15)),
+          Text(
+            'What should we call you?',
+            style: AppTypography.heading.copyWith(fontSize: 15),
+          ),
           const SizedBox(height: AppSpacing.sm),
           TextField(
             controller: _ctrl,
@@ -190,7 +206,9 @@ class _WelcomeStepState extends State<_WelcomeStep> {
               labelText: 'Username (optional)',
               hintText: 'e.g. fitnessathlete',
             ),
-            inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9_]'))],
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9_]')),
+            ],
             textCapitalization: TextCapitalization.none,
             onChanged: widget.onChanged,
           ),
@@ -210,11 +228,19 @@ class _DaysPerWeekStep extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.xl, AppSpacing.xl, AppSpacing.xl, AppSpacing.base),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.xl,
+        AppSpacing.xl,
+        AppSpacing.xl,
+        AppSpacing.base,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('HOW MANY DAYS\nPER WEEK?', style: AppTypography.display.copyWith(fontSize: 28)),
+          Text(
+            'HOW MANY DAYS\nPER WEEK?',
+            style: AppTypography.display.copyWith(fontSize: 28),
+          ),
           const SizedBox(height: AppSpacing.lg),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -250,11 +276,19 @@ class _WorkoutDurationStep extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.xl, AppSpacing.xl, AppSpacing.xl, AppSpacing.base),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.xl,
+        AppSpacing.xl,
+        AppSpacing.xl,
+        AppSpacing.base,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('HOW LONG PER\nWORKOUT?', style: AppTypography.display.copyWith(fontSize: 28)),
+          Text(
+            'HOW LONG PER\nWORKOUT?',
+            style: AppTypography.display.copyWith(fontSize: 28),
+          ),
           const SizedBox(height: AppSpacing.lg),
           Wrap(
             spacing: AppSpacing.sm,
@@ -283,13 +317,24 @@ class _DailyPhoneHoursStep extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.xl, AppSpacing.xl, AppSpacing.xl, AppSpacing.base),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.xl,
+        AppSpacing.xl,
+        AppSpacing.xl,
+        AppSpacing.base,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('DAILY PHONE\nUSAGE?', style: AppTypography.display.copyWith(fontSize: 28)),
+          Text(
+            'DAILY PHONE\nUSAGE?',
+            style: AppTypography.display.copyWith(fontSize: 28),
+          ),
           const SizedBox(height: AppSpacing.sm),
-          Text('We use this to calibrate your screen time economy.', style: AppTypography.bodyMuted),
+          Text(
+            'We use this to calibrate your screen time economy.',
+            style: AppTypography.bodyMuted,
+          ),
           const SizedBox(height: AppSpacing.xl),
           Center(
             child: Text(
@@ -300,7 +345,9 @@ class _DailyPhoneHoursStep extends StatelessWidget {
           const SizedBox(height: AppSpacing.base),
           Slider(
             value: value.toDouble(),
-            min: 1, max: 16, divisions: 15,
+            min: 1,
+            max: 16,
+            divisions: 15,
             label: '${value}h',
             onChanged: (v) => onChanged(v.round()),
           ),
@@ -354,11 +401,19 @@ class _RewardPreviewStep extends StatelessWidget {
     final weeklyTargetMinutes = daysPerWeek * workoutDurationMinutes;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.xl, AppSpacing.xl, AppSpacing.xl, AppSpacing.base),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.xl,
+        AppSpacing.xl,
+        AppSpacing.xl,
+        AppSpacing.base,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('YOUR REWARD\nPREVIEW', style: AppTypography.display.copyWith(fontSize: 28)),
+          Text(
+            'YOUR REWARD\nPREVIEW',
+            style: AppTypography.display.copyWith(fontSize: 28),
+          ),
           const SizedBox(height: AppSpacing.lg),
 
           Container(
@@ -371,7 +426,10 @@ class _RewardPreviewStep extends StatelessWidget {
                 const SizedBox(height: 8),
                 _RewardRow('Free time / week', _fmt(rewards.freeMinutes)),
                 const SizedBox(height: 8),
-                _RewardRow('Per small session', _fmt(rewards.smallRewardMinutes)),
+                _RewardRow(
+                  'Per small session',
+                  _fmt(rewards.smallRewardMinutes),
+                ),
                 const SizedBox(height: 8),
                 _RewardRow('Per big session', _fmt(rewards.bigRewardMinutes)),
               ],
@@ -379,11 +437,22 @@ class _RewardPreviewStep extends StatelessWidget {
           ),
 
           const SizedBox(height: AppSpacing.lg),
-          Text('Weekly session split', style: AppTypography.heading.copyWith(fontSize: 15)),
+          Text(
+            'Weekly session split',
+            style: AppTypography.heading.copyWith(fontSize: 15),
+          ),
           const SizedBox(height: AppSpacing.sm),
-          AppCounter(label: 'Small sessions (1x)', value: weeklySmallSessions, onChanged: onSmallChanged),
+          AppCounter(
+            label: 'Small sessions (1x)',
+            value: weeklySmallSessions,
+            onChanged: onSmallChanged,
+          ),
           const SizedBox(height: 8),
-          AppCounter(label: 'Big sessions (2x)', value: weeklyBigSessions, onChanged: onBigChanged),
+          AppCounter(
+            label: 'Big sessions (2x)',
+            value: weeklyBigSessions,
+            onChanged: onBigChanged,
+          ),
         ],
       ),
     );
@@ -413,7 +482,11 @@ class _BlockingStep extends StatefulWidget {
   final Future<void> Function(List<String>) onContinue;
   final Future<void> Function() onSkip;
 
-  const _BlockingStep({required this.isSaving, required this.onContinue, required this.onSkip});
+  const _BlockingStep({
+    required this.isSaving,
+    required this.onContinue,
+    required this.onSkip,
+  });
 
   @override
   State<_BlockingStep> createState() => _BlockingStepState();
@@ -453,7 +526,7 @@ class _BlockingStepState extends State<_BlockingStep> {
   @override
   Widget build(BuildContext context) {
     return AppStepScaffold(
-      totalSteps: _kTotalSteps,
+      totalSteps: 6,
       currentStep: 5,
       nextLabel: 'Finish Setup',
       isLoading: widget.isSaving,
@@ -461,11 +534,19 @@ class _BlockingStepState extends State<_BlockingStep> {
       skipLabel: 'Skip for Now',
       onSkip: widget.isSaving ? null : widget.onSkip,
       body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(AppSpacing.xl, AppSpacing.xl, AppSpacing.xl, AppSpacing.base),
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.xl,
+          AppSpacing.xl,
+          AppSpacing.xl,
+          AppSpacing.base,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('SET UP APP\nBLOCKING', style: AppTypography.display.copyWith(fontSize: 28)),
+            Text(
+              'SET UP APP\nBLOCKING',
+              style: AppTypography.display.copyWith(fontSize: 28),
+            ),
             const SizedBox(height: AppSpacing.sm),
             Text(
               'Choose apps to block when your screen time runs out.\nYou can change this later.',
@@ -476,7 +557,9 @@ class _BlockingStepState extends State<_BlockingStep> {
               _IosPickerSection(iosDone: _iosPickerDone, onTap: _openIosPicker),
             ] else ...[
               if (_loadingApps)
-                const Center(child: CircularProgressIndicator(color: AppColors.ink))
+                const Center(
+                  child: CircularProgressIndicator(color: AppColors.ink),
+                )
               else if (_installedApps.isEmpty)
                 Text('No apps found.', style: AppTypography.bodyMuted)
               else
@@ -486,12 +569,18 @@ class _BlockingStepState extends State<_BlockingStep> {
                     value: checked,
                     onChanged: (v) {
                       setState(() {
-                        if (v == true) { _selected.add(app.packageId); }
-                        else { _selected.remove(app.packageId); }
+                        if (v == true) {
+                          _selected.add(app.packageId);
+                        } else {
+                          _selected.remove(app.packageId);
+                        }
                       });
                     },
                     title: Text(app.name, style: AppTypography.body),
-                    subtitle: Text(app.packageId, style: AppTypography.labelMuted),
+                    subtitle: Text(
+                      app.packageId,
+                      style: AppTypography.labelMuted,
+                    ),
                     controlAffinity: ListTileControlAffinity.leading,
                     contentPadding: EdgeInsets.zero,
                   );
@@ -522,7 +611,11 @@ class _IosPickerSection extends StatelessWidget {
             decoration: BoxDecoration(
               border: Border.all(color: AppColors.ink, width: 1),
             ),
-            child: Text('Select Apps via Screen Time', style: AppTypography.label.copyWith(fontSize: 14), textAlign: TextAlign.center),
+            child: Text(
+              'Select Apps via Screen Time',
+              style: AppTypography.label.copyWith(fontSize: 14),
+              textAlign: TextAlign.center,
+            ),
           ),
         ),
         if (iosDone) ...[

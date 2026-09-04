@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../../../core/entities/workout-plan-entity.dart';
@@ -69,12 +71,16 @@ class _ActiveSessionScreenState extends State<ActiveSessionScreen> {
               scrolledUnderElevation: 0,
               title: Text(
                 widget.plan.title.toUpperCase(),
-                style: AppTypography.sectionHeader.copyWith(fontSize: 13, letterSpacing: 2),
+                style: AppTypography.sectionHeader.copyWith(
+                  fontSize: 13,
+                  letterSpacing: 2,
+                ),
               ),
               leading: IconButton(
                 icon: const Icon(Icons.close, color: AppColors.ink),
                 onPressed: () async {
-                  if (await _confirmExit() && context.mounted) Navigator.pop(context);
+                  if (await _confirmExit() && context.mounted)
+                    Navigator.pop(context);
                 },
               ),
               actions: [
@@ -88,10 +94,7 @@ class _ActiveSessionScreenState extends State<ActiveSessionScreen> {
                     ),
                     onPressed: _vm.pauseOrResume,
                   ),
-                AppButton.ghost(
-                  'Done',
-                  onPressed: _vm.markAllComplete,
-                ),
+                AppButton.ghost('Done', onPressed: _vm.markAllComplete),
               ],
               bottom: const PreferredSize(
                 preferredSize: Size.fromHeight(1),
@@ -200,10 +203,7 @@ class _GuidedBody extends StatelessWidget {
                     width: 220,
                   ),
                   const SizedBox(height: AppSpacing.md),
-                  AppButton.ghost(
-                    'Skip',
-                    onPressed: vm.skipCurrentSet,
-                  ),
+                  AppButton.ghost('Skip', onPressed: vm.skipCurrentSet),
                 ],
               ),
             ),
@@ -230,15 +230,19 @@ class _RestOverlay extends StatelessWidget {
     final nextLabel = nextEx == null
         ? null
         : isNewExercise
-            ? nextEx.exerciseName
-            : 'Set ${vm.setIndex + 1} of ${vm.totalSetsForCurrent}  ·  ${nextEx.exerciseName}';
+        ? nextEx.exerciseName
+        : 'Set ${vm.setIndex + 1} of ${vm.totalSetsForCurrent}  ·  ${nextEx.exerciseName}';
 
     return Expanded(
       child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.self_improvement, size: 64, color: AppColors.inkMuted),
+            const Icon(
+              Icons.self_improvement,
+              size: 64,
+              color: AppColors.inkMuted,
+            ),
             const SizedBox(height: AppSpacing.base),
             Text('Rest', style: AppTypography.title),
             const SizedBox(height: AppSpacing.sm),
@@ -254,7 +258,11 @@ class _RestOverlay extends StatelessWidget {
                 color: AppColors.paperAlt,
                 child: Row(
                   children: [
-                    const Icon(Icons.fitness_center, size: 20, color: AppColors.inkMuted),
+                    const Icon(
+                      Icons.fitness_center,
+                      size: 20,
+                      color: AppColors.inkMuted,
+                    ),
                     const SizedBox(width: AppSpacing.md),
                     Expanded(
                       child: Column(
@@ -264,7 +272,9 @@ class _RestOverlay extends StatelessWidget {
                           const SizedBox(height: 2),
                           Text(
                             nextLabel,
-                            style: AppTypography.body.copyWith(fontWeight: FontWeight.w600),
+                            style: AppTypography.body.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ],
                       ),
@@ -303,7 +313,10 @@ class _SetInfo extends StatelessWidget {
     if (parts.isEmpty) return const SizedBox.shrink();
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl, vertical: AppSpacing.base),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.xl,
+        vertical: AppSpacing.base,
+      ),
       color: AppColors.paperAlt,
       child: Text(
         parts.join('  ·  '),
@@ -339,7 +352,8 @@ class _ManualBody extends StatelessWidget {
             itemCount: plan.exercises.length,
             itemBuilder: (context, i) {
               final ex = plan.exercises[i];
-              final isComplete = i < vm.setCompletions.length &&
+              final isComplete =
+                  i < vm.setCompletions.length &&
                   vm.setCompletions[i].every((s) => s);
 
               return _ManualExerciseTile(
@@ -417,11 +431,7 @@ class _ManualExerciseTile extends StatelessWidget {
                   ),
                 ),
               ),
-              if (!isComplete)
-                AppButton.ghost(
-                  'Done',
-                  onPressed: onMarkDone,
-                ),
+              if (!isComplete) AppButton.ghost('Done', onPressed: onMarkDone),
             ],
           ),
           if (!isComplete) ...[
@@ -502,15 +512,16 @@ class _CompletedViewState extends State<_CompletedView> {
                 width: 80,
                 height: 80,
                 color: AppColors.acid,
-                child: const Icon(Icons.emoji_events, size: 40, color: AppColors.ink),
+                child: const Icon(
+                  Icons.emoji_events,
+                  size: 40,
+                  color: AppColors.ink,
+                ),
               ),
               const SizedBox(height: AppSpacing.lg),
               Text('Workout Complete!', style: AppTypography.title),
               const SizedBox(height: AppSpacing.sm),
-              Text(
-                widget.planTitle,
-                style: AppTypography.labelMuted,
-              ),
+              Text(widget.planTitle, style: AppTypography.labelMuted),
               const SizedBox(height: AppSpacing.xl),
               if (!_saved)
                 Row(
@@ -519,7 +530,10 @@ class _CompletedViewState extends State<_CompletedView> {
                     const SizedBox(
                       width: 16,
                       height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.ink),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.ink,
+                      ),
                     ),
                     const SizedBox(width: 8),
                     Text('Saving session...', style: AppTypography.body),
@@ -530,7 +544,8 @@ class _CompletedViewState extends State<_CompletedView> {
                   icon: Icons.timer_outlined,
                   label: 'Duration',
                   value: _formatMinutes(
-                      (vm.elapsedSeconds / 60).ceil().clamp(1, 9999)),
+                    (vm.elapsedSeconds / 60).ceil().clamp(1, 9999),
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 _StatRow(
@@ -538,7 +553,9 @@ class _CompletedViewState extends State<_CompletedView> {
                   label: 'Earned',
                   value: vm.earnedMinutes > 0
                       ? '+${_formatMinutes(vm.earnedMinutes)} screen time'
-                      : 'Configure in Settings',
+                      : Platform.isIOS
+                      ? 'Configure in Settings'
+                      : 'Workout logged',
                 ),
                 if (vm.error != null) ...[
                   const SizedBox(height: AppSpacing.md),
@@ -572,7 +589,11 @@ class _StatRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
-  const _StatRow({required this.icon, required this.label, required this.value});
+  const _StatRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -588,7 +609,10 @@ class _StatRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(label, style: AppTypography.labelMuted),
-              Text(value, style: AppTypography.body.copyWith(fontWeight: FontWeight.w600)),
+              Text(
+                value,
+                style: AppTypography.body.copyWith(fontWeight: FontWeight.w600),
+              ),
             ],
           ),
         ],

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../../../infra/repository-locator.dart';
@@ -56,14 +58,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _weeklyTargetMinutes = profile.weeklyExerciseTargetMinutes;
     }
     if (profile != null && !_screenTimeEdited) {
-      _dailyPhoneHours = profile.dailyPhoneHours > 0 ? profile.dailyPhoneHours : 8;
+      _dailyPhoneHours = profile.dailyPhoneHours > 0
+          ? profile.dailyPhoneHours
+          : 8;
       _weeklySmallSessions = profile.weeklySmallSessions;
       _weeklyBigSessions = profile.weeklyBigSessions;
     }
     if (_vm.successMessage != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_vm.successMessage!)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_vm.successMessage!)));
       _vm.clearMessages();
     }
   }
@@ -86,10 +90,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
         return Scaffold(
           backgroundColor: AppColors.paper,
           appBar: AppBar(
-            title: Text('SETTINGS', style: AppTypography.sectionHeader.copyWith(fontSize: 13, letterSpacing: 2)),
+            title: Text(
+              'SETTINGS',
+              style: AppTypography.sectionHeader.copyWith(
+                fontSize: 13,
+                letterSpacing: 2,
+              ),
+            ),
           ),
           body: _vm.isLoading
-              ? const Center(child: CircularProgressIndicator(color: AppColors.ink))
+              ? const Center(
+                  child: CircularProgressIndicator(color: AppColors.ink),
+                )
               : _buildBody(context),
         );
       },
@@ -98,7 +110,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildBody(BuildContext context) {
     return ListView(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.base, 0, AppSpacing.base, AppSpacing.xl),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.base,
+        0,
+        AppSpacing.base,
+        AppSpacing.xl,
+      ),
       children: [
         if (_vm.error != null)
           Container(
@@ -108,7 +125,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               color: AppColors.errorMuted,
               border: Border.all(color: AppColors.error, width: 1),
             ),
-            child: Text(_vm.error!, style: AppTypography.body.copyWith(color: AppColors.error)),
+            child: Text(
+              _vm.error!,
+              style: AppTypography.body.copyWith(color: AppColors.error),
+            ),
           ),
 
         // Profile
@@ -117,13 +137,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
           padding: const EdgeInsets.all(AppSpacing.base),
           child: Column(
             children: [
-              _SettingsField(controller: _usernameCtrl, label: 'Username', hint: 'e.g. fitnesswarrior', onChanged: (_) => _edited = true),
+              _SettingsField(
+                controller: _usernameCtrl,
+                label: 'Username',
+                hint: 'e.g. fitnesswarrior',
+                onChanged: (_) => _edited = true,
+              ),
               const SizedBox(height: AppSpacing.md),
               Row(
                 children: [
-                  Expanded(child: _SettingsField(controller: _firstNameCtrl, label: 'First name', onChanged: (_) => _edited = true)),
+                  Expanded(
+                    child: _SettingsField(
+                      controller: _firstNameCtrl,
+                      label: 'First name',
+                      onChanged: (_) => _edited = true,
+                    ),
+                  ),
                   const SizedBox(width: AppSpacing.sm),
-                  Expanded(child: _SettingsField(controller: _lastNameCtrl, label: 'Last name', onChanged: (_) => _edited = true)),
+                  Expanded(
+                    child: _SettingsField(
+                      controller: _lastNameCtrl,
+                      label: 'Last name',
+                      onChanged: (_) => _edited = true,
+                    ),
+                  ),
                 ],
               ),
             ],
@@ -144,14 +181,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   Expanded(
                     child: Slider(
                       value: _weeklyTargetMinutes.toDouble(),
-                      min: 30, max: 600, divisions: 19,
+                      min: 30,
+                      max: 600,
+                      divisions: 19,
                       label: '${_weeklyTargetMinutes}m',
-                      onChanged: (v) { setState(() => _weeklyTargetMinutes = v.round()); _edited = true; },
+                      onChanged: (v) {
+                        setState(() => _weeklyTargetMinutes = v.round());
+                        _edited = true;
+                      },
                     ),
                   ),
                   SizedBox(
                     width: 56,
-                    child: Text('${_weeklyTargetMinutes}m', style: AppTypography.monoStrong, textAlign: TextAlign.right),
+                    child: Text(
+                      '${_weeklyTargetMinutes}m',
+                      style: AppTypography.monoStrong,
+                      textAlign: TextAlign.right,
+                    ),
                   ),
                 ],
               ),
@@ -163,109 +209,153 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
         const SizedBox(height: AppSpacing.sm),
-        AppButton.primary('Save Changes', onPressed: _vm.isSaving ? null : _handleSave, isLoading: _vm.isSaving, width: double.infinity),
-
-        // Screen time economy
-        AppSectionHeader('Screen Time Economy'),
-        AppCard(
-          padding: const EdgeInsets.all(AppSpacing.base),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Daily phone usage', style: AppTypography.body.copyWith(fontWeight: FontWeight.w600)),
-              Row(
-                children: [
-                  Expanded(
-                    child: Slider(
-                      value: _dailyPhoneHours.toDouble(),
-                      min: 1, max: 16, divisions: 15,
-                      label: '${_dailyPhoneHours}h',
-                      onChanged: (v) { setState(() => _dailyPhoneHours = v.round()); _screenTimeEdited = true; },
-                    ),
-                  ),
-                  SizedBox(
-                    width: 44,
-                    child: Text('${_dailyPhoneHours}h', style: AppTypography.monoStrong, textAlign: TextAlign.right),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.md),
-              Text('Weekly sessions', style: AppTypography.body.copyWith(fontWeight: FontWeight.w600)),
-              const SizedBox(height: AppSpacing.sm),
-              AppCounter(
-                label: 'Small (1×)',
-                value: _weeklySmallSessions,
-                onChanged: (v) { setState(() => _weeklySmallSessions = v); _screenTimeEdited = true; },
-              ),
-              const SizedBox(height: 6),
-              AppCounter(
-                label: 'Big (2×)',
-                value: _weeklyBigSessions,
-                onChanged: (v) { setState(() => _weeklyBigSessions = v); _screenTimeEdited = true; },
-              ),
-              const SizedBox(height: AppSpacing.md),
-              Builder(builder: (context) {
-                final rewards = ScreenTimeEconomy.calculateRaw(
-                  dailyPhoneHours: _dailyPhoneHours,
-                  weeklySmallSessions: _weeklySmallSessions,
-                  weeklyBigSessions: _weeklyBigSessions,
-                );
-                String fmt(int m) {
-                  final h = m ~/ 60; final min = m % 60;
-                  return h > 0 ? '${h}h ${min}m' : '${min}m';
-                }
-                if (rewards.smallRewardMinutes == 0) return const SizedBox.shrink();
-                return Text(
-                  'Small = ${fmt(rewards.smallRewardMinutes)}  ·  Big = ${fmt(rewards.bigRewardMinutes)}  ·  Free = ${fmt(rewards.freeMinutes)}/week',
-                  style: AppTypography.mono.copyWith(color: AppColors.inkMuted, fontSize: 12),
-                );
-              }),
-            ],
-          ),
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        AppButton.secondary(
-          'Save Screen Time Setup',
-          onPressed: _vm.isSaving ? null : _handleSaveScreenTime,
+        AppButton.primary(
+          'Save Changes',
+          onPressed: _vm.isSaving ? null : _handleSave,
           isLoading: _vm.isSaving,
           width: double.infinity,
         ),
 
-        // Blocking behaviour
-        AppSectionHeader('Blocking Behaviour'),
-        AppCard(
-          padding: const EdgeInsets.all(AppSpacing.base),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Only deduct time from blocked apps',
-                          style: AppTypography.body.copyWith(fontWeight: FontWeight.w600),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'When on, your balance is only used while you\'re inside the apps you chose to block. When off, your balance drains any time you\'re using your phone while apps are unblocked.',
-                          style: AppTypography.labelMuted,
-                        ),
-                      ],
+        if (Platform.isIOS) ...[
+          // Screen time economy
+          AppSectionHeader('Screen Time Economy'),
+          AppCard(
+            padding: const EdgeInsets.all(AppSpacing.base),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Daily phone usage',
+                  style: AppTypography.body.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Slider(
+                        value: _dailyPhoneHours.toDouble(),
+                        min: 1,
+                        max: 16,
+                        divisions: 15,
+                        label: '${_dailyPhoneHours}h',
+                        onChanged: (v) {
+                          setState(() => _dailyPhoneHours = v.round());
+                          _screenTimeEdited = true;
+                        },
+                      ),
                     ),
+                    SizedBox(
+                      width: 44,
+                      child: Text(
+                        '${_dailyPhoneHours}h',
+                        style: AppTypography.monoStrong,
+                        textAlign: TextAlign.right,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.md),
+                Text(
+                  'Weekly sessions',
+                  style: AppTypography.body.copyWith(
+                    fontWeight: FontWeight.w600,
                   ),
-                  Switch(
-                    value: _vm.profile?.strictBlockingOnly ?? true,
-                    onChanged: _vm.isSaving ? null : (v) => _vm.setStrictBlockingOnly(v),
-                  ),
-                ],
-              ),
-            ],
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                AppCounter(
+                  label: 'Small (1×)',
+                  value: _weeklySmallSessions,
+                  onChanged: (v) {
+                    setState(() => _weeklySmallSessions = v);
+                    _screenTimeEdited = true;
+                  },
+                ),
+                const SizedBox(height: 6),
+                AppCounter(
+                  label: 'Big (2×)',
+                  value: _weeklyBigSessions,
+                  onChanged: (v) {
+                    setState(() => _weeklyBigSessions = v);
+                    _screenTimeEdited = true;
+                  },
+                ),
+                const SizedBox(height: AppSpacing.md),
+                Builder(
+                  builder: (context) {
+                    final rewards = ScreenTimeEconomy.calculateRaw(
+                      dailyPhoneHours: _dailyPhoneHours,
+                      weeklySmallSessions: _weeklySmallSessions,
+                      weeklyBigSessions: _weeklyBigSessions,
+                    );
+                    String fmt(int m) {
+                      final h = m ~/ 60;
+                      final min = m % 60;
+                      return h > 0 ? '${h}h ${min}m' : '${min}m';
+                    }
+
+                    if (rewards.smallRewardMinutes == 0)
+                      return const SizedBox.shrink();
+                    return Text(
+                      'Small = ${fmt(rewards.smallRewardMinutes)}  ·  Big = ${fmt(rewards.bigRewardMinutes)}  ·  Free = ${fmt(rewards.freeMinutes)}/week',
+                      style: AppTypography.mono.copyWith(
+                        color: AppColors.inkMuted,
+                        fontSize: 12,
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
           ),
-        ),
+          const SizedBox(height: AppSpacing.sm),
+          AppButton.secondary(
+            'Save Screen Time Setup',
+            onPressed: _vm.isSaving ? null : _handleSaveScreenTime,
+            isLoading: _vm.isSaving,
+            width: double.infinity,
+          ),
+
+          // Blocking behaviour
+          AppSectionHeader('Blocking Behaviour'),
+          AppCard(
+            padding: const EdgeInsets.all(AppSpacing.base),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Only deduct time from blocked apps',
+                            style: AppTypography.body.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'When on, your balance is only used while you\'re inside the apps you chose to block. When off, your balance drains any time you\'re using your phone while apps are unblocked.',
+                            style: AppTypography.labelMuted,
+                          ),
+                        ],
+                      ),
+                    ),
+                    Switch(
+                      value: _vm.profile?.strictBlockingOnly ?? true,
+                      onChanged: _vm.isSaving
+                          ? null
+                          : (v) => _vm.setStrictBlockingOnly(v),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
 
         // Premium
         AppSectionHeader('Premium'),
@@ -281,7 +371,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 Row(
                   children: [
-                    Text('NASHAAT VIP', style: AppTypography.sectionHeader.copyWith(fontSize: 13, letterSpacing: 1.5, color: AppColors.ink)),
+                    Text(
+                      'NASHAAT VIP',
+                      style: AppTypography.sectionHeader.copyWith(
+                        fontSize: 13,
+                        letterSpacing: 1.5,
+                        color: AppColors.ink,
+                      ),
+                    ),
                     const SizedBox(width: 8),
                     Container(width: 8, height: 8, color: AppColors.acid),
                   ],
@@ -292,20 +389,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   'Advanced progress analytics',
                   'Expanded exercise library',
                   'Priority support',
-                ].map((f) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Row(
-                    children: [
-                      Container(width: 5, height: 5, color: AppColors.acid),
-                      const SizedBox(width: 10),
-                      Text(f, style: AppTypography.body),
-                    ],
+                ].map(
+                  (f) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      children: [
+                        Container(width: 5, height: 5, color: AppColors.acid),
+                        const SizedBox(width: 10),
+                        Text(f, style: AppTypography.body),
+                      ],
+                    ),
                   ),
-                )),
+                ),
                 const SizedBox(height: AppSpacing.md),
                 AppButton.acid(
                   'Upgrade to VIP',
-                  onPressed: () => Navigator.pushNamed(context, '/subscription'),
+                  onPressed: () =>
+                      Navigator.pushNamed(context, '/subscription'),
                   width: double.infinity,
                 ),
               ],
@@ -318,9 +418,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
         AppCard(
           child: Column(
             children: [
-              _AccountTile(icon: Icons.lock_reset, label: 'Change Password', onTap: () => _showChangePasswordDialog(context)),
-              const AppDivider(indent: 16),
-              _AccountTile(icon: Icons.logout, label: 'Sign Out', onTap: () => _confirmSignOut(context)),
+              _AccountTile(
+                icon: Icons.logout,
+                label: 'Sign Out',
+                onTap: () => _confirmSignOut(context),
+              ),
               const AppDivider(indent: 16),
               _AccountTile(
                 icon: Icons.delete_outline,
@@ -349,9 +451,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _handleSave() async {
     await _vm.updateProfile(
-      username: _usernameCtrl.text.trim().isEmpty ? null : _usernameCtrl.text.trim(),
-      firstName: _firstNameCtrl.text.trim().isEmpty ? null : _firstNameCtrl.text.trim(),
-      lastName: _lastNameCtrl.text.trim().isEmpty ? null : _lastNameCtrl.text.trim(),
+      username: _usernameCtrl.text.trim().isEmpty
+          ? null
+          : _usernameCtrl.text.trim(),
+      firstName: _firstNameCtrl.text.trim().isEmpty
+          ? null
+          : _firstNameCtrl.text.trim(),
+      lastName: _lastNameCtrl.text.trim().isEmpty
+          ? null
+          : _lastNameCtrl.text.trim(),
       weeklyExerciseTargetMinutes: _weeklyTargetMinutes,
     );
     _edited = false;
@@ -362,11 +470,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder: (_) => AlertDialog(
         title: Text('Sign Out', style: AppTypography.heading),
-        content: Text('Are you sure you want to sign out?', style: AppTypography.body),
+        content: Text(
+          'Are you sure you want to sign out?',
+          style: AppTypography.body,
+        ),
         actions: [
-          AppButton.ghost('Cancel', onPressed: () => Navigator.pop(context, false)),
+          AppButton.ghost(
+            'Cancel',
+            onPressed: () => Navigator.pop(context, false),
+          ),
           const SizedBox(width: 8),
-          AppButton.primary('Sign Out', onPressed: () => Navigator.pop(context, true)),
+          AppButton.primary(
+            'Sign Out',
+            onPressed: () => Navigator.pop(context, true),
+          ),
         ],
       ),
     );
@@ -374,56 +491,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await _vm.signOut();
       if (mounted) appCoordinator.showLogin();
     }
-  }
-
-  Future<void> _showChangePasswordDialog(BuildContext context) async {
-    final newPassCtrl = TextEditingController();
-    final confirmPassCtrl = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-
-    await showDialog<void>(
-      context: context,
-      builder: (dialogCtx) => StatefulBuilder(
-        builder: (dialogCtx, setDialogState) => AlertDialog(
-          title: Text('Change Password', style: AppTypography.heading),
-          content: Form(
-            key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  controller: newPassCtrl,
-                  obscureText: true,
-                  decoration: const InputDecoration(labelText: 'New Password'),
-                  validator: (v) => (v == null || v.length < 8) ? 'Password must be at least 8 characters' : null,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: confirmPassCtrl,
-                  obscureText: true,
-                  decoration: const InputDecoration(labelText: 'Confirm Password'),
-                  validator: (v) => v != newPassCtrl.text ? 'Passwords do not match' : null,
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            AppButton.ghost('Cancel', onPressed: () => Navigator.pop(dialogCtx)),
-            const SizedBox(width: 8),
-            AppButton.primary(
-              'Update',
-              onPressed: _vm.isSaving ? null : () async {
-                if (!formKey.currentState!.validate()) return;
-                Navigator.pop(dialogCtx);
-                await _vm.changePassword(newPassCtrl.text);
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-    newPassCtrl.dispose();
-    confirmPassCtrl.dispose();
   }
 
   Future<void> _confirmDeleteAccount(BuildContext context) async {
@@ -436,9 +503,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
           style: AppTypography.body,
         ),
         actions: [
-          AppButton.ghost('Cancel', onPressed: () => Navigator.pop(context, false)),
+          AppButton.ghost(
+            'Cancel',
+            onPressed: () => Navigator.pop(context, false),
+          ),
           const SizedBox(width: 8),
-          AppButton.destructive('Delete Permanently', onPressed: () => Navigator.pop(context, true)),
+          AppButton.destructive(
+            'Delete Permanently',
+            onPressed: () => Navigator.pop(context, true),
+          ),
         ],
       ),
     );
@@ -466,11 +539,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ],
           ),
           actions: [
-            AppButton.ghost('Cancel', onPressed: () => Navigator.pop(dialogCtx, false)),
+            AppButton.ghost(
+              'Cancel',
+              onPressed: () => Navigator.pop(dialogCtx, false),
+            ),
             const SizedBox(width: 8),
             AppButton.destructive(
               'Delete Account',
-              onPressed: confirmCtrl.text == 'DELETE' ? () => Navigator.pop(dialogCtx, true) : null,
+              onPressed: confirmCtrl.text == 'DELETE'
+                  ? () => Navigator.pop(dialogCtx, true)
+                  : null,
             ),
           ],
         ),
@@ -487,7 +565,12 @@ class _SettingsField extends StatelessWidget {
   final String? hint;
   final ValueChanged<String>? onChanged;
 
-  const _SettingsField({required this.controller, required this.label, this.hint, this.onChanged});
+  const _SettingsField({
+    required this.controller,
+    required this.label,
+    this.hint,
+    this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -506,7 +589,12 @@ class _AccountTile extends StatelessWidget {
   final VoidCallback onTap;
   final bool destructive;
 
-  const _AccountTile({required this.icon, required this.label, required this.onTap, this.destructive = false});
+  const _AccountTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.destructive = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -514,12 +602,20 @@ class _AccountTile extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.base, vertical: 14),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.base,
+          vertical: 14,
+        ),
         child: Row(
           children: [
             Icon(icon, size: 18, color: color),
             const SizedBox(width: AppSpacing.md),
-            Expanded(child: Text(label, style: AppTypography.body.copyWith(color: color))),
+            Expanded(
+              child: Text(
+                label,
+                style: AppTypography.body.copyWith(color: color),
+              ),
+            ),
             Icon(Icons.chevron_right, size: 18, color: AppColors.inkMuted),
           ],
         ),

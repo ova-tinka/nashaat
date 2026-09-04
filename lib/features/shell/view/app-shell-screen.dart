@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../../../shared/design/tokens/app-colors.dart';
@@ -18,32 +20,57 @@ class AppShellScreen extends StatefulWidget {
 class _AppShellScreenState extends State<AppShellScreen> {
   int _tabIndex = 0;
 
-  static const _tabs = [
-    _TabDef(icon: Icons.home_outlined, selectedIcon: Icons.home, label: 'Home'),
-    _TabDef(icon: Icons.fitness_center_outlined, selectedIcon: Icons.fitness_center, label: 'Workout'),
-    _TabDef(icon: Icons.phone_android_outlined, selectedIcon: Icons.phone_android, label: 'Focus'),
-    _TabDef(icon: Icons.leaderboard_outlined, selectedIcon: Icons.leaderboard, label: 'Social'),
-    _TabDef(icon: Icons.settings_outlined, selectedIcon: Icons.settings, label: 'Settings'),
-  ];
-
   @override
   Widget build(BuildContext context) {
+    final pages = <Widget>[
+      const DashboardScreen(),
+      const WorkoutHubScreen(),
+      const LeaderboardScreen(),
+      const SettingsScreen(),
+    ];
+    final tabs = <_TabDef>[
+      const _TabDef(
+        icon: Icons.home_outlined,
+        selectedIcon: Icons.home,
+        label: 'Home',
+      ),
+      const _TabDef(
+        icon: Icons.fitness_center_outlined,
+        selectedIcon: Icons.fitness_center,
+        label: 'Workout',
+      ),
+      const _TabDef(
+        icon: Icons.leaderboard_outlined,
+        selectedIcon: Icons.leaderboard,
+        label: 'Social',
+      ),
+      const _TabDef(
+        icon: Icons.settings_outlined,
+        selectedIcon: Icons.settings,
+        label: 'Settings',
+      ),
+    ];
+
+    if (Platform.isIOS) {
+      pages.insert(2, const FocusScreen());
+      tabs.insert(
+        2,
+        const _TabDef(
+          icon: Icons.phone_android_outlined,
+          selectedIcon: Icons.phone_android,
+          label: 'Focus',
+        ),
+      );
+    }
+
+    final selectedIndex = _tabIndex.clamp(0, pages.length - 1).toInt();
     return Scaffold(
       backgroundColor: AppColors.paper,
-      body: IndexedStack(
-        index: _tabIndex,
-        children: const [
-          DashboardScreen(),
-          WorkoutHubScreen(),
-          FocusScreen(),
-          LeaderboardScreen(),
-          SettingsScreen(),
-        ],
-      ),
+      body: IndexedStack(index: selectedIndex, children: pages),
       bottomNavigationBar: _AppBottomNav(
-        selectedIndex: _tabIndex,
+        selectedIndex: selectedIndex,
         onTap: (i) => setState(() => _tabIndex = i),
-        tabs: _tabs,
+        tabs: tabs,
       ),
     );
   }
@@ -96,8 +123,12 @@ class _AppBottomNav extends StatelessWidget {
                           tab.label,
                           style: AppTypography.labelMuted.copyWith(
                             fontSize: 10,
-                            color: selected ? AppColors.ink : AppColors.inkMuted,
-                            fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+                            color: selected
+                                ? AppColors.ink
+                                : AppColors.inkMuted,
+                            fontWeight: selected
+                                ? FontWeight.w700
+                                : FontWeight.w400,
                           ),
                         ),
                       ],
@@ -117,5 +148,9 @@ class _TabDef {
   final IconData icon;
   final IconData selectedIcon;
   final String label;
-  const _TabDef({required this.icon, required this.selectedIcon, required this.label});
+  const _TabDef({
+    required this.icon,
+    required this.selectedIcon,
+    required this.label,
+  });
 }

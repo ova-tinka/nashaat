@@ -36,7 +36,7 @@ class BlockingAccessibilityService : AccessibilityService() {
         performGlobalAction(GLOBAL_ACTION_HOME)
 
         // Bring Nashaat to front so user sees the blocking state
-        val nashaat = packageManager.getLaunchIntentForPackage(packageName = this.packageName)
+        val nashaat = packageManager.getLaunchIntentForPackage(this.packageName)
         nashaat?.apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             putExtra("blocked_app", packageName)

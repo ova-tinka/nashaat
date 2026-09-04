@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -70,7 +72,9 @@ class _WorkoutBuilderScreenState extends State<WorkoutBuilderScreen> {
       builder: (context, _) {
         if (_vm.isLoading) {
           return const Scaffold(
-            body: Center(child: CircularProgressIndicator(color: AppColors.ink)),
+            body: Center(
+              child: CircularProgressIndicator(color: AppColors.ink),
+            ),
           );
         }
 
@@ -82,7 +86,10 @@ class _WorkoutBuilderScreenState extends State<WorkoutBuilderScreen> {
             scrolledUnderElevation: 0,
             title: Text(
               widget.editPlanId != null ? 'EDIT PLAN' : 'NEW PLAN',
-              style: AppTypography.sectionHeader.copyWith(fontSize: 13, letterSpacing: 2),
+              style: AppTypography.sectionHeader.copyWith(
+                fontSize: 13,
+                letterSpacing: 2,
+              ),
             ),
             actions: [
               if (_vm.durationEstimate.isNotEmpty)
@@ -103,14 +110,21 @@ class _WorkoutBuilderScreenState extends State<WorkoutBuilderScreen> {
             ],
             bottom: const PreferredSize(
               preferredSize: Size.fromHeight(1),
-              child: Divider(height: 1, thickness: 1, color: AppColors.paperBorder),
+              child: Divider(
+                height: 1,
+                thickness: 1,
+                color: AppColors.paperBorder,
+              ),
             ),
           ),
           body: Form(
             key: _formKey,
             child: ListView(
               padding: const EdgeInsets.fromLTRB(
-                AppSpacing.base, AppSpacing.sm, AppSpacing.base, 120,
+                AppSpacing.base,
+                AppSpacing.sm,
+                AppSpacing.base,
+                120,
               ),
               children: [
                 if (_vm.error != null)
@@ -140,8 +154,10 @@ class _WorkoutBuilderScreenState extends State<WorkoutBuilderScreen> {
                 ),
                 const SizedBox(height: AppSpacing.lg),
 
-                _SessionSizeSelector(vm: _vm),
-                const SizedBox(height: AppSpacing.lg),
+                if (Platform.isIOS) ...[
+                  _SessionSizeSelector(vm: _vm),
+                  const SizedBox(height: AppSpacing.lg),
+                ],
 
                 _WeekdaySelector(vm: _vm),
                 const SizedBox(height: AppSpacing.lg),
@@ -149,7 +165,10 @@ class _WorkoutBuilderScreenState extends State<WorkoutBuilderScreen> {
                 Row(
                   children: [
                     Expanded(
-                      child: AppSectionHeader('Exercises', padding: EdgeInsets.zero),
+                      child: AppSectionHeader(
+                        'Exercises',
+                        padding: EdgeInsets.zero,
+                      ),
                     ),
                     const SizedBox(width: AppSpacing.sm),
                     AppButton.ghost(
@@ -172,7 +191,9 @@ class _WorkoutBuilderScreenState extends State<WorkoutBuilderScreen> {
                     buildDefaultDragHandles: false,
                     itemBuilder: (context, index) {
                       return _ExerciseEntryCard(
-                        key: ValueKey(_vm.entries[index].exercise.id + index.toString()),
+                        key: ValueKey(
+                          _vm.entries[index].exercise.id + index.toString(),
+                        ),
                         index: index,
                         entry: _vm.entries[index],
                         vm: _vm,
@@ -205,9 +226,11 @@ class _WorkoutBuilderScreenState extends State<WorkoutBuilderScreen> {
     if (result != null && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(widget.editPlanId != null
-              ? 'Plan updated successfully'
-              : 'Plan created successfully'),
+          content: Text(
+            widget.editPlanId != null
+                ? 'Plan updated successfully'
+                : 'Plan created successfully',
+          ),
         ),
       );
       Navigator.pop(context, true);
@@ -226,7 +249,10 @@ class _SessionSizeSelector extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Session size', style: AppTypography.heading.copyWith(fontSize: 14)),
+        Text(
+          'Session size',
+          style: AppTypography.heading.copyWith(fontSize: 14),
+        ),
         const SizedBox(height: 4),
         Text(
           'Determines how much screen time this workout earns.',
@@ -317,7 +343,10 @@ class _ExerciseEntryCard extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(
-              AppSpacing.md, AppSpacing.md, AppSpacing.sm, AppSpacing.sm,
+              AppSpacing.md,
+              AppSpacing.md,
+              AppSpacing.sm,
+              AppSpacing.sm,
             ),
             child: Row(
               children: [
@@ -325,20 +354,33 @@ class _ExerciseEntryCard extends StatelessWidget {
                   index: index,
                   child: const Padding(
                     padding: EdgeInsets.only(right: AppSpacing.sm),
-                    child: Icon(Icons.drag_handle, color: AppColors.inkMuted, size: 20),
+                    child: Icon(
+                      Icons.drag_handle,
+                      color: AppColors.inkMuted,
+                      size: 20,
+                    ),
                   ),
                 ),
                 Expanded(
                   child: Text(
                     entry.exercise.name,
-                    style: AppTypography.body.copyWith(fontWeight: FontWeight.w600),
+                    style: AppTypography.body.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.close, size: 18, color: AppColors.error),
+                  icon: const Icon(
+                    Icons.close,
+                    size: 18,
+                    color: AppColors.error,
+                  ),
                   onPressed: () => vm.removeExercise(index),
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  constraints: const BoxConstraints(
+                    minWidth: 32,
+                    minHeight: 32,
+                  ),
                 ),
               ],
             ),
@@ -491,7 +533,10 @@ class _NumberFieldState extends State<_NumberField> {
         decoration: InputDecoration(
           labelText: widget.label,
           labelStyle: AppTypography.labelMuted,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 10,
+            vertical: 8,
+          ),
           isDense: true,
         ),
         style: AppTypography.mono,
@@ -549,7 +594,10 @@ class _DecimalFieldState extends State<_DecimalField> {
         decoration: InputDecoration(
           labelText: widget.label,
           labelStyle: AppTypography.labelMuted,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 10,
+            vertical: 8,
+          ),
           isDense: true,
         ),
         style: AppTypography.mono,
@@ -581,7 +629,11 @@ class _EmptyExercises extends StatelessWidget {
       ),
       child: Column(
         children: [
-          const Icon(Icons.add_circle_outline, size: 40, color: AppColors.inkMuted),
+          const Icon(
+            Icons.add_circle_outline,
+            size: 40,
+            color: AppColors.inkMuted,
+          ),
           const SizedBox(height: AppSpacing.md),
           Text(
             'No exercises added yet',
@@ -606,7 +658,8 @@ class _ErrorBanner extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.md),
       padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.base, vertical: 10,
+        horizontal: AppSpacing.base,
+        vertical: 10,
       ),
       decoration: BoxDecoration(
         color: AppColors.errorMuted,
@@ -617,7 +670,10 @@ class _ErrorBanner extends StatelessWidget {
           const Icon(Icons.error_outline, color: AppColors.error, size: 16),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(message, style: AppTypography.body.copyWith(color: AppColors.error)),
+            child: Text(
+              message,
+              style: AppTypography.body.copyWith(color: AppColors.error),
+            ),
           ),
           GestureDetector(
             onTap: onDismiss,

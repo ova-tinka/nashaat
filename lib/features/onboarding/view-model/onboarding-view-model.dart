@@ -9,21 +9,21 @@ import '../../../infra/blocking/blocking-platform-service.dart';
 import '../../../infra/permissions/permission-service.dart';
 import '../../../shared/logger.dart';
 
-const _kTotalSteps = 6;
-
 class OnboardingViewModel extends ChangeNotifier {
   final ProfileRepository _profileRepo;
   final BlockingRepository _blockingRepo;
   final String Function() _getUserId;
+  final bool supportsScreenTime;
 
   OnboardingViewModel({
     required ProfileRepository profileRepo,
     required BlockingRepository blockingRepo,
+    this.supportsScreenTime = true,
     String Function()? getUserId,
-  })  : _profileRepo = profileRepo,
-        _blockingRepo = blockingRepo,
-        _getUserId = getUserId ??
-            (() => Supabase.instance.client.auth.currentUser!.id);
+  }) : _profileRepo = profileRepo,
+       _blockingRepo = blockingRepo,
+       _getUserId =
+           getUserId ?? (() => Supabase.instance.client.auth.currentUser!.id);
 
   // ── State ─────────────────────────────────────────────────────────────────
 
@@ -48,6 +48,7 @@ class OnboardingViewModel extends ChangeNotifier {
   bool get isSaving => _isSaving;
   bool get isDone => _isDone;
   String? get error => _error;
+  int get totalSteps => supportsScreenTime ? 6 : 3;
 
   // ── Mutations ─────────────────────────────────────────────────────────────
 
@@ -82,7 +83,7 @@ class OnboardingViewModel extends ChangeNotifier {
   }
 
   void goNext() {
-    if (_step < _kTotalSteps - 1) {
+    if (_step < totalSteps - 1) {
       _step++;
       notifyListeners();
     }
@@ -114,25 +115,29 @@ class OnboardingViewModel extends ChangeNotifier {
         username: _username.trim().isEmpty ? null : _username.trim(),
         weeklyExerciseTargetMinutes: weeklyTargetMinutes,
       );
-      await _profileRepo.updateScreenTimeSetup(
-        userId,
-        dailyPhoneHours: _dailyPhoneHours,
-        weeklySmallSessions: _weeklySmallSessions,
-        weeklyBigSessions: _weeklyBigSessions,
-      );
+      if (supportsScreenTime) {
+        await _profileRepo.updateScreenTimeSetup(
+          userId,
+          dailyPhoneHours: _dailyPhoneHours,
+          weeklySmallSessions: _weeklySmallSessions,
+          weeklyBigSessions: _weeklyBigSessions,
+        );
+      }
 
-      if (packages.isNotEmpty) {
+      if (supportsScreenTime && packages.isNotEmpty) {
         try {
           for (final pkg in packages) {
-            await _blockingRepo.createRule(BlockingRuleEntity(
-              id: '',
-              userId: userId,
-              itemType: ItemType.app,
-              itemIdentifier: pkg,
-              status: RuleStatus.active,
-              createdAt: DateTime.now(),
-              updatedAt: DateTime.now(),
-            ));
+            await _blockingRepo.createRule(
+              BlockingRuleEntity(
+                id: '',
+                userId: userId,
+                itemType: ItemType.app,
+                itemIdentifier: pkg,
+                status: RuleStatus.active,
+                createdAt: DateTime.now(),
+                updatedAt: DateTime.now(),
+              ),
+            );
           }
           final platform = BlockingPlatformService();
           final permService = PermissionService(platform);

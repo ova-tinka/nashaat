@@ -15,10 +15,10 @@ class SettingsViewModel extends ChangeNotifier {
     required ProfileRepository profileRepo,
     required AuthRepository authRepo,
     String Function()? getUserId,
-  })  : _profileRepo = profileRepo,
-        _authRepo = authRepo,
-        _getUserId = getUserId ??
-            (() => Supabase.instance.client.auth.currentUser!.id);
+  }) : _profileRepo = profileRepo,
+       _authRepo = authRepo,
+       _getUserId =
+           getUserId ?? (() => Supabase.instance.client.auth.currentUser!.id);
 
   ProfileEntity? _profile;
   bool _isLoading = false;
@@ -104,24 +104,6 @@ class SettingsViewModel extends ChangeNotifier {
     } catch (e) {
       Log.error('SettingsViewModel.updateProfile', e);
       _error = 'Could not update profile.';
-    } finally {
-      _isSaving = false;
-      notifyListeners();
-    }
-  }
-
-  Future<void> changePassword(String newPassword) async {
-    _isSaving = true;
-    _error = null;
-    _successMessage = null;
-    notifyListeners();
-
-    try {
-      await _authRepo.changePassword(newPassword);
-      _successMessage = 'Password updated successfully.';
-    } catch (e) {
-      Log.error('SettingsViewModel.changePassword', e);
-      _error = 'Could not update password. Please try again.';
     } finally {
       _isSaving = false;
       notifyListeners();

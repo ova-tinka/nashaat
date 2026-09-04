@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../core/entities/workout-plan-entity.dart';
@@ -67,6 +69,7 @@ class AppRouter {
             vm: OnboardingViewModel(
               profileRepo: RepositoryLocator.instance.profile,
               blockingRepo: RepositoryLocator.instance.blocking,
+              supportsScreenTime: Platform.isIOS,
             ),
             coordinator: OnboardingCoordinator(appCoordinator),
           ),
@@ -86,9 +89,7 @@ class AppRouter {
         );
 
       case exerciseLibrary:
-        return MaterialPageRoute(
-          builder: (_) => const ExerciseLibraryScreen(),
-        );
+        return MaterialPageRoute(builder: (_) => const ExerciseLibraryScreen());
 
       case exerciseDetail:
         final exercise = routeSettings.arguments as dynamic;
@@ -131,16 +132,17 @@ class AppRouter {
         return MaterialPageRoute(
           builder: (_) => Scaffold(
             appBar: AppBar(title: const Text('Subscription')),
-            body: const Center(child: Text('Subscription management coming soon.')),
+            body: const Center(
+              child: Text('Subscription management coming soon.'),
+            ),
           ),
         );
 
       default:
         Log.nav('$route — no route found');
         return MaterialPageRoute(
-          builder: (_) => const Scaffold(
-            body: Center(child: Text('Page not found')),
-          ),
+          builder: (_) =>
+              const Scaffold(body: Center(child: Text('Page not found'))),
         );
     }
   }

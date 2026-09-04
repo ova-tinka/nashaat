@@ -10,10 +10,6 @@ void main() {
   late MockAuthRepository mockAuth;
   late AuthViewModel vm;
 
-  setUpAll(() {
-    registerFallbackValue(const AuthResult(userId: '', email: ''));
-  });
-
   setUp(() {
     mockAuth = MockAuthRepository();
     vm = AuthViewModel(mockAuth);
@@ -21,19 +17,13 @@ void main() {
 
   tearDown(() => vm.dispose());
 
-  // ── Initial state ──────────────────────────────────────────────────────────
-
   group('initial state', () {
     test('step is idle', () {
       expect(vm.step, AuthFlowStep.idle);
     });
 
-    test('no error', () {
+    test('has no error', () {
       expect(vm.errorMessage, isNull);
-    });
-
-    test('isLockedOut is false', () {
-      expect(vm.isLockedOut, isFalse);
     });
 
     test('needsOnboarding is false', () {
@@ -41,244 +31,85 @@ void main() {
     });
   });
 
-  // ── sendEmailOtp ───────────────────────────────────────────────────────────
+  group('signInWithEmail', () {
+    test('success authenticates and routes using onboarding state', () async {
+      when(() => mockAuth.signInWithEmail('user@example.com')).thenAnswer(
+        (_) async => const AuthResult(userId: 'u1', email: 'user@example.com'),
+      );
+      when(() => mockAuth.needsOnboarding()).thenAnswer((_) async => true);
 
-  group('sendEmailOtp', () {
-    test('success: calls repo, step → otpSent, sets pendingContact and method',
-        () async {
-      when(() => mockAuth.sendEmailOtp(any())).thenAnswer((_) async {});
+      await vm.signInWithEmail('user@example.com');
 
-      await vm.sendEmailOtp('user@example.com');
-
-      verify(() => mockAuth.sendEmailOtp('user@example.com')).called(1);
-      expect(vm.step, AuthFlowStep.otpSent);
-      expect(vm.pendingContact, 'user@example.com');
-      expect(vm.otpMethod, OtpMethod.email);
+      verify(() => mockAuth.signInWithEmail('user@example.com')).called(1);
+      expect(vm.step, AuthFlowStep.success);
+      expect(vm.needsOnboarding, isTrue);
+      expect(vm.errorMessage, isNull);
     });
 
-    test('failure: step → error, errorMessage is non-empty for non-cancel',
-        () async {
-      when(() => mockAuth.sendEmailOtp(any()))
-          .thenThrow(Exception('network error'));
+    test('failure moves to error state', () async {
+      when(
+        () => mockAuth.signInWithEmail('user@example.com'),
+      ).thenThrow(Exception('network error'));
 
-      await vm.sendEmailOtp('user@example.com');
+      await vm.signInWithEmail('user@example.com');
 
       expect(vm.step, AuthFlowStep.error);
       expect(vm.errorMessage, isNotEmpty);
     });
+
+    test(
+      'legacy credentials explain how to recreate the demo account',
+      () async {
+        when(
+          () => mockAuth.signInWithEmail('user@example.com'),
+        ).thenThrow(Exception('invalid_credentials'));
+
+        await vm.signInWithEmail('user@example.com');
+
+        expect(vm.errorMessage, contains('current demo auth'));
+        expect(vm.errorMessage, contains('new email'));
+      },
+    );
   });
 
-  // ── sendPhoneOtp ───────────────────────────────────────────────────────────
-
-  group('sendPhoneOtp', () {
-    test('success: calls repo, step → otpSent, sets pendingContact and method',
-        () async {
-      when(() => mockAuth.sendPhoneOtp(any())).thenAnswer((_) async {});
-
-      await vm.sendPhoneOtp('+966501234567');
-
-      verify(() => mockAuth.sendPhoneOtp('+966501234567')).called(1);
-      expect(vm.step, AuthFlowStep.otpSent);
-      expect(vm.pendingContact, '+966501234567');
-      expect(vm.otpMethod, OtpMethod.phone);
-    });
-  });
-
-  // ── verifyOtp ──────────────────────────────────────────────────────────────
-
-  group('verifyOtp', () {
-    setUp(() {
-      when(() => mockAuth.sendEmailOtp(any())).thenAnswer((_) async {});
-    });
-
-    test('email success: calls verifyEmailOtp, needsOnboarding set, step → success',
-        () async {
-      when(() => mockAuth.verifyEmailOtp(any(), any())).thenAnswer(
-          (_) async => const AuthResult(userId: 'u1', email: 'user@example.com'));
-      when(() => mockAuth.needsOnboarding()).thenAnswer((_) async => true);
-
-      await vm.sendEmailOtp('user@example.com');
-      await vm.verifyOtp('123456');
-
-      verify(() => mockAuth.verifyEmailOtp('user@example.com', '123456'))
-          .called(1);
-      expect(vm.step, AuthFlowStep.success);
-      expect(vm.needsOnboarding, isTrue);
-    });
-
-    test('phone success: calls verifyPhoneOtp', () async {
-      when(() => mockAuth.sendPhoneOtp(any())).thenAnswer((_) async {});
-      when(() => mockAuth.verifyPhoneOtp(any(), any())).thenAnswer(
-          (_) async => const AuthResult(userId: 'u1', email: ''));
+  group('signUpWithEmail', () {
+    test('success authenticates and routes using onboarding state', () async {
+      when(() => mockAuth.signUpWithEmail('new@example.com')).thenAnswer(
+        (_) async => const AuthResult(userId: 'u2', email: 'new@example.com'),
+      );
       when(() => mockAuth.needsOnboarding()).thenAnswer((_) async => false);
 
-      await vm.sendPhoneOtp('+966501234567');
-      await vm.verifyOtp('123456');
+      await vm.signUpWithEmail('new@example.com');
 
-      verify(() => mockAuth.verifyPhoneOtp('+966501234567', '123456')).called(1);
-      expect(vm.step, AuthFlowStep.success);
-    });
-
-    test('failure increments failure counter, step → error', () async {
-      when(() => mockAuth.verifyEmailOtp(any(), any()))
-          .thenThrow(Exception('invalid otp'));
-
-      await vm.sendEmailOtp('user@example.com');
-      await vm.verifyOtp('wrong');
-
-      expect(vm.step, AuthFlowStep.error);
-      // errorMessage contains "Invalid or expired"
-      expect(vm.errorMessage, contains('Invalid'));
-    });
-
-    test('5 failures trigger lockout: isLockedOut=true', () async {
-      when(() => mockAuth.verifyEmailOtp(any(), any()))
-          .thenThrow(Exception('invalid otp'));
-
-      await vm.sendEmailOtp('user@example.com');
-      for (int i = 0; i < 5; i++) {
-        await vm.verifyOtp('wrong');
-      }
-
-      expect(vm.isLockedOut, isTrue);
-      expect(vm.step, AuthFlowStep.error);
-    });
-
-    test('verifyOtp when locked out returns immediately, does NOT call repo',
-        () async {
-      when(() => mockAuth.verifyEmailOtp(any(), any()))
-          .thenThrow(Exception('invalid otp'));
-
-      await vm.sendEmailOtp('user@example.com');
-      // Trigger lockout
-      for (int i = 0; i < 5; i++) {
-        await vm.verifyOtp('wrong');
-      }
-
-      clearInteractions(mockAuth);
-
-      // Now try again — should be blocked
-      await vm.verifyOtp('123456');
-
-      verifyNever(() => mockAuth.verifyEmailOtp(any(), any()));
-      expect(vm.errorMessage, contains('Too many attempts'));
-    });
-  });
-
-  // ── signInWithGoogle ───────────────────────────────────────────────────────
-
-  group('signInWithGoogle', () {
-    test('success: step → success, needsOnboarding set', () async {
-      when(() => mockAuth.signInWithGoogle()).thenAnswer(
-          (_) async => const AuthResult(userId: 'u1', email: 'g@gmail.com'));
-      when(() => mockAuth.needsOnboarding()).thenAnswer((_) async => false);
-
-      await vm.signInWithGoogle();
-
+      verify(() => mockAuth.signUpWithEmail('new@example.com')).called(1);
       expect(vm.step, AuthFlowStep.success);
       expect(vm.needsOnboarding, isFalse);
     });
 
-    test('failure: step → error', () async {
-      when(() => mockAuth.signInWithGoogle())
-          .thenThrow(Exception('Google sign-in cancelled.'));
+    test('failure moves to error state', () async {
+      when(
+        () => mockAuth.signUpWithEmail('new@example.com'),
+      ).thenThrow(Exception('email confirmation is enabled'));
 
-      await vm.signInWithGoogle();
+      await vm.signUpWithEmail('new@example.com');
 
       expect(vm.step, AuthFlowStep.error);
+      expect(vm.errorMessage, contains('Disable email confirmation'));
     });
   });
-
-  // ── signInWithApple ────────────────────────────────────────────────────────
-
-  group('signInWithApple', () {
-    test('success: step → success', () async {
-      when(() => mockAuth.signInWithApple()).thenAnswer(
-          (_) async => const AuthResult(userId: 'u1', email: 'a@apple.com'));
-      when(() => mockAuth.needsOnboarding()).thenAnswer((_) async => true);
-
-      await vm.signInWithApple();
-
-      expect(vm.step, AuthFlowStep.success);
-      expect(vm.needsOnboarding, isTrue);
-    });
-  });
-
-  // ── resendOtp ──────────────────────────────────────────────────────────────
-
-  group('resendOtp', () {
-    test('resends to email when otpMethod is email', () async {
-      when(() => mockAuth.sendEmailOtp(any())).thenAnswer((_) async {});
-
-      await vm.sendEmailOtp('user@example.com');
-      clearInteractions(mockAuth);
-      when(() => mockAuth.sendEmailOtp(any())).thenAnswer((_) async {});
-
-      await vm.resendOtp();
-
-      verify(() => mockAuth.sendEmailOtp('user@example.com')).called(1);
-    });
-
-    test('resends to phone when otpMethod is phone', () async {
-      when(() => mockAuth.sendPhoneOtp(any())).thenAnswer((_) async {});
-
-      await vm.sendPhoneOtp('+966501234567');
-      clearInteractions(mockAuth);
-      when(() => mockAuth.sendPhoneOtp(any())).thenAnswer((_) async {});
-
-      await vm.resendOtp();
-
-      verify(() => mockAuth.sendPhoneOtp('+966501234567')).called(1);
-    });
-  });
-
-  // ── reset ──────────────────────────────────────────────────────────────────
 
   group('reset', () {
-    test('step → idle, no error, failures reset', () async {
-      when(() => mockAuth.sendEmailOtp(any())).thenAnswer((_) async {});
-      when(() => mockAuth.verifyEmailOtp(any(), any()))
-          .thenThrow(Exception('invalid'));
+    test('returns the view model to idle state', () async {
+      when(
+        () => mockAuth.signInWithEmail('user@example.com'),
+      ).thenThrow(Exception('network error'));
 
-      await vm.sendEmailOtp('user@example.com');
-      await vm.verifyOtp('wrong');
-
+      await vm.signInWithEmail('user@example.com');
       vm.reset();
 
       expect(vm.step, AuthFlowStep.idle);
       expect(vm.errorMessage, isNull);
-      expect(vm.isLockedOut, isFalse);
-    });
-  });
-
-  // ── friendly error messages ────────────────────────────────────────────────
-
-  group('friendly error messages', () {
-    test("'invalid' in error → specific invalid/expired message", () async {
-      when(() => mockAuth.sendEmailOtp(any()))
-          .thenThrow(Exception('invalid token'));
-
-      await vm.sendEmailOtp('user@example.com');
-
-      expect(vm.errorMessage, contains('Invalid or expired'));
-    });
-
-    test("'network' in error → network message", () async {
-      when(() => mockAuth.sendEmailOtp(any()))
-          .thenThrow(Exception('network failure'));
-
-      await vm.sendEmailOtp('user@example.com');
-
-      expect(vm.errorMessage, contains('internet'));
-    });
-
-    test("'cancelled' in error → empty string", () async {
-      when(() => mockAuth.signInWithGoogle())
-          .thenThrow(Exception('cancelled by user'));
-
-      await vm.signInWithGoogle();
-
-      expect(vm.errorMessage, isEmpty);
+      expect(vm.needsOnboarding, isFalse);
     });
   });
 }

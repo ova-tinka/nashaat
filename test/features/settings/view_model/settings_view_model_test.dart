@@ -26,8 +26,9 @@ void main() {
 
   group('load', () {
     test('success: profile set', () async {
-      when(() => mockProfileRepo.getProfile(any()))
-          .thenAnswer((_) async => TestData.profile());
+      when(
+        () => mockProfileRepo.getProfile(any()),
+      ).thenAnswer((_) async => TestData.profile());
 
       await vm.load();
 
@@ -36,8 +37,9 @@ void main() {
     });
 
     test('failure: error set', () async {
-      when(() => mockProfileRepo.getProfile(any()))
-          .thenThrow(Exception('server error'));
+      when(
+        () => mockProfileRepo.getProfile(any()),
+      ).thenThrow(Exception('server error'));
 
       await vm.load();
 
@@ -50,13 +52,17 @@ void main() {
   group('updateProfile', () {
     test('success: profile updated, successMessage set', () async {
       final updatedProfile = TestData.profile(username: 'newuser');
-      when(() => mockProfileRepo.updateProfile(any(),
-              username: any(named: 'username'),
-              firstName: any(named: 'firstName'),
-              lastName: any(named: 'lastName'),
-              weeklyExerciseTargetMinutes:
-                  any(named: 'weeklyExerciseTargetMinutes')))
-          .thenAnswer((_) async => updatedProfile);
+      when(
+        () => mockProfileRepo.updateProfile(
+          any(),
+          username: any(named: 'username'),
+          firstName: any(named: 'firstName'),
+          lastName: any(named: 'lastName'),
+          weeklyExerciseTargetMinutes: any(
+            named: 'weeklyExerciseTargetMinutes',
+          ),
+        ),
+      ).thenAnswer((_) async => updatedProfile);
 
       await vm.updateProfile(username: 'newuser');
 
@@ -66,13 +72,17 @@ void main() {
     });
 
     test('failure: error set', () async {
-      when(() => mockProfileRepo.updateProfile(any(),
-              username: any(named: 'username'),
-              firstName: any(named: 'firstName'),
-              lastName: any(named: 'lastName'),
-              weeklyExerciseTargetMinutes:
-                  any(named: 'weeklyExerciseTargetMinutes')))
-          .thenThrow(Exception('update failed'));
+      when(
+        () => mockProfileRepo.updateProfile(
+          any(),
+          username: any(named: 'username'),
+          firstName: any(named: 'firstName'),
+          lastName: any(named: 'lastName'),
+          weeklyExerciseTargetMinutes: any(
+            named: 'weeklyExerciseTargetMinutes',
+          ),
+        ),
+      ).thenThrow(Exception('update failed'));
 
       await vm.updateProfile(username: 'newuser');
 
@@ -84,13 +94,17 @@ void main() {
 
   group('updateScreenTimeSetup', () {
     test('success: successMessage set', () async {
-      when(() => mockProfileRepo.updateScreenTimeSetup(any(),
-              dailyPhoneHours: any(named: 'dailyPhoneHours'),
-              weeklySmallSessions: any(named: 'weeklySmallSessions'),
-              weeklyBigSessions: any(named: 'weeklyBigSessions')))
-          .thenAnswer((_) async {});
-      when(() => mockProfileRepo.getProfile(any()))
-          .thenAnswer((_) async => TestData.configuredProfile());
+      when(
+        () => mockProfileRepo.updateScreenTimeSetup(
+          any(),
+          dailyPhoneHours: any(named: 'dailyPhoneHours'),
+          weeklySmallSessions: any(named: 'weeklySmallSessions'),
+          weeklyBigSessions: any(named: 'weeklyBigSessions'),
+        ),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockProfileRepo.getProfile(any()),
+      ).thenAnswer((_) async => TestData.configuredProfile());
 
       await vm.updateScreenTimeSetup(
         dailyPhoneHours: 8,
@@ -103,41 +117,20 @@ void main() {
     });
 
     test('failure: error set', () async {
-      when(() => mockProfileRepo.updateScreenTimeSetup(any(),
-              dailyPhoneHours: any(named: 'dailyPhoneHours'),
-              weeklySmallSessions: any(named: 'weeklySmallSessions'),
-              weeklyBigSessions: any(named: 'weeklyBigSessions')))
-          .thenThrow(Exception('failed'));
+      when(
+        () => mockProfileRepo.updateScreenTimeSetup(
+          any(),
+          dailyPhoneHours: any(named: 'dailyPhoneHours'),
+          weeklySmallSessions: any(named: 'weeklySmallSessions'),
+          weeklyBigSessions: any(named: 'weeklyBigSessions'),
+        ),
+      ).thenThrow(Exception('failed'));
 
       await vm.updateScreenTimeSetup(
         dailyPhoneHours: 8,
         weeklySmallSessions: 2,
         weeklyBigSessions: 3,
       );
-
-      expect(vm.error, isNotNull);
-    });
-  });
-
-  // ── changePassword ─────────────────────────────────────────────────────────
-
-  group('changePassword', () {
-    test('success: authRepo.changePassword called, successMessage set',
-        () async {
-      when(() => mockAuthRepo.changePassword(any())).thenAnswer((_) async {});
-
-      await vm.changePassword('newPass123');
-
-      verify(() => mockAuthRepo.changePassword('newPass123')).called(1);
-      expect(vm.successMessage, isNotNull);
-      expect(vm.error, isNull);
-    });
-
-    test('failure: error set', () async {
-      when(() => mockAuthRepo.changePassword(any()))
-          .thenThrow(Exception('failed'));
-
-      await vm.changePassword('newPass123');
 
       expect(vm.error, isNotNull);
     });
@@ -155,7 +148,9 @@ void main() {
     });
 
     test('failure: error set', () async {
-      when(() => mockAuthRepo.signOut()).thenThrow(Exception('sign out failed'));
+      when(
+        () => mockAuthRepo.signOut(),
+      ).thenThrow(Exception('sign out failed'));
 
       await vm.signOut();
 
@@ -166,21 +161,24 @@ void main() {
   // ── deleteAccount ──────────────────────────────────────────────────────────
 
   group('deleteAccount', () {
-    test('success: isDeleted=true, deleteAccount called, signOut called',
-        () async {
-      when(() => mockAuthRepo.deleteAccount()).thenAnswer((_) async {});
-      when(() => mockAuthRepo.signOut()).thenAnswer((_) async {});
+    test(
+      'success: isDeleted=true, deleteAccount called, signOut called',
+      () async {
+        when(() => mockAuthRepo.deleteAccount()).thenAnswer((_) async {});
+        when(() => mockAuthRepo.signOut()).thenAnswer((_) async {});
 
-      await vm.deleteAccount();
+        await vm.deleteAccount();
 
-      expect(vm.isDeleted, isTrue);
-      verify(() => mockAuthRepo.deleteAccount()).called(1);
-      verify(() => mockAuthRepo.signOut()).called(1);
-    });
+        expect(vm.isDeleted, isTrue);
+        verify(() => mockAuthRepo.deleteAccount()).called(1);
+        verify(() => mockAuthRepo.signOut()).called(1);
+      },
+    );
 
     test('failure: isDeleted=false, error set', () async {
-      when(() => mockAuthRepo.deleteAccount())
-          .thenThrow(Exception('delete failed'));
+      when(
+        () => mockAuthRepo.deleteAccount(),
+      ).thenThrow(Exception('delete failed'));
 
       await vm.deleteAccount();
 
@@ -193,9 +191,18 @@ void main() {
 
   group('clearMessages', () {
     test('clears error and successMessage', () async {
-      when(() => mockAuthRepo.changePassword(any()))
-          .thenThrow(Exception('fail'));
-      await vm.changePassword('x');
+      when(
+        () => mockProfileRepo.updateProfile(
+          any(),
+          username: any(named: 'username'),
+          firstName: any(named: 'firstName'),
+          lastName: any(named: 'lastName'),
+          weeklyExerciseTargetMinutes: any(
+            named: 'weeklyExerciseTargetMinutes',
+          ),
+        ),
+      ).thenThrow(Exception('fail'));
+      await vm.updateProfile(username: 'x');
       expect(vm.error, isNotNull);
 
       vm.clearMessages();

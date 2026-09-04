@@ -52,6 +52,11 @@ void main() {
     test('isDone is false', () {
       expect(vm.isDone, isFalse);
     });
+
+    test('screen time is enabled by default', () {
+      expect(vm.supportsScreenTime, isTrue);
+      expect(vm.totalSteps, 6);
+    });
   });
 
   // ── goNext / goBack ────────────────────────────────────────────────────────
@@ -70,6 +75,79 @@ void main() {
 
       expect(vm.step, 5);
     });
+  });
+
+  group('exercise-only onboarding', () {
+    late OnboardingViewModel exerciseOnlyVm;
+
+    setUp(() {
+      exerciseOnlyVm = OnboardingViewModel(
+        profileRepo: mockProfileRepo,
+        blockingRepo: mockBlockingRepo,
+        supportsScreenTime: false,
+        getUserId: () => 'u1',
+      );
+    });
+
+    tearDown(() => exerciseOnlyVm.dispose());
+
+    test('has only the workout setup steps', () {
+      expect(exerciseOnlyVm.supportsScreenTime, isFalse);
+      expect(exerciseOnlyVm.totalSteps, 3);
+
+      for (int i = 0; i < 20; i++) {
+        exerciseOnlyVm.goNext();
+      }
+
+      expect(exerciseOnlyVm.step, 2);
+    });
+
+    test(
+      'finishes without writing screen-time setup or blocking rules',
+      () async {
+        when(
+          () => mockProfileRepo.updateProfile(
+            any(),
+            username: any(named: 'username'),
+            firstName: any(named: 'firstName'),
+            lastName: any(named: 'lastName'),
+            weeklyExerciseTargetMinutes: any(
+              named: 'weeklyExerciseTargetMinutes',
+            ),
+          ),
+        ).thenAnswer((_) async => TestData.profile());
+        when(
+          () => mockProfileRepo.updateStatus(any(), any()),
+        ).thenAnswer((_) async {});
+
+        await exerciseOnlyVm.finish(packages: ['com.example.test']);
+
+        verify(
+          () => mockProfileRepo.updateProfile(
+            any(),
+            username: any(named: 'username'),
+            firstName: any(named: 'firstName'),
+            lastName: any(named: 'lastName'),
+            weeklyExerciseTargetMinutes: any(
+              named: 'weeklyExerciseTargetMinutes',
+            ),
+          ),
+        ).called(1);
+        verifyNever(
+          () => mockProfileRepo.updateScreenTimeSetup(
+            any(),
+            dailyPhoneHours: any(named: 'dailyPhoneHours'),
+            weeklySmallSessions: any(named: 'weeklySmallSessions'),
+            weeklyBigSessions: any(named: 'weeklyBigSessions'),
+          ),
+        );
+        verifyNever(() => mockBlockingRepo.createRule(any()));
+        verify(
+          () => mockProfileRepo.updateStatus(any(), UserStatus.onboarded),
+        ).called(1);
+        expect(exerciseOnlyVm.isDone, isTrue);
+      },
+    );
   });
 
   group('goBack', () {
@@ -135,74 +213,91 @@ void main() {
 
   group('finish', () {
     void stubSuccess() {
-      when(() => mockProfileRepo.updateProfile(
-            any(),
-            username: any(named: 'username'),
-            firstName: any(named: 'firstName'),
-            lastName: any(named: 'lastName'),
-            weeklyExerciseTargetMinutes:
-                any(named: 'weeklyExerciseTargetMinutes'),
-          )).thenAnswer((_) async => TestData.profile());
-      when(() => mockProfileRepo.updateScreenTimeSetup(
-            any(),
-            dailyPhoneHours: any(named: 'dailyPhoneHours'),
-            weeklySmallSessions: any(named: 'weeklySmallSessions'),
-            weeklyBigSessions: any(named: 'weeklyBigSessions'),
-          )).thenAnswer((_) async {});
-      when(() => mockProfileRepo.updateStatus(
-            any(),
-            any(),
-          )).thenAnswer((_) async {});
+      when(
+        () => mockProfileRepo.updateProfile(
+          any(),
+          username: any(named: 'username'),
+          firstName: any(named: 'firstName'),
+          lastName: any(named: 'lastName'),
+          weeklyExerciseTargetMinutes: any(
+            named: 'weeklyExerciseTargetMinutes',
+          ),
+        ),
+      ).thenAnswer((_) async => TestData.profile());
+      when(
+        () => mockProfileRepo.updateScreenTimeSetup(
+          any(),
+          dailyPhoneHours: any(named: 'dailyPhoneHours'),
+          weeklySmallSessions: any(named: 'weeklySmallSessions'),
+          weeklyBigSessions: any(named: 'weeklyBigSessions'),
+        ),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockProfileRepo.updateStatus(any(), any()),
+      ).thenAnswer((_) async {});
     }
 
-    test('success (no packages): updateProfile, updateScreenTimeSetup, updateStatus called, isDone=true',
-        () async {
-      stubSuccess();
+    test(
+      'success (no packages): updateProfile, updateScreenTimeSetup, updateStatus called, isDone=true',
+      () async {
+        stubSuccess();
 
-      await vm.finish();
+        await vm.finish();
 
-      verify(() => mockProfileRepo.updateProfile(
+        verify(
+          () => mockProfileRepo.updateProfile(
             any(),
             username: any(named: 'username'),
             firstName: any(named: 'firstName'),
             lastName: any(named: 'lastName'),
-            weeklyExerciseTargetMinutes:
-                any(named: 'weeklyExerciseTargetMinutes'),
-          )).called(1);
-      verify(() => mockProfileRepo.updateScreenTimeSetup(
+            weeklyExerciseTargetMinutes: any(
+              named: 'weeklyExerciseTargetMinutes',
+            ),
+          ),
+        ).called(1);
+        verify(
+          () => mockProfileRepo.updateScreenTimeSetup(
             any(),
             dailyPhoneHours: any(named: 'dailyPhoneHours'),
             weeklySmallSessions: any(named: 'weeklySmallSessions'),
             weeklyBigSessions: any(named: 'weeklyBigSessions'),
-          )).called(1);
-      verify(() => mockProfileRepo.updateStatus(any(), UserStatus.onboarded))
-          .called(1);
-      expect(vm.isDone, isTrue);
-    });
+          ),
+        ).called(1);
+        verify(
+          () => mockProfileRepo.updateStatus(any(), UserStatus.onboarded),
+        ).called(1);
+        expect(vm.isDone, isTrue);
+      },
+    );
 
-    test('with packages: blockingRepo.createRule called for each package',
-        () async {
-      stubSuccess();
-      when(() => mockBlockingRepo.createRule(any()))
-          .thenAnswer((_) async => TestData.blockingRule());
+    test(
+      'with packages: blockingRepo.createRule called for each package',
+      () async {
+        stubSuccess();
+        when(
+          () => mockBlockingRepo.createRule(any()),
+        ).thenAnswer((_) async => TestData.blockingRule());
 
-      await vm.finish(packages: [
-        'com.instagram.android',
-        'com.youtube.android',
-      ]);
+        await vm.finish(
+          packages: ['com.instagram.android', 'com.youtube.android'],
+        );
 
-      verify(() => mockBlockingRepo.createRule(any())).called(2);
-    });
+        verify(() => mockBlockingRepo.createRule(any())).called(2);
+      },
+    );
 
     test('profile failure: error set, isDone=false, isSaving=false', () async {
-      when(() => mockProfileRepo.updateProfile(
-            any(),
-            username: any(named: 'username'),
-            firstName: any(named: 'firstName'),
-            lastName: any(named: 'lastName'),
-            weeklyExerciseTargetMinutes:
-                any(named: 'weeklyExerciseTargetMinutes'),
-          )).thenThrow(Exception('server error'));
+      when(
+        () => mockProfileRepo.updateProfile(
+          any(),
+          username: any(named: 'username'),
+          firstName: any(named: 'firstName'),
+          lastName: any(named: 'lastName'),
+          weeklyExerciseTargetMinutes: any(
+            named: 'weeklyExerciseTargetMinutes',
+          ),
+        ),
+      ).thenThrow(Exception('server error'));
 
       await vm.finish();
 
@@ -215,14 +310,17 @@ void main() {
       stubSuccess();
       final savingDuring = <bool>[];
 
-      when(() => mockProfileRepo.updateProfile(
-            any(),
-            username: any(named: 'username'),
-            firstName: any(named: 'firstName'),
-            lastName: any(named: 'lastName'),
-            weeklyExerciseTargetMinutes:
-                any(named: 'weeklyExerciseTargetMinutes'),
-          )).thenAnswer((_) async {
+      when(
+        () => mockProfileRepo.updateProfile(
+          any(),
+          username: any(named: 'username'),
+          firstName: any(named: 'firstName'),
+          lastName: any(named: 'lastName'),
+          weeklyExerciseTargetMinutes: any(
+            named: 'weeklyExerciseTargetMinutes',
+          ),
+        ),
+      ).thenAnswer((_) async {
         savingDuring.add(vm.isSaving);
         return TestData.profile();
       });
