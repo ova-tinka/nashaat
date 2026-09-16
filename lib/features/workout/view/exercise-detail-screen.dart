@@ -19,7 +19,7 @@ class ExerciseDetailScreen extends StatelessWidget {
       backgroundColor: AppColors.paper,
       body: CustomScrollView(
         slivers: [
-          SliverAppBar(
+         SliverAppBar(
             pinned: true,
             backgroundColor: AppColors.paper,
             surfaceTintColor: Colors.transparent,
@@ -28,24 +28,15 @@ class ExerciseDetailScreen extends StatelessWidget {
               exercise.name.toUpperCase(),
               style: AppTypography.sectionHeader.copyWith(fontSize: 13, letterSpacing: 2),
             ),
-            expandedHeight: 180,
-            flexibleSpace: FlexibleSpaceBar(
-              background: Container(
-                color: AppColors.inkSoft,
-                child: const Center(
-                  child: Icon(
-                    Icons.fitness_center,
-                    size: 80,
-                    color: AppColors.paperBorder,
-                  ),
-                ),
-              ),
-            ),
-            bottom: const PreferredSize(
-              preferredSize: Size.fromHeight(1),
-              child: AppDivider(),
+          ),
+          SliverToBoxAdapter(
+            child: SizedBox(
+              height: 260,
+              width: double.infinity,
+              child: _ExerciseDetailImage(exercise: exercise),
             ),
           ),
+          const SliverToBoxAdapter(child: AppDivider()),
           SliverPadding(
             padding: const EdgeInsets.all(AppSpacing.base),
             sliver: SliverList(
@@ -75,10 +66,10 @@ class ExerciseDetailScreen extends StatelessWidget {
                   const SizedBox(height: AppSpacing.lg),
                 ],
 
-                if (exercise.steps.isNotEmpty) ...[
+                if (exercise.instructions.isNotEmpty) ...[
                   AppSectionHeader('How to do it', padding: EdgeInsets.zero),
                   const SizedBox(height: AppSpacing.md),
-                  ...exercise.steps.asMap().entries.map(
+                  ...exercise.instructions.asMap().entries.map(
                         (entry) => _StepRow(
                           number: entry.key + 1,
                           text: entry.value,
@@ -90,6 +81,42 @@ class ExerciseDetailScreen extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ExerciseDetailImage extends StatelessWidget {
+  final ExerciseEntity exercise;
+
+  const _ExerciseDetailImage({required this.exercise});
+
+  @override
+  Widget build(BuildContext context) {
+    final imageUrl = exercise.mediaLink;
+
+    if (imageUrl == null || imageUrl.isEmpty) {
+      return _fallback();
+    }
+
+    return Image.network(
+      imageUrl,
+      fit: BoxFit.contain,
+      errorBuilder: (context, error, stackTrace) {
+        return _fallback();
+      },
+    );
+  }
+
+  Widget _fallback() {
+    return Container(
+      color: AppColors.inkSoft,
+      child: const Center(
+        child: Icon(
+          Icons.fitness_center,
+          size: 80,
+          color: AppColors.paperBorder,
+        ),
       ),
     );
   }

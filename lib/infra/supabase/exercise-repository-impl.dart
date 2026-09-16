@@ -49,10 +49,9 @@ class SupabaseExerciseRepository implements ExerciseRepository {
           'name': exercise.name,
           'description': exercise.description,
           'muscle_groups': exercise.muscleGroups,
-          'steps': exercise.steps,
           'difficulty_level': _difficultyToString(exercise.difficultyLevel),
           'measurement_type': _measurementToString(exercise.measurementType),
-          'media_id': exercise.mediaId,
+          'media_link': exercise.mediaLink,
           'is_system': exercise.isSystem,
         })
         .select()
@@ -73,18 +72,18 @@ class SupabaseExerciseRepository implements ExerciseRepository {
       muscleGroups = [];
     }
 
-    final rawSteps = map['steps'];
-    final List<String> steps = rawSteps is List ? rawSteps.cast<String>() : [];
+    final rawInstructions = map['instructions'];
+    final List<String> steps = rawInstructions is List ? rawInstructions.cast<String>() : [];
 
     return ExerciseEntity(
       id: map['id'] as String,
       name: map['name'] as String,
       description: map['description'] as String?,
       muscleGroups: muscleGroups,
-      steps: steps,
+      instructions: steps,
       difficultyLevel: _parseDifficulty(map['difficulty_level'] as String?),
       measurementType: _parseMeasurement(map['measurement_type'] as String? ?? 'reps_weight'),
-      mediaId: map['media_id'] as String?,
+      mediaLink: map['media_link'] as String?,
       isSystem: map['is_system'] as bool? ?? true,
       createdAt: DateTime.parse(map['created_at'] as String),
     );
