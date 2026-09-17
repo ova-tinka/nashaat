@@ -4,6 +4,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'l10n/app_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:timezone/data/latest_10y.dart' as timezone_data;
 
 import 'app/app-coordinator.dart';
 import 'app/app-router.dart';
@@ -16,6 +17,7 @@ final appCoordinator = AppCoordinator();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  timezone_data.initializeTimeZones();
   Log.boot('Nashaat starting…');
 
   await dotenv.load(fileName: '.env');
@@ -54,10 +56,7 @@ class NashaatApp extends StatelessWidget {
       darkTheme: theme,
       themeMode: ThemeMode.light,
       locale: locale,
-      supportedLocales: const [
-        Locale('en'),
-        Locale('ar'),
-      ],
+      supportedLocales: const [Locale('en'), Locale('ar')],
       localizationsDelegates: const [
         AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,

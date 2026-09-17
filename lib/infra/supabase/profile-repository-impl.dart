@@ -26,6 +26,7 @@ class SupabaseProfileRepository implements ProfileRepository {
     String? firstName,
     String? lastName,
     int? weeklyExerciseTargetMinutes,
+    String? timezone,
     String? fcmToken,
     String? avatarMediaId,
   }) async {
@@ -38,6 +39,7 @@ class SupabaseProfileRepository implements ProfileRepository {
     if (weeklyExerciseTargetMinutes != null) {
       updates['weekly_exercise_target_minutes'] = weeklyExerciseTargetMinutes;
     }
+    if (timezone != null) updates['timezone'] = timezone;
     if (fcmToken != null) updates['fcm_token'] = fcmToken;
     if (avatarMediaId != null) updates['avatar_media_id'] = avatarMediaId;
 
@@ -53,32 +55,28 @@ class SupabaseProfileRepository implements ProfileRepository {
 
   @override
   Future<void> updateStatus(String userId, UserStatus status) async {
-    await _db.from('profiles').update({
-      'status': _statusToString(status),
-      'updated_at': DateTime.now().toIso8601String(),
-    }).eq('id', userId);
+    await _db
+        .from('profiles')
+        .update({
+          'status': _statusToString(status),
+          'updated_at': DateTime.now().toIso8601String(),
+        })
+        .eq('id', userId);
     Log.db('profile status → ${_statusToString(status)}');
   }
 
   @override
-  Future<void> updateScreenTimeBalance(String userId, int balanceMinutes) async {
-    await _db.from('profiles').update({
-      'screen_time_balance_minutes': balanceMinutes,
-      'updated_at': DateTime.now().toIso8601String(),
-    }).eq('id', userId);
-  }
-
-  @override
-  Future<void> updateStreak(
+  Future<void> updateScreenTimeBalance(
     String userId,
-    int streakCount,
-    DateTime? lastWorkoutDate,
+    int balanceMinutes,
   ) async {
-    await _db.from('profiles').update({
-      'streak_count': streakCount,
-      'last_workout_date': lastWorkoutDate?.toIso8601String(),
-      'updated_at': DateTime.now().toIso8601String(),
-    }).eq('id', userId);
+    await _db
+        .from('profiles')
+        .update({
+          'screen_time_balance_minutes': balanceMinutes,
+          'updated_at': DateTime.now().toIso8601String(),
+        })
+        .eq('id', userId);
   }
 
   @override
@@ -88,85 +86,97 @@ class SupabaseProfileRepository implements ProfileRepository {
     required int weeklySmallSessions,
     required int weeklyBigSessions,
   }) async {
-    await _db.from('profiles').update({
-      'daily_phone_hours': dailyPhoneHours,
-      'weekly_small_sessions': weeklySmallSessions,
-      'weekly_big_sessions': weeklyBigSessions,
-      'updated_at': DateTime.now().toIso8601String(),
-    }).eq('id', userId);
-    Log.db('screen-time setup updated ✓ '
-        '${dailyPhoneHours}h/day, '
-        '${weeklySmallSessions}S+${weeklyBigSessions}B');
+    await _db
+        .from('profiles')
+        .update({
+          'daily_phone_hours': dailyPhoneHours,
+          'weekly_small_sessions': weeklySmallSessions,
+          'weekly_big_sessions': weeklyBigSessions,
+          'updated_at': DateTime.now().toIso8601String(),
+        })
+        .eq('id', userId);
+    Log.db(
+      'screen-time setup updated ✓ '
+      '${dailyPhoneHours}h/day, '
+      '${weeklySmallSessions}S+${weeklyBigSessions}B',
+    );
   }
 
   @override
   Future<void> updateLastWeeklyReset(String userId, DateTime resetAt) async {
-    await _db.from('profiles').update({
-      'last_weekly_reset_at': resetAt.toIso8601String(),
-      'screen_time_balance_minutes': 0,
-      'updated_at': DateTime.now().toIso8601String(),
-    }).eq('id', userId);
+    await _db
+        .from('profiles')
+        .update({
+          'last_weekly_reset_at': resetAt.toIso8601String(),
+          'screen_time_balance_minutes': 0,
+          'updated_at': DateTime.now().toIso8601String(),
+        })
+        .eq('id', userId);
     Log.db('weekly reset recorded ✓');
   }
 
   @override
   Future<void> updateStrictBlockingOnly(String userId, bool value) async {
-    await _db.from('profiles').update({
-      'strict_blocking_only': value,
-      'updated_at': DateTime.now().toIso8601String(),
-    }).eq('id', userId);
+    await _db
+        .from('profiles')
+        .update({
+          'strict_blocking_only': value,
+          'updated_at': DateTime.now().toIso8601String(),
+        })
+        .eq('id', userId);
     Log.db('strictBlockingOnly → $value');
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
   ProfileEntity _fromMap(Map<String, dynamic> map) => ProfileEntity(
-        id: map['id'] as String,
-        email: map['email'] as String,
-        username: map['username'] as String?,
-        firstName: map['first_name'] as String?,
-        lastName: map['last_name'] as String?,
-        status: _parseStatus(map['status'] as String? ?? 'active'),
-        weeklyExerciseTargetMinutes:
-            map['weekly_exercise_target_minutes'] as int? ?? 0,
-        screenTimeBalanceMinutes:
-            map['screen_time_balance_minutes'] as int? ?? 0,
-        streakCount: map['streak_count'] as int? ?? 0,
-        lastWorkoutDate: map['last_workout_date'] != null
-            ? DateTime.tryParse(map['last_workout_date'] as String)
-            : null,
-        subscriptionTier:
-            _parseTier(map['subscription_tier'] as String? ?? 'free'),
-        fcmToken: map['fcm_token'] as String?,
-        avatarMediaId: map['avatar_media_id'] as String?,
-        createdAt: DateTime.parse(map['created_at'] as String),
-        updatedAt: DateTime.parse(map['updated_at'] as String),
-        dailyPhoneHours: map['daily_phone_hours'] as int? ?? 0,
-        weeklySmallSessions: map['weekly_small_sessions'] as int? ?? 0,
-        weeklyBigSessions: map['weekly_big_sessions'] as int? ?? 0,
-        lastWeeklyResetAt: map['last_weekly_reset_at'] != null
-            ? DateTime.tryParse(map['last_weekly_reset_at'] as String)
-            : null,
-        strictBlockingOnly: map['strict_blocking_only'] as bool? ?? true,
-      );
+    id: map['id'] as String,
+    email: map['email'] as String,
+    username: map['username'] as String?,
+    firstName: map['first_name'] as String?,
+    lastName: map['last_name'] as String?,
+    status: _parseStatus(map['status'] as String? ?? 'active'),
+    weeklyExerciseTargetMinutes:
+        map['weekly_exercise_target_minutes'] as int? ?? 0,
+    screenTimeBalanceMinutes: map['screen_time_balance_minutes'] as int? ?? 0,
+    pointsTotal: map['points_total'] as int? ?? 0,
+    streakCount: map['streak_count'] as int? ?? 0,
+    longestStreak: map['longest_streak'] as int? ?? 0,
+    lastWorkoutDate: map['last_workout_date'] != null
+        ? DateTime.tryParse(map['last_workout_date'] as String)
+        : null,
+    timezone: map['timezone'] as String? ?? 'UTC',
+    subscriptionTier: _parseTier(map['subscription_tier'] as String? ?? 'free'),
+    fcmToken: map['fcm_token'] as String?,
+    avatarMediaId: map['avatar_media_id'] as String?,
+    createdAt: DateTime.parse(map['created_at'] as String),
+    updatedAt: DateTime.parse(map['updated_at'] as String),
+    dailyPhoneHours: map['daily_phone_hours'] as int? ?? 0,
+    weeklySmallSessions: map['weekly_small_sessions'] as int? ?? 0,
+    weeklyBigSessions: map['weekly_big_sessions'] as int? ?? 0,
+    lastWeeklyResetAt: map['last_weekly_reset_at'] != null
+        ? DateTime.tryParse(map['last_weekly_reset_at'] as String)
+        : null,
+    strictBlockingOnly: map['strict_blocking_only'] as bool? ?? true,
+  );
 
   UserStatus _parseStatus(String s) => switch (s) {
-        'verified' => UserStatus.verified,
-        'onboarded' => UserStatus.onboarded,
-        'inactive' => UserStatus.inactive,
-        'deleted' => UserStatus.deleted,
-        'suspended' => UserStatus.suspended,
-        _ => UserStatus.active,
-      };
+    'verified' => UserStatus.verified,
+    'onboarded' => UserStatus.onboarded,
+    'inactive' => UserStatus.inactive,
+    'deleted' => UserStatus.deleted,
+    'suspended' => UserStatus.suspended,
+    _ => UserStatus.active,
+  };
 
   String _statusToString(UserStatus s) => switch (s) {
-        UserStatus.active => 'active',
-        UserStatus.verified => 'verified',
-        UserStatus.onboarded => 'onboarded',
-        UserStatus.inactive => 'inactive',
-        UserStatus.deleted => 'deleted',
-        UserStatus.suspended => 'suspended',
-      };
+    UserStatus.active => 'active',
+    UserStatus.verified => 'verified',
+    UserStatus.onboarded => 'onboarded',
+    UserStatus.inactive => 'inactive',
+    UserStatus.deleted => 'deleted',
+    UserStatus.suspended => 'suspended',
+  };
 
   SubscriptionTier _parseTier(String s) =>
       s == 'vip' ? SubscriptionTier.vip : SubscriptionTier.free;

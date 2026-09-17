@@ -23,9 +23,9 @@ class _AppShellScreenState extends State<AppShellScreen> {
   @override
   Widget build(BuildContext context) {
     final pages = <Widget>[
-      const DashboardScreen(),
+      DashboardScreen(isActive: _tabIndex == 0),
       const WorkoutHubScreen(),
-      const LeaderboardScreen(),
+      LeaderboardScreen(isActive: _tabIndex == (Platform.isIOS ? 3 : 2)),
       const SettingsScreen(),
     ];
     final tabs = <_TabDef>[

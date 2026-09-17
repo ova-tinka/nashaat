@@ -2,6 +2,8 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../achievements/view-model/achievements-view-model.dart';
+import '../../achievements/view/achievements-screen.dart';
 import '../../../infra/repository-locator.dart';
 import '../../../shared/design/molecules/app-card.dart';
 import '../../../shared/design/molecules/app-section-header.dart';
@@ -13,7 +15,9 @@ import '../../../shared/utils/week-helper.dart';
 import '../view-model/dashboard-view-model.dart';
 
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key});
+  final bool isActive;
+
+  const DashboardScreen({super.key, this.isActive = true});
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -21,6 +25,9 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   late final DashboardViewModel _vm;
+  late final AchievementsViewModel _achievementsVm;
+  late final Listenable _listenable;
+  int _selectedTab = 0;
 
   @override
   void initState() {
@@ -29,22 +36,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _vm = DashboardViewModel(
       userId: userId,
       profileRepo: RepositoryLocator.instance.profile,
+      pointAwardRepo: RepositoryLocator.instance.pointAward,
       logRepo: RepositoryLocator.instance.workoutLog,
       txnRepo: RepositoryLocator.instance.screenTimeTransaction,
     );
-    _vm.load();
+    _achievementsVm = AchievementsViewModel(
+      userId: userId,
+      achievementRepo: RepositoryLocator.instance.achievement,
+    );
+    _listenable = Listenable.merge([_vm, _achievementsVm]);
+    _refresh();
+  }
+
+  @override
+  void didUpdateWidget(covariant DashboardScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!oldWidget.isActive && widget.isActive) {
+      _refresh();
+    }
   }
 
   @override
   void dispose() {
     _vm.dispose();
+    _achievementsVm.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: _vm,
+      listenable: _listenable,
       builder: (context, _) {
         if (_vm.isLoading && _vm.profile == null) {
           return const Center(child: CircularProgressIndicator());
@@ -52,11 +74,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
         return RefreshIndicator(
           color: AppColors.ink,
           backgroundColor: AppColors.paper,
-          onRefresh: _vm.load,
+          onRefresh: _refresh,
           child: CustomScrollView(
             slivers: [
               SliverAppBar(
-                title: Text('PROGRESS', style: AppTypography.sectionHeader.copyWith(fontSize: 13, letterSpacing: 2)),
+                title: Text(
+                  'PROGRESS',
+                  style: AppTypography.sectionHeader.copyWith(
+                    fontSize: 13,
+                    letterSpacing: 2,
+                  ),
+                ),
                 centerTitle: false,
                 pinned: true,
                 backgroundColor: AppColors.paper,
@@ -64,28 +92,81 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 scrolledUnderElevation: 0,
                 bottom: const PreferredSize(
                   preferredSize: Size.fromHeight(1),
-                  child: Divider(height: 1, thickness: 1, color: AppColors.paperBorder),
+                  child: Divider(
+                    height: 1,
+                    thickness: 1,
+                    color: AppColors.paperBorder,
+                  ),
                 ),
               ),
               if (_vm.error != null)
                 SliverToBoxAdapter(
-                  child: _ErrorBanner(message: _vm.error!, onDismiss: _vm.clearError),
+                  child: _ErrorBanner(
+                    message: _vm.error!,
+                    onDismiss: _vm.clearError,
+                  ),
                 ),
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.base, AppSpacing.base, AppSpacing.base, AppSpacing.xl
+                  AppSpacing.base,
+                  AppSpacing.base,
+                  AppSpacing.base,
+                  AppSpacing.xl,
                 ),
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
                     _ProfileHeader(vm: _vm),
                     const SizedBox(height: AppSpacing.lg),
-                    AppSectionHeader('This Week'),
+                    AppStatTile(
+                      value: '${_vm.totalPoints}',
+                      label: 'Total Points',
+                      icon: Icons.stars_outlined,
+                      accentColor: AppColors.ink,
+                    ),
                     const SizedBox(height: AppSpacing.sm),
-                    _WeeklyMetrics(vm: _vm),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: AppStatTile(
+                            value:
+                                '${_vm.streakCount} ${_vm.streakCount == 1 ? 'day' : 'days'}',
+                            label: 'Current Streak',
+                            icon: Icons.local_fire_department,
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        Expanded(
+                          child: AppStatTile(
+                            value:
+                                '${_vm.longestStreak} ${_vm.longestStreak == 1 ? 'day' : 'days'}',
+                            label: 'Longest Streak',
+                            icon: Icons.emoji_events_outlined,
+                          ),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: AppSpacing.base),
-                    _ActivityChart(vm: _vm),
-                    const SizedBox(height: AppSpacing.base),
-                    _GoalCard(vm: _vm),
+                    _DashboardTabs(
+                      selectedIndex: _selectedTab,
+                      onSelected: (index) {
+                        setState(() => _selectedTab = index);
+                      },
+                    ),
+                    if (_selectedTab == 0) ...[
+                      AppSectionHeader('Recent Points'),
+                      const SizedBox(height: AppSpacing.sm),
+                      _RecentPointsCard(vm: _vm),
+                      AppSectionHeader('This Week'),
+                      const SizedBox(height: AppSpacing.sm),
+                      _WeeklyMetrics(vm: _vm),
+                      const SizedBox(height: AppSpacing.base),
+                      _ActivityChart(vm: _vm),
+                      const SizedBox(height: AppSpacing.base),
+                      _GoalCard(vm: _vm),
+                    ] else ...[
+                      const SizedBox(height: AppSpacing.lg),
+                      AchievementsScreen(viewModel: _achievementsVm),
+                    ],
                   ]),
                 ),
               ),
@@ -93,6 +174,149 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         );
       },
+    );
+  }
+
+  Future<void> _refresh() async {
+    await Future.wait([_vm.load(), _achievementsVm.load()]);
+  }
+}
+
+class _DashboardTabs extends StatelessWidget {
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
+
+  const _DashboardTabs({required this.selectedIndex, required this.onSelected});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(border: Border.all(color: AppColors.ink)),
+      child: Row(
+        children: [
+          _DashboardTab(
+            label: 'Dashboard',
+            icon: Icons.dashboard_outlined,
+            selected: selectedIndex == 0,
+            onTap: () => onSelected(0),
+          ),
+          _DashboardTab(
+            label: 'Achievements',
+            icon: Icons.workspace_premium_outlined,
+            selected: selectedIndex == 1,
+            onTap: () => onSelected(1),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DashboardTab extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _DashboardTab({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Material(
+        color: selected ? AppColors.ink : AppColors.paper,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  icon,
+                  size: 17,
+                  color: selected ? AppColors.paper : AppColors.ink,
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Text(
+                  label,
+                  style: AppTypography.label.copyWith(
+                    color: selected ? AppColors.paper : AppColors.ink,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RecentPointsCard extends StatelessWidget {
+  final DashboardViewModel vm;
+
+  const _RecentPointsCard({required this.vm});
+
+  @override
+  Widget build(BuildContext context) {
+    final awards = vm.recentPointAwards;
+
+    return AppCard(
+      padding: EdgeInsets.zero,
+      child: awards.isEmpty
+          ? Padding(
+              padding: const EdgeInsets.all(AppSpacing.base),
+              child: Text(
+                'Complete a qualifying workout to earn points.',
+                style: AppTypography.labelMuted,
+              ),
+            )
+          : Column(
+              children: List.generate(awards.length, (index) {
+                final award = awards[index];
+                return Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(AppSpacing.base),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 54,
+                            child: Text(
+                              '+${award.points}',
+                              style: AppTypography.monoStrong.copyWith(
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.sm),
+                          Expanded(
+                            child: Text(
+                              award.description,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.body,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (index < awards.length - 1)
+                      const Divider(
+                        height: 1,
+                        thickness: 1,
+                        color: AppColors.paperBorder,
+                      ),
+                  ],
+                );
+              }),
+            ),
     );
   }
 }
@@ -146,7 +370,11 @@ class _StreakBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.local_fire_department, size: 14, color: AppColors.ink),
+          const Icon(
+            Icons.local_fire_department,
+            size: 14,
+            color: AppColors.ink,
+          ),
           const SizedBox(width: 4),
           Text(
             '$streak',
@@ -170,21 +398,58 @@ class _WeeklyMetrics extends StatelessWidget {
       children: [
         Row(
           children: [
-            Expanded(child: AppStatTile(value: _fmt(vm.weeklyEarnedMinutes), label: 'Earned', icon: Icons.timer_outlined)),
+            Expanded(
+              child: AppStatTile(
+                value: _fmt(vm.weeklyEarnedMinutes),
+                label: 'Earned',
+                icon: Icons.timer_outlined,
+              ),
+            ),
             const SizedBox(width: 8),
-            Expanded(child: AppStatTile(value: _fmt(vm.weeklySpentMinutes), label: 'Spent', icon: Icons.phone_android)),
+            Expanded(
+              child: AppStatTile(
+                value: _fmt(vm.weeklySpentMinutes),
+                label: 'Spent',
+                icon: Icons.phone_android,
+              ),
+            ),
             const SizedBox(width: 8),
-            Expanded(child: AppStatTile(value: _fmt(vm.screenTimeBalanceMinutes), label: 'Balance', icon: Icons.account_balance_wallet_outlined)),
+            Expanded(
+              child: AppStatTile(
+                value: _fmt(vm.screenTimeBalanceMinutes),
+                label: 'Balance',
+                icon: Icons.account_balance_wallet_outlined,
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 8),
         Row(
           children: [
-            Expanded(child: AppStatTile(value: '${vm.weeklySessionsCompleted}', label: 'Sessions', icon: Icons.fitness_center)),
+            Expanded(
+              child: AppStatTile(
+                value: '${vm.weeklySessionsCompleted}',
+                label: 'Sessions',
+                icon: Icons.fitness_center,
+              ),
+            ),
             const SizedBox(width: 8),
-            Expanded(child: AppStatTile(value: _fmt(vm.weeklyMinutesTrained), label: 'Trained', icon: Icons.timer)),
+            Expanded(
+              child: AppStatTile(
+                value: _fmt(vm.weeklyMinutesTrained),
+                label: 'Trained',
+                icon: Icons.timer,
+              ),
+            ),
             const SizedBox(width: 8),
-            Expanded(child: AppStatTile(value: _fmt(vm.weeklyTargetMinutes), label: 'Target', icon: Icons.flag_outlined, accentColor: AppColors.inkMuted)),
+            Expanded(
+              child: AppStatTile(
+                value: _fmt(vm.weeklyTargetMinutes),
+                label: 'Target',
+                icon: Icons.flag_outlined,
+                accentColor: AppColors.inkMuted,
+              ),
+            ),
           ],
         ),
       ],
@@ -210,14 +475,20 @@ class _ActivityChart extends StatelessWidget {
     final spots = vm.weeklyActivitySpots;
     final maxY = spots.reduce((a, b) => a > b ? a : b).clamp(1.0, 999.0);
     final weekDays = WeekHelper.currentWeekDays();
-    final lineSpots = List.generate(spots.length, (i) => FlSpot(i.toDouble(), spots[i]));
+    final lineSpots = List.generate(
+      spots.length,
+      (i) => FlSpot(i.toDouble(), spots[i]),
+    );
 
     return AppCard(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Weekly Activity', style: AppTypography.heading.copyWith(fontSize: 15)),
+          Text(
+            'Weekly Activity',
+            style: AppTypography.heading.copyWith(fontSize: 15),
+          ),
           const SizedBox(height: 2),
           Text('Sessions per day this week', style: AppTypography.labelMuted),
           const SizedBox(height: 16),
@@ -225,7 +496,10 @@ class _ActivityChart extends StatelessWidget {
             height: 120,
             child: LineChart(
               LineChartData(
-                minX: 0, maxX: 6, minY: 0, maxY: maxY + 1,
+                minX: 0,
+                maxX: 6,
+                minY: 0,
+                maxY: maxY + 1,
                 gridData: FlGridData(
                   show: true,
                   horizontalInterval: 1,
@@ -242,20 +516,30 @@ class _ActivityChart extends StatelessWidget {
                       interval: 1,
                       getTitlesWidget: (value, meta) {
                         final idx = value.toInt();
-                        if (idx < 0 || idx >= weekDays.length) return const SizedBox.shrink();
+                        if (idx < 0 || idx >= weekDays.length)
+                          return const SizedBox.shrink();
                         return Padding(
                           padding: const EdgeInsets.only(top: 4),
                           child: Text(
                             WeekHelper.shortDayLabel(weekDays[idx].weekday),
-                            style: AppTypography.mono.copyWith(fontSize: 10, color: AppColors.inkMuted),
+                            style: AppTypography.mono.copyWith(
+                              fontSize: 10,
+                              color: AppColors.inkMuted,
+                            ),
                           ),
                         );
                       },
                     ),
                   ),
-                  leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  topTitles: AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  rightTitles: AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
                 ),
                 borderData: FlBorderData(show: false),
                 lineBarsData: [
@@ -267,12 +551,13 @@ class _ActivityChart extends StatelessWidget {
                     isStrokeCapRound: false,
                     dotData: FlDotData(
                       show: true,
-                      getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(
-                        radius: 3,
-                        color: AppColors.acid,
-                        strokeWidth: 1,
-                        strokeColor: AppColors.ink,
-                      ),
+                      getDotPainter: (spot, percent, barData, index) =>
+                          FlDotCirclePainter(
+                            radius: 3,
+                            color: AppColors.acid,
+                            strokeWidth: 1,
+                            strokeColor: AppColors.ink,
+                          ),
                     ),
                     belowBarData: BarAreaData(
                       show: true,
@@ -318,11 +603,23 @@ class _GoalCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Weekly Goal', style: AppTypography.heading.copyWith(fontSize: 15)),
+              Text(
+                'Weekly Goal',
+                style: AppTypography.heading.copyWith(fontSize: 15),
+              ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 color: statusBg,
-                child: Text(status.toUpperCase(), style: AppTypography.sectionHeader.copyWith(color: statusFg, letterSpacing: 1)),
+                child: Text(
+                  status.toUpperCase(),
+                  style: AppTypography.sectionHeader.copyWith(
+                    color: statusFg,
+                    letterSpacing: 1,
+                  ),
+                ),
               ),
             ],
           ),
@@ -356,8 +653,16 @@ class _ErrorBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.fromLTRB(AppSpacing.base, AppSpacing.sm, AppSpacing.base, 0),
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.base, vertical: 10),
+      margin: const EdgeInsets.fromLTRB(
+        AppSpacing.base,
+        AppSpacing.sm,
+        AppSpacing.base,
+        0,
+      ),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.base,
+        vertical: 10,
+      ),
       decoration: BoxDecoration(
         color: AppColors.errorMuted,
         border: Border.all(color: AppColors.error, width: 1),
@@ -366,7 +671,12 @@ class _ErrorBanner extends StatelessWidget {
         children: [
           const Icon(Icons.error_outline, color: AppColors.error, size: 16),
           const SizedBox(width: 8),
-          Expanded(child: Text(message, style: AppTypography.body.copyWith(color: AppColors.error))),
+          Expanded(
+            child: Text(
+              message,
+              style: AppTypography.body.copyWith(color: AppColors.error),
+            ),
+          ),
           GestureDetector(
             onTap: onDismiss,
             child: const Icon(Icons.close, color: AppColors.error, size: 16),

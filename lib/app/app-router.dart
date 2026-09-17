@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import '../core/entities/workout-plan-entity.dart';
+import '../features/achievements/model/achievement-progress-model.dart';
+import '../features/achievements/view/achievement-detail-screen.dart';
 import '../features/auth/view/auth-gate.dart';
 import '../features/auth/view/login-screen.dart';
 import '../features/auth/view/register-screen.dart';
@@ -30,6 +32,7 @@ class AppRouter {
 
   // ── Authenticated shell ───────────────────────────────────────────────────
   static const String dashboard = '/dashboard';
+  static const String achievementDetail = '/achievement-detail';
 
   // ── Workout feature ───────────────────────────────────────────────────────
   static const String workoutBuilder = '/workout-builder';
@@ -77,6 +80,12 @@ class AppRouter {
 
       case dashboard:
         return MaterialPageRoute(builder: (_) => const AppShellScreen());
+
+      case achievementDetail:
+        final achievement = routeSettings.arguments as AchievementProgressModel;
+        return MaterialPageRoute(
+          builder: (_) => AchievementDetailScreen(achievement: achievement),
+        );
 
       // ── Workout ──────────────────────────────────────────────────────────
 

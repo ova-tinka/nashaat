@@ -29,12 +29,4 @@ class LeaderboardMemberEntity {
     required this.joinedAt,
   });
 
-  LeaderboardMemberEntity copyWith({int? weeklyScore}) {
-    return LeaderboardMemberEntity(
-      leaderboardId: leaderboardId,
-      userId: userId,
-      weeklyScore: weeklyScore ?? this.weeklyScore,
-      joinedAt: joinedAt,
-    );
-  }
 }

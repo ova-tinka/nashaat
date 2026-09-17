@@ -44,7 +44,8 @@ class SupabaseLeaderboardRepository implements LeaderboardRepository {
 
   @override
   Future<LeaderboardEntity?> getLeaderboardByInviteCode(
-      String inviteCode) async {
+    String inviteCode,
+  ) async {
     final data = await _db
         .from('leaderboards')
         .select()
@@ -76,7 +77,6 @@ class SupabaseLeaderboardRepository implements LeaderboardRepository {
     await _db.from('leaderboard_members').insert({
       'leaderboard_id': data['id'],
       'user_id': ownerId,
-      'weekly_score': 0,
     });
 
     Log.db('leaderboard created ✓');
@@ -84,8 +84,7 @@ class SupabaseLeaderboardRepository implements LeaderboardRepository {
   }
 
   @override
-  Future<List<LeaderboardMemberEntity>> getMembers(
-      String leaderboardId) async {
+  Future<List<LeaderboardMemberEntity>> getMembers(String leaderboardId) async {
     final data = await _db
         .from('leaderboard_members')
         .select()
@@ -106,7 +105,6 @@ class SupabaseLeaderboardRepository implements LeaderboardRepository {
         .insert({
           'leaderboard_id': leaderboardId,
           'user_id': userId,
-          'weekly_score': 0,
         })
         .select()
         .single();
@@ -114,27 +112,21 @@ class SupabaseLeaderboardRepository implements LeaderboardRepository {
   }
 
   @override
-  Future<void> updateMemberScore(
-    String leaderboardId,
-    String userId,
-    int score,
-  ) async {
-    await _db.from('leaderboard_members').update({'weekly_score': score}).match({
-      'leaderboard_id': leaderboardId,
-      'user_id': userId,
-    });
+  Future<void> recalculateMyWeeklyScore() async {
+    await _db.rpc('recalculate_my_weekly_leaderboard_score');
+    Log.db('weekly leaderboard score recalculated');
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
   LeaderboardEntity _fromMap(Map<String, dynamic> map) => LeaderboardEntity(
-        id: map['id'] as String,
-        ownerId: map['owner_id'] as String,
-        name: map['name'] as String,
-        inviteCode: map['invite_code'] as String,
-        isActive: map['is_active'] as bool? ?? true,
-        createdAt: DateTime.parse(map['created_at'] as String),
-      );
+    id: map['id'] as String,
+    ownerId: map['owner_id'] as String,
+    name: map['name'] as String,
+    inviteCode: map['invite_code'] as String,
+    isActive: map['is_active'] as bool? ?? true,
+    createdAt: DateTime.parse(map['created_at'] as String),
+  );
 
   LeaderboardMemberEntity _memberFromMap(Map<String, dynamic> map) =>
       LeaderboardMemberEntity(

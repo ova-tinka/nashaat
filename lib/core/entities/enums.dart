@@ -21,3 +21,21 @@ enum TransactionType { earned, spent, penalty, manualAdjustment }
 enum DifficultyLevel { easy, medium, hard }
 
 enum SessionSize { small, big }
+
+enum PointReason {
+  workoutCompletion,
+  streakBonus,
+  achievementBonus,
+  manualAdjustment,
+}
+
+enum AchievementCategory { workout, streak, social, milestone }
+
+enum AchievementCriteria {
+  qualifyingWorkoutCount,
+  currentStreak,
+  leaderboardJoin,
+  weeklyLeaderboardWin,
+}
+
+enum RewardType { recognition, points, screenTime }
