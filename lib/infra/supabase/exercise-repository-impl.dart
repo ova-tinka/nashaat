@@ -49,8 +49,10 @@ class SupabaseExerciseRepository implements ExerciseRepository {
           'name': exercise.name,
           'description': exercise.description,
           'muscle_groups': exercise.muscleGroups,
+          'instructions': exercise.instructions,
           'difficulty_level': _difficultyToString(exercise.difficultyLevel),
           'measurement_type': _measurementToString(exercise.measurementType),
+          'media_id': exercise.mediaId,
           'media_link': exercise.mediaLink,
           'is_system': exercise.isSystem,
         })
@@ -73,7 +75,9 @@ class SupabaseExerciseRepository implements ExerciseRepository {
     }
 
     final rawInstructions = map['instructions'];
-    final List<String> steps = rawInstructions is List ? rawInstructions.cast<String>() : [];
+    final List<String> steps = rawInstructions is List
+        ? rawInstructions.cast<String>()
+        : [];
 
     return ExerciseEntity(
       id: map['id'] as String,
@@ -82,7 +86,10 @@ class SupabaseExerciseRepository implements ExerciseRepository {
       muscleGroups: muscleGroups,
       instructions: steps,
       difficultyLevel: _parseDifficulty(map['difficulty_level'] as String?),
-      measurementType: _parseMeasurement(map['measurement_type'] as String? ?? 'reps_weight'),
+      measurementType: _parseMeasurement(
+        map['measurement_type'] as String? ?? 'reps_weight',
+      ),
+      mediaId: map['media_id'] as String?,
       mediaLink: map['media_link'] as String?,
       isSystem: map['is_system'] as bool? ?? true,
       createdAt: DateTime.parse(map['created_at'] as String),
@@ -90,28 +97,28 @@ class SupabaseExerciseRepository implements ExerciseRepository {
   }
 
   DifficultyLevel _parseDifficulty(String? s) => switch (s) {
-        'easy' => DifficultyLevel.easy,
-        'hard' => DifficultyLevel.hard,
-        _ => DifficultyLevel.medium,
-      };
+    'easy' => DifficultyLevel.easy,
+    'hard' => DifficultyLevel.hard,
+    _ => DifficultyLevel.medium,
+  };
 
   String _difficultyToString(DifficultyLevel d) => switch (d) {
-        DifficultyLevel.easy => 'easy',
-        DifficultyLevel.medium => 'medium',
-        DifficultyLevel.hard => 'hard',
-      };
+    DifficultyLevel.easy => 'easy',
+    DifficultyLevel.medium => 'medium',
+    DifficultyLevel.hard => 'hard',
+  };
 
   ExerciseMeasurement _parseMeasurement(String s) => switch (s) {
-        'time_distance' => ExerciseMeasurement.timeDistance,
-        'time_only' => ExerciseMeasurement.timeOnly,
-        'reps_only' => ExerciseMeasurement.repsOnly,
-        _ => ExerciseMeasurement.repsWeight,
-      };
+    'time_distance' => ExerciseMeasurement.timeDistance,
+    'time_only' => ExerciseMeasurement.timeOnly,
+    'reps_only' => ExerciseMeasurement.repsOnly,
+    _ => ExerciseMeasurement.repsWeight,
+  };
 
   String _measurementToString(ExerciseMeasurement m) => switch (m) {
-        ExerciseMeasurement.repsWeight => 'reps_weight',
-        ExerciseMeasurement.timeDistance => 'time_distance',
-        ExerciseMeasurement.timeOnly => 'time_only',
-        ExerciseMeasurement.repsOnly => 'reps_only',
-      };
+    ExerciseMeasurement.repsWeight => 'reps_weight',
+    ExerciseMeasurement.timeDistance => 'time_distance',
+    ExerciseMeasurement.timeOnly => 'time_only',
+    ExerciseMeasurement.repsOnly => 'reps_only',
+  };
 }

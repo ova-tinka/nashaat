@@ -155,6 +155,7 @@ void main() {
       vm.addExercise(TestData.exercise(
         measurementType: ExerciseMeasurement.repsOnly,
       ));
+      vm.toggleDay(1);
 
       final result = await vm.save();
 
@@ -175,6 +176,7 @@ void main() {
       vm.addExercise(TestData.exercise(
         measurementType: ExerciseMeasurement.repsOnly,
       ));
+      vm.toggleDay(1);
       await vm.save();
 
       expect(capturedPlan?.userId, 'u1');

@@ -8,6 +8,7 @@ class ExerciseEntity {
   final List<String> instructions;
   final DifficultyLevel difficultyLevel;
   final ExerciseMeasurement measurementType;
+  final String? mediaId;
   final String? mediaLink;
   final bool isSystem;
   final DateTime createdAt;
@@ -20,6 +21,7 @@ class ExerciseEntity {
     this.instructions = const [],
     this.difficultyLevel = DifficultyLevel.medium,
     this.measurementType = ExerciseMeasurement.repsWeight,
+    this.mediaId,
     this.mediaLink,
     this.isSystem = true,
     required this.createdAt,
@@ -32,6 +34,7 @@ class ExerciseEntity {
     List<String>? instructions,
     DifficultyLevel? difficultyLevel,
     ExerciseMeasurement? measurementType,
+    String? mediaId,
     String? mediaLink,
     bool? isSystem,
   }) {
@@ -43,6 +46,7 @@ class ExerciseEntity {
       instructions: instructions ?? this.instructions,
       difficultyLevel: difficultyLevel ?? this.difficultyLevel,
       measurementType: measurementType ?? this.measurementType,
+      mediaId: mediaId ?? this.mediaId,
       mediaLink: mediaLink ?? this.mediaLink,
       isSystem: isSystem ?? this.isSystem,
       createdAt: createdAt,
