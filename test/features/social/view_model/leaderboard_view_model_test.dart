@@ -41,27 +41,33 @@ void main() {
   // ── load ───────────────────────────────────────────────────────────────────
 
   group('load', () {
-    test('success: leaderboards populated, selectedLeaderboard=first, rankings loaded',
-        () async {
-      final lb = TestData.leaderboard();
-      final member = TestData.leaderboardMember(userId: 'u1');
-      when(() => mockLeaderboardRepo.getUserLeaderboards(any()))
-          .thenAnswer((_) async => [lb]);
-      when(() => mockLeaderboardRepo.getMembers(any()))
-          .thenAnswer((_) async => [member]);
-      when(() => mockProfileRepo.getProfile(any()))
-          .thenAnswer((_) async => TestData.profile());
+    test(
+      'success: leaderboards populated, selectedLeaderboard=first, rankings loaded',
+      () async {
+        final lb = TestData.leaderboard();
+        final member = TestData.leaderboardMember(userId: 'u1');
+        when(
+          () => mockLeaderboardRepo.getUserLeaderboards(any()),
+        ).thenAnswer((_) async => [lb]);
+        when(
+          () => mockLeaderboardRepo.getMembers(any()),
+        ).thenAnswer((_) async => [member]);
+        when(
+          () => mockProfileRepo.getPublicProfile(any()),
+        ).thenAnswer((_) async => TestData.publicProfile());
 
-      await vm.load();
+        await vm.load();
 
-      expect(vm.leaderboards.length, 1);
-      expect(vm.selectedLeaderboard?.id, 'lb1');
-      expect(vm.rankings.length, 1);
-    });
+        expect(vm.leaderboards.length, 1);
+        expect(vm.selectedLeaderboard?.id, 'lb1');
+        expect(vm.rankings.length, 1);
+      },
+    );
 
     test('failure: error set', () async {
-      when(() => mockLeaderboardRepo.getUserLeaderboards(any()))
-          .thenThrow(Exception('load failed'));
+      when(
+        () => mockLeaderboardRepo.getUserLeaderboards(any()),
+      ).thenThrow(Exception('load failed'));
 
       await vm.load();
 
@@ -76,10 +82,12 @@ void main() {
       final lb2 = TestData.leaderboard(id: 'lb2', name: 'Team Beta');
       final member = TestData.leaderboardMember(leaderboardId: 'lb2');
 
-      when(() => mockLeaderboardRepo.getMembers('lb2'))
-          .thenAnswer((_) async => [member]);
-      when(() => mockProfileRepo.getProfile(any()))
-          .thenAnswer((_) async => TestData.profile());
+      when(
+        () => mockLeaderboardRepo.getMembers('lb2'),
+      ).thenAnswer((_) async => [member]);
+      when(
+        () => mockProfileRepo.getPublicProfile(any()),
+      ).thenAnswer((_) async => TestData.publicProfile());
 
       await vm.selectLeaderboard(lb2);
 
@@ -93,14 +101,19 @@ void main() {
   group('myRank', () {
     test('returns 0 when user not in rankings', () async {
       final lb = TestData.leaderboard();
-      final otherMember =
-          TestData.leaderboardMember(userId: 'other-user', weeklyScore: 200);
-      when(() => mockLeaderboardRepo.getUserLeaderboards(any()))
-          .thenAnswer((_) async => [lb]);
-      when(() => mockLeaderboardRepo.getMembers(any()))
-          .thenAnswer((_) async => [otherMember]);
-      when(() => mockProfileRepo.getProfile(any()))
-          .thenAnswer((_) async => TestData.profile());
+      final otherMember = TestData.leaderboardMember(
+        userId: 'other-user',
+        weeklyScore: 200,
+      );
+      when(
+        () => mockLeaderboardRepo.getUserLeaderboards(any()),
+      ).thenAnswer((_) async => [lb]);
+      when(
+        () => mockLeaderboardRepo.getMembers(any()),
+      ).thenAnswer((_) async => [otherMember]);
+      when(
+        () => mockProfileRepo.getPublicProfile(any()),
+      ).thenAnswer((_) async => TestData.publicProfile());
 
       await vm.load();
 
@@ -110,16 +123,23 @@ void main() {
     test('returns correct rank when user is in rankings', () async {
       final lb = TestData.leaderboard();
       // u1 is second with lower score (members sorted by repo; just ensure rank calculation)
-      final memberA =
-          TestData.leaderboardMember(userId: 'user-a', weeklyScore: 300);
-      final memberB =
-          TestData.leaderboardMember(userId: 'u1', weeklyScore: 100);
-      when(() => mockLeaderboardRepo.getUserLeaderboards(any()))
-          .thenAnswer((_) async => [lb]);
-      when(() => mockLeaderboardRepo.getMembers(any()))
-          .thenAnswer((_) async => [memberA, memberB]);
-      when(() => mockProfileRepo.getProfile(any()))
-          .thenAnswer((_) async => TestData.profile());
+      final memberA = TestData.leaderboardMember(
+        userId: 'user-a',
+        weeklyScore: 300,
+      );
+      final memberB = TestData.leaderboardMember(
+        userId: 'u1',
+        weeklyScore: 100,
+      );
+      when(
+        () => mockLeaderboardRepo.getUserLeaderboards(any()),
+      ).thenAnswer((_) async => [lb]);
+      when(
+        () => mockLeaderboardRepo.getMembers(any()),
+      ).thenAnswer((_) async => [memberA, memberB]);
+      when(
+        () => mockProfileRepo.getPublicProfile(any()),
+      ).thenAnswer((_) async => TestData.publicProfile());
 
       await vm.load();
 
@@ -130,22 +150,26 @@ void main() {
   // ── createLeaderboard ──────────────────────────────────────────────────────
 
   group('createLeaderboard', () {
-    test('success: leaderboard added to list, selectedLeaderboard updated',
-        () async {
-      final newLb = TestData.leaderboard(id: 'lb-new', name: 'My Squad');
-      when(() => mockLeaderboardRepo.createLeaderboard(any(), any(), any()))
-          .thenAnswer((_) async => newLb);
+    test(
+      'success: leaderboard added to list, selectedLeaderboard updated',
+      () async {
+        final newLb = TestData.leaderboard(id: 'lb-new', name: 'My Squad');
+        when(
+          () => mockLeaderboardRepo.createLeaderboard(any(), any(), any()),
+        ).thenAnswer((_) async => newLb);
 
-      await vm.createLeaderboard('My Squad');
+        await vm.createLeaderboard('My Squad');
 
-      expect(vm.leaderboards.length, 1);
-      expect(vm.leaderboards.first.id, 'lb-new');
-      expect(vm.selectedLeaderboard?.id, 'lb-new');
-    });
+        expect(vm.leaderboards.length, 1);
+        expect(vm.leaderboards.first.id, 'lb-new');
+        expect(vm.selectedLeaderboard?.id, 'lb-new');
+      },
+    );
 
     test('failure: error set', () async {
-      when(() => mockLeaderboardRepo.createLeaderboard(any(), any(), any()))
-          .thenThrow(Exception('create failed'));
+      when(
+        () => mockLeaderboardRepo.createLeaderboard(any(), any(), any()),
+      ).thenThrow(Exception('create failed'));
 
       await vm.createLeaderboard('My Squad');
 
@@ -158,14 +182,18 @@ void main() {
   group('joinByInviteCode', () {
     test('success: leaderboard added', () async {
       final lb = TestData.leaderboard(id: 'lb-join');
-      when(() => mockLeaderboardRepo.getLeaderboardByInviteCode(any()))
-          .thenAnswer((_) async => lb);
-      when(() => mockLeaderboardRepo.joinLeaderboard(any(), any()))
-          .thenAnswer((_) async => TestData.leaderboardMember());
-      when(() => mockLeaderboardRepo.getMembers(any()))
-          .thenAnswer((_) async => [TestData.leaderboardMember()]);
-      when(() => mockProfileRepo.getProfile(any()))
-          .thenAnswer((_) async => TestData.profile());
+      when(
+        () => mockLeaderboardRepo.getLeaderboardByInviteCode(any()),
+      ).thenAnswer((_) async => lb);
+      when(
+        () => mockLeaderboardRepo.joinLeaderboard(any(), any()),
+      ).thenAnswer((_) async => TestData.leaderboardMember());
+      when(
+        () => mockLeaderboardRepo.getMembers(any()),
+      ).thenAnswer((_) async => [TestData.leaderboardMember()]);
+      when(
+        () => mockProfileRepo.getPublicProfile(any()),
+      ).thenAnswer((_) async => TestData.publicProfile());
 
       await vm.joinByInviteCode('ABC123');
 
@@ -173,8 +201,9 @@ void main() {
     });
 
     test('invite code not found: error set', () async {
-      when(() => mockLeaderboardRepo.getLeaderboardByInviteCode(any()))
-          .thenAnswer((_) async => null);
+      when(
+        () => mockLeaderboardRepo.getLeaderboardByInviteCode(any()),
+      ).thenAnswer((_) async => null);
 
       await vm.joinByInviteCode('INVALID');
 
@@ -186,8 +215,9 @@ void main() {
 
   group('clearError', () {
     test('clears the error', () async {
-      when(() => mockLeaderboardRepo.getLeaderboardByInviteCode(any()))
-          .thenAnswer((_) async => null);
+      when(
+        () => mockLeaderboardRepo.getLeaderboardByInviteCode(any()),
+      ).thenAnswer((_) async => null);
       await vm.joinByInviteCode('INVALID');
       expect(vm.error, isNotNull);
 
