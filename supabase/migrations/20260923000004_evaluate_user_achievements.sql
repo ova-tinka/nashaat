@@ -44,7 +44,7 @@ BEGIN
     INTO v_workout_count
     FROM public.workout_logs
     WHERE user_id = v_user_id
-      AND duration_minutes BETWEEN 5 AND 180;
+      AND duration_minutes BETWEEN 10 AND 180;
 
     SELECT COALESCE(streak_count, 0)
     INTO v_current_streak

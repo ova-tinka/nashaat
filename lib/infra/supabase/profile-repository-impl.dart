@@ -1,5 +1,6 @@
 import '../../core/entities/enums.dart';
 import '../../core/entities/profile-entity.dart';
+import '../../core/entities/public-profile-entity.dart';
 import '../../core/repositories/profile-repository.dart';
 import '../../shared/logger.dart';
 import 'supabase-client.dart';
@@ -17,6 +18,24 @@ class SupabaseProfileRepository implements ProfileRepository {
     if (data == null) return null;
     Log.db('profile loaded for ${userId.substring(0, 8)}…');
     return _fromMap(data);
+  }
+
+  @override
+  Future<PublicProfileEntity?> getPublicProfile(String userId) async {
+    final data = await _db.rpc(
+      'get_public_profile',
+      params: {'p_user_id': userId},
+    );
+    final rows = data as List;
+    if (rows.isEmpty) return null;
+    final map = rows.first as Map<String, dynamic>;
+    return PublicProfileEntity(
+      id: map['id'] as String,
+      username: map['username'] as String?,
+      firstName: map['first_name'] as String?,
+      lastName: map['last_name'] as String?,
+      streakCount: map['streak_count'] as int? ?? 0,
+    );
   }
 
   @override

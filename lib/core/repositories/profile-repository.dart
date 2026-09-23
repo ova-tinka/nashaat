@@ -1,8 +1,11 @@
 import '../entities/enums.dart';
 import '../entities/profile-entity.dart';
+import '../entities/public-profile-entity.dart';
 
 abstract class ProfileRepository {
   Future<ProfileEntity?> getProfile(String userId);
+
+  Future<PublicProfileEntity?> getPublicProfile(String userId);
 
   Future<ProfileEntity> updateProfile(
     String userId, {

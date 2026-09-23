@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/entities/leaderboard-entity.dart';
 import '../../../core/entities/achievement-entity.dart';
 import '../../../core/entities/profile-entity.dart';
+import '../../../core/entities/public-profile-entity.dart';
 import '../../../core/repositories/leaderboard-repository.dart';
 import '../../../core/repositories/achievement-repository.dart';
 import '../../../core/repositories/profile-repository.dart';
@@ -120,7 +121,7 @@ class LeaderboardViewModel extends ChangeNotifier {
           return byScore != 0 ? byScore : a.userId.compareTo(b.userId);
         });
       final profiles = await Future.wait(
-        sortedMembers.map((m) => _profileRepo.getProfile(m.userId)),
+        sortedMembers.map((m) => _profileRepo.getPublicProfile(m.userId)),
       );
 
       _rankings = [];
@@ -198,9 +199,9 @@ class LeaderboardViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  String _displayName(ProfileEntity? p) {
+  String _displayName(PublicProfileEntity? p) {
     if (p == null) return 'Athlete';
-    return p.username ?? p.firstName ?? p.email.split('@').first;
+    return p.username ?? p.firstName ?? 'Athlete';
   }
 
   String _generateInviteCode() {

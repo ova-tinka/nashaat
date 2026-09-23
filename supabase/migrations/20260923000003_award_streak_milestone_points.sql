@@ -126,12 +126,12 @@ BEGIN
 
     -- Only increase total if a NEW milestone award was inserted.
     IF v_awarded IS NOT NULL THEN
-        UPDATE public.profiles
+        UPDATE public.profiles AS p
         SET
-            points_total = points_total + v_awarded,
+            points_total = p.points_total + v_awarded,
             updated_at = NOW()
-        WHERE id = v_user_id
-        RETURNING public.profiles.points_total
+        WHERE p.id = v_user_id
+        RETURNING p.points_total
         INTO v_total;
 
         RETURN QUERY

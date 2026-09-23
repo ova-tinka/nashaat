@@ -46,13 +46,13 @@ class SupabaseLeaderboardRepository implements LeaderboardRepository {
   Future<LeaderboardEntity?> getLeaderboardByInviteCode(
     String inviteCode,
   ) async {
-    final data = await _db
-        .from('leaderboards')
-        .select()
-        .eq('invite_code', inviteCode)
-        .maybeSingle();
-    if (data == null) return null;
-    return _fromMap(data);
+    final data = await _db.rpc(
+      'find_active_leaderboard_by_invite',
+      params: {'p_invite_code': inviteCode},
+    );
+    final rows = data as List;
+    if (rows.isEmpty) return null;
+    return _fromMap(rows.first as Map<String, dynamic>);
   }
 
   @override
@@ -102,10 +102,7 @@ class SupabaseLeaderboardRepository implements LeaderboardRepository {
   ) async {
     final data = await _db
         .from('leaderboard_members')
-        .insert({
-          'leaderboard_id': leaderboardId,
-          'user_id': userId,
-        })
+        .insert({'leaderboard_id': leaderboardId, 'user_id': userId})
         .select()
         .single();
     return _memberFromMap(data);

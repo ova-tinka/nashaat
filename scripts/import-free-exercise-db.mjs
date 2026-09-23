@@ -327,7 +327,7 @@ INSERT INTO exercises (
   name,
   description,
   muscle_groups,
-  steps,
+  instructions,
   difficulty_level,
   measurement_type,
   media_id,
@@ -337,7 +337,7 @@ ${values}
 ON CONFLICT (name) DO UPDATE SET
   description = EXCLUDED.description,
   muscle_groups = EXCLUDED.muscle_groups,
-  steps = EXCLUDED.steps,
+  instructions = EXCLUDED.instructions,
   difficulty_level = EXCLUDED.difficulty_level,
   measurement_type = EXCLUDED.measurement_type,
   media_id = COALESCE(exercises.media_id, EXCLUDED.media_id),

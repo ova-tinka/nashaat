@@ -28,3 +28,19 @@ CREATE INDEX IF NOT EXISTS idx_exercises_difficulty ON exercises (difficulty_lev
 COMMENT ON COLUMN exercises.difficulty_level IS 'Easy, Medium, or Hard. Drives UI filtering.';
 COMMENT ON COLUMN exercises.muscle_groups IS 'Array of targeted muscle groups (e.g., {Chest, Triceps}).';
 COMMENT ON COLUMN exercises.steps IS 'Step-by-step instructions as an ordered text array.';
+
+-- Transition fields used by the workout application. Keep steps for older
+-- clients and imports; media_id remains the canonical storage relationship.
+ALTER TABLE exercises
+ADD COLUMN IF NOT EXISTS instructions TEXT[] DEFAULT '{}';
+
+ALTER TABLE exercises
+ADD COLUMN IF NOT EXISTS media_link TEXT;
+
+UPDATE exercises AS exercise
+SET instructions = COALESCE(exercise.steps, ARRAY[]::TEXT[])
+WHERE COALESCE(cardinality(exercise.instructions), 0) = 0
+  AND COALESCE(cardinality(exercise.steps), 0) > 0;
+
+COMMENT ON COLUMN exercises.media_link IS
+  'Absolute external media URL. Supabase Storage media remains referenced by media_id.';

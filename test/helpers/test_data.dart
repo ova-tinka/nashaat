@@ -4,6 +4,7 @@ import 'package:nashaat/core/entities/exercise-entity.dart';
 import 'package:nashaat/core/entities/leaderboard-entity.dart';
 import 'package:nashaat/core/entities/point-award-entity.dart';
 import 'package:nashaat/core/entities/profile-entity.dart';
+import 'package:nashaat/core/entities/public-profile-entity.dart';
 import 'package:nashaat/core/entities/screen-time-transaction-entity.dart';
 import 'package:nashaat/core/entities/workout-log-entity.dart';
 import 'package:nashaat/core/entities/workout-plan-entity.dart';
@@ -95,6 +96,20 @@ class TestData {
       sourceEventId: sourceEventId,
       workoutLogId: workoutLogId,
       createdAt: createdAt ?? _now,
+    );
+  }
+
+  static PublicProfileEntity publicProfile({
+    String id = 'u1',
+    String? username,
+    String? firstName,
+    int streakCount = 3,
+  }) {
+    return PublicProfileEntity(
+      id: id,
+      username: username,
+      firstName: firstName,
+      streakCount: streakCount,
     );
   }
 

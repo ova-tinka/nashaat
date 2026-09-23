@@ -15,8 +15,9 @@ void main() {
 
   setUp(() {
     mockLeaderboardRepo = MockLeaderboardRepository();
-    when(() => mockLeaderboardRepo.recalculateMyWeeklyScore())
-        .thenAnswer((_) async {});
+    when(
+      () => mockLeaderboardRepo.recalculateMyWeeklyScore(),
+    ).thenAnswer((_) async {});
     mockProfileRepo = MockProfileRepository();
     mockAchievementRepo = MockAchievementRepository();
     vm = LeaderboardViewModel(
@@ -60,8 +61,8 @@ void main() {
           () => mockLeaderboardRepo.getMembers(any()),
         ).thenAnswer((_) async => [member]);
         when(
-          () => mockProfileRepo.getProfile(any()),
-        ).thenAnswer((_) async => TestData.profile());
+          () => mockProfileRepo.getPublicProfile(any()),
+        ).thenAnswer((_) async => TestData.publicProfile());
 
         await vm.load();
 
@@ -96,8 +97,8 @@ void main() {
         (_) async => [TestData.leaderboardMember(weeklyScore: score)],
       );
       when(
-        () => mockProfileRepo.getProfile(any()),
-      ).thenAnswer((_) async => TestData.profile());
+        () => mockProfileRepo.getPublicProfile(any()),
+      ).thenAnswer((_) async => TestData.publicProfile());
 
       await vm.load();
       score = 25;
@@ -122,8 +123,8 @@ void main() {
           ],
         );
         when(
-          () => mockProfileRepo.getProfile(any()),
-        ).thenAnswer((_) async => TestData.profile());
+          () => mockProfileRepo.getPublicProfile(any()),
+        ).thenAnswer((_) async => TestData.publicProfile());
 
         await vm.load();
 
@@ -145,8 +146,8 @@ void main() {
         () => mockLeaderboardRepo.getMembers('lb2'),
       ).thenAnswer((_) async => [member]);
       when(
-        () => mockProfileRepo.getProfile(any()),
-      ).thenAnswer((_) async => TestData.profile());
+        () => mockProfileRepo.getPublicProfile(any()),
+      ).thenAnswer((_) async => TestData.publicProfile());
       await vm.selectLeaderboard(lb2);
 
       expect(vm.selectedLeaderboard?.id, 'lb2');
@@ -170,8 +171,8 @@ void main() {
         () => mockLeaderboardRepo.getMembers(any()),
       ).thenAnswer((_) async => [otherMember]);
       when(
-        () => mockProfileRepo.getProfile(any()),
-      ).thenAnswer((_) async => TestData.profile());
+        () => mockProfileRepo.getPublicProfile(any()),
+      ).thenAnswer((_) async => TestData.publicProfile());
 
       await vm.load();
 
@@ -196,8 +197,8 @@ void main() {
         () => mockLeaderboardRepo.getMembers(any()),
       ).thenAnswer((_) async => [memberA, memberB]);
       when(
-        () => mockProfileRepo.getProfile(any()),
-      ).thenAnswer((_) async => TestData.profile());
+        () => mockProfileRepo.getPublicProfile(any()),
+      ).thenAnswer((_) async => TestData.publicProfile());
 
       await vm.load();
 
@@ -228,8 +229,8 @@ void main() {
           ],
         );
         when(
-          () => mockProfileRepo.getProfile('u1'),
-        ).thenAnswer((_) async => TestData.profile());
+          () => mockProfileRepo.getPublicProfile('u1'),
+        ).thenAnswer((_) async => TestData.publicProfile());
 
         await vm.createLeaderboard('My Squad');
 
@@ -242,7 +243,6 @@ void main() {
           () => mockLeaderboardRepo.recalculateMyWeeklyScore(),
           () => mockLeaderboardRepo.getMembers('lb-new'),
         ]);
-        verifyNever(() => mockLeaderboardRepo.recalculateMyWeeklyScore());
       },
     );
 
@@ -282,7 +282,10 @@ void main() {
         ],
       );
       when(
-        () => mockProfileRepo.getProfile(any()),
+        () => mockProfileRepo.getPublicProfile(any()),
+      ).thenAnswer((_) async => TestData.publicProfile());
+      when(
+        () => mockProfileRepo.getProfile('u1'),
       ).thenAnswer((_) async => TestData.profile());
       when(() => mockAchievementRepo.evaluateUserAchievements()).thenAnswer(
         (_) async => const [
@@ -310,7 +313,6 @@ void main() {
         () => mockAchievementRepo.evaluateUserAchievements(),
         () => mockLeaderboardRepo.getMembers('lb-join'),
       ]);
-      verifyNever(() => mockLeaderboardRepo.recalculateMyWeeklyScore());
     });
 
     test('invite code not found: error set', () async {

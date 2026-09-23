@@ -73,9 +73,8 @@ BEGIN
     -- Use the user's saved timezone to determine the workout day.
     v_workout_date :=
         (v_workout_logged_at AT TIME ZONE COALESCE(v_timezone, 'UTC'))::date;
--- A workout shorter than 10 minutes does not earn points.
-  
-    IF v_duration_minutes < 1 THEN
+    -- A workout shorter than 10 minutes does not earn points.
+    IF v_duration_minutes < 10 THEN
     SELECT
         p.points_total,
         p.streak_count,

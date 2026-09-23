@@ -49,7 +49,18 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
       isScrollControlled: true,
       useSafeArea: true,
       shape: const RoundedRectangleBorder(),
-      builder: (_) => _FilterBottomSheet(vm: _vm),
+      builder: (_) => DraggableScrollableSheet(
+  expand: false,
+  initialChildSize: 0.85,
+  minChildSize: 0.5,
+  maxChildSize: 0.95,
+  builder: (context, scrollController) {
+    return _FilterBottomSheet(
+      vm: _vm,
+      scrollController: scrollController,
+    );
+  },
+),
     );
   }
 
@@ -69,8 +80,10 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
           ListenableBuilder(
             listenable: _vm,
             builder: (_, child) {
-              final count = (_vm.selectedMuscleGroup != null ? 1 : 0) +
-                  (_vm.selectedDifficulty != null ? 1 : 0);
+             final count =
+    (_vm.selectedMuscleGroup != null ? 1 : 0) +
+    (_vm.selectedDifficulty != null ? 1 : 0) +
+    (_vm.selectedMeasurement != null ? 1 : 0);
               return Stack(
                 alignment: Alignment.topRight,
                 children: [
@@ -153,11 +166,13 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
           return _vm.exercises.isEmpty
               ? AppEmptyState(
                   title: 'No exercises found',
-                  body: _vm.searchQuery.isNotEmpty ||
-                          _vm.selectedMuscleGroup != null ||
-                          _vm.selectedDifficulty != null
-                      ? 'Try adjusting your filters.'
-                      : 'No exercises in the library yet.',
+                body: _vm.searchQuery.isNotEmpty ||
+        _vm.selectedMuscleGroup != null ||
+        _vm.selectedDifficulty != null ||
+        _vm.selectedMeasurement != null ||
+        _vm.selectedSort != null
+    ? 'Try adjusting your filters.'
+    : 'No exercises in the library yet.',
                   icon: Icons.search_off,
                 )
               : ListView.builder(
@@ -194,84 +209,191 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
 
 class _FilterBottomSheet extends StatelessWidget {
   final ExerciseLibraryViewModel vm;
-  const _FilterBottomSheet({required this.vm});
+  final ScrollController scrollController;
 
+  const _FilterBottomSheet({
+    required this.vm,
+    required this.scrollController,
+  });
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: vm,
       builder: (context, _) {
         final hasActiveFilter =
-            vm.selectedMuscleGroup != null || vm.selectedDifficulty != null;
+            vm.selectedMuscleGroup != null ||
+            vm.selectedDifficulty != null ||
+            vm.selectedMeasurement != null ||
+            vm.selectedSort != null;
 
-        return Padding(
+        return SingleChildScrollView(
+            controller: scrollController,
+            child: Padding(
           padding: const EdgeInsets.fromLTRB(
-            AppSpacing.base, AppSpacing.lg, AppSpacing.base, AppSpacing.xl,
+            AppSpacing.base,
+            AppSpacing.lg,
+            AppSpacing.base,
+            AppSpacing.xl,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Header
               Row(
                 children: [
-                  Text('FILTER', style: AppTypography.sectionHeader),
+                  Text(
+                    'FILTER',
+                    style: AppTypography.sectionHeader,
+                  ),
                   const Spacer(),
+
                   if (hasActiveFilter)
                     AppButton.ghost(
                       'Clear all',
-                      onPressed: () {
-                        vm.setMuscleGroup(null);
-                        vm.setDifficulty(null);
-                      },
+                      onPressed: vm.clearFiltersOnly,
                     ),
                 ],
               ),
+
               const SizedBox(height: AppSpacing.sm),
               const AppDivider(),
               const SizedBox(height: AppSpacing.base),
 
-              AppSectionHeader('Muscle Group', padding: EdgeInsets.zero),
+              // Muscle Group
+              AppSectionHeader(
+                'Muscle Group',
+                padding: EdgeInsets.zero,
+              ),
+
               const SizedBox(height: AppSpacing.sm),
+
               if (vm.availableMuscleGroups.isEmpty)
-                Text('No data yet', style: AppTypography.labelMuted)
+                Text(
+                  'No data yet',
+                  style: AppTypography.labelMuted,
+                )
               else
                 Wrap(
                   spacing: 8,
                   runSpacing: 6,
                   children: vm.availableMuscleGroups.map((g) {
                     final selected =
-                        vm.selectedMuscleGroup?.toLowerCase() == g.toLowerCase();
+                        vm.selectedMuscleGroup?.toLowerCase() ==
+                            g.toLowerCase();
+
                     return _FlatChip(
                       label: g,
                       selected: selected,
-                      onTap: () => vm.setMuscleGroup(selected ? null : g),
+                      onTap: () =>
+                          vm.setMuscleGroup(selected ? null : g),
                     );
                   }).toList(),
                 ),
 
               const SizedBox(height: AppSpacing.lg),
 
-              AppSectionHeader('Difficulty', padding: EdgeInsets.zero),
+              // Difficulty
+              AppSectionHeader(
+                'Difficulty',
+                padding: EdgeInsets.zero,
+              ),
+
               const SizedBox(height: AppSpacing.sm),
+
               Wrap(
                 spacing: 8,
+                runSpacing: 6,
                 children: DifficultyLevel.values.map((d) {
                   final selected = vm.selectedDifficulty == d;
+
                   final label = switch (d) {
                     DifficultyLevel.easy => 'Easy',
                     DifficultyLevel.medium => 'Medium',
                     DifficultyLevel.hard => 'Hard',
                   };
+
                   return _FlatChip(
                     label: label,
                     selected: selected,
-                    onTap: () => vm.setDifficulty(selected ? null : d),
+                    onTap: () =>
+                        vm.setDifficulty(selected ? null : d),
                   );
                 }).toList(),
               ),
+
+              const SizedBox(height: AppSpacing.lg),
+
+              // Measurement
+              AppSectionHeader(
+                'Measurement',
+                padding: EdgeInsets.zero,
+              ),
+
+              const SizedBox(height: AppSpacing.sm),
+
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                children: ExerciseMeasurement.values.map((m) {
+                  final selected = vm.selectedMeasurement == m;
+
+                  final label = switch (m) {
+                    ExerciseMeasurement.repsWeight =>
+                      'Reps + Weight',
+                    ExerciseMeasurement.timeDistance =>
+                      'Time + Distance',
+                    ExerciseMeasurement.timeOnly =>
+                      'Time Only',
+                    ExerciseMeasurement.repsOnly =>
+                      'Reps Only',
+                  };
+
+                  return _FlatChip(
+                    label: label,
+                    selected: selected,
+                    onTap: () =>
+                        vm.setMeasurement(selected ? null : m),
+                  );
+                }).toList(),
+              ),
+
+              const SizedBox(height: AppSpacing.lg),
+
+              // Sort
+              AppSectionHeader(
+                'Sort by',
+                padding: EdgeInsets.zero,
+              ),
+
+              const SizedBox(height: AppSpacing.sm),
+
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                children: ExerciseSort.values.map((sort) {
+                  final selected = vm.selectedSort == sort;
+
+                  final label = switch (sort) {
+                    ExerciseSort.nameAsc => 'Name A-Z',
+                    ExerciseSort.nameDesc => 'Name Z-A',
+                    ExerciseSort.difficultyAsc => 'Easy → Hard',
+                    ExerciseSort.difficultyDesc => 'Hard → Easy',
+                  };
+
+                  return _FlatChip(
+                    label: label,
+                    selected: selected,
+                    onTap: () =>
+                        vm.setSort(selected ? null : sort),
+                  );
+                }).toList(),
+              ),
+
               const SizedBox(height: AppSpacing.sm),
             ],
           ),
+        )
         );
       },
     );
@@ -322,82 +444,131 @@ class _ExerciseCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 3),
-        decoration: BoxDecoration(
-          color: AppColors.paper,
-          border: Border.all(color: AppColors.paperBorder),
-        ),
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: Row(
-          children: [
-            _ExerciseIcon(exercise: exercise),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    exercise.name,
-                    style: AppTypography.body.copyWith(fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 4),
-                  Wrap(
-                    spacing: 4,
-                    runSpacing: 2,
-                    children: [
-                      ...exercise.muscleGroups.take(3).map(
-                            (m) => _InlineChip(label: m),
-                          ),
-                      _DifficultyInlineChip(level: exercise.difficultyLevel),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            Icon(
-              selectionMode ? Icons.add_circle_outline : Icons.chevron_right,
-              color: AppColors.inkMuted,
-              size: 20,
-            ),
-          ],
-        ),
+Widget build(BuildContext context) {
+  return GestureDetector(
+    onTap: onTap,
+    child: Container(
+      margin: const EdgeInsets.symmetric(vertical: 3),
+      decoration: BoxDecoration(
+        color: AppColors.paper,
+        border: Border.all(color: AppColors.paperBorder),
       ),
-    );
-  }
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Row(
+        children: [
+          _ExerciseIcon(exercise: exercise),
+          const SizedBox(width: AppSpacing.md),
+
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  exercise.name,
+                  style: AppTypography.body.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+
+                const SizedBox(height: 4),
+
+                Wrap(
+                  spacing: 4,
+                  runSpacing: 2,
+                  children: [
+                    ...exercise.muscleGroups.take(2).map(
+                      (m) => _InlineChip(label: m),
+                    ),
+
+                    _DifficultyInlineChip(
+                      level: exercise.difficultyLevel,
+                    ),
+
+                    _MeasurementInlineChip(
+                      measurement: exercise.measurementType,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          Icon(
+            selectionMode
+                ? Icons.add_circle_outline
+                : Icons.chevron_right,
+            color: AppColors.inkMuted,
+            size: 20,
+          ),
+        ],
+      ),
+    ),
+  );
+}
 }
 
 class _ExerciseIcon extends StatelessWidget {
   final ExerciseEntity exercise;
+
   const _ExerciseIcon({required this.exercise});
 
   @override
   Widget build(BuildContext context) {
+    final imageUrl = exercise.mediaLink;
+
     return Container(
       width: 48,
       height: 48,
       color: AppColors.paperAlt,
-      child: Icon(
-        _muscleIcon(exercise.muscleGroups.firstOrNull ?? ''),
-        color: AppColors.ink,
-        size: 22,
-      ),
+      child: imageUrl != null && imageUrl.isNotEmpty
+          ? Image.network(
+              imageUrl,
+              width: 48,
+              height: 48,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return _fallbackIcon();
+              },
+            )
+          : _fallbackIcon(),
+    );
+  }
+
+  Widget _fallbackIcon() {
+    return Icon(
+      _muscleIcon(exercise.muscleGroups.firstOrNull ?? ''),
+      color: AppColors.ink,
+      size: 22,
     );
   }
 
   IconData _muscleIcon(String muscle) {
     final m = muscle.toLowerCase();
+
     if (m.contains('chest')) return Icons.fitness_center;
-    if (m.contains('back') || m.contains('lat')) return Icons.accessibility_new;
-    if (m.contains('leg') || m.contains('quad') || m.contains('hamstring')) {
+
+    if (m.contains('back') || m.contains('lat')) {
+      return Icons.accessibility_new;
+    }
+
+    if (m.contains('leg') ||
+        m.contains('quad') ||
+        m.contains('hamstring')) {
       return Icons.directions_run;
     }
-    if (m.contains('shoulder') || m.contains('delt')) return Icons.sports_gymnastics;
-    if (m.contains('core') || m.contains('ab')) return Icons.straighten;
-    if (m.contains('cardio') || m.contains('run')) return Icons.directions_run;
+
+    if (m.contains('shoulder') || m.contains('delt')) {
+      return Icons.sports_gymnastics;
+    }
+
+    if (m.contains('core') || m.contains('ab')) {
+      return Icons.straighten;
+    }
+
+    if (m.contains('cardio') || m.contains('run')) {
+      return Icons.directions_run;
+    }
+
     return Icons.fitness_center;
   }
 }
@@ -436,5 +607,25 @@ class _DifficultyInlineChip extends StatelessWidget {
         style: AppTypography.mono.copyWith(fontSize: 10, color: AppColors.ink),
       ),
     );
+  }
+}
+
+class _MeasurementInlineChip extends StatelessWidget {
+  final ExerciseMeasurement measurement;
+
+  const _MeasurementInlineChip({
+    required this.measurement,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final label = switch (measurement) {
+      ExerciseMeasurement.repsWeight => 'Reps + Weight',
+      ExerciseMeasurement.timeDistance => 'Time + Distance',
+      ExerciseMeasurement.timeOnly => 'Time',
+      ExerciseMeasurement.repsOnly => 'Reps',
+    };
+
+    return _InlineChip(label: label);
   }
 }
