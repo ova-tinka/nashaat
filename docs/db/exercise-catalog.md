@@ -7,8 +7,9 @@ Nashaat stores the global exercise library in the `exercises` table. The curated
 1. Apply the base schema in `docs/db/schema.sql`.
 2. Apply the Supabase migration `supabase/migrations/20260417000002_exercise_catalog_fields.sql`.
 3. Apply the Supabase migration `supabase/migrations/20260417000003_exercises_read_policy.sql`.
-4. Run the curated starter seed in `docs/db/seed-exercises.sql`.
-5. Optionally run the generated large seed in `docs/db/seed-exercises-free-exercise-db.sql`.
+4. Apply the Supabase migration `supabase/migrations/20260418000000_exercise_catalog_field_transition.sql`.
+5. Run the curated starter seed in `docs/db/seed-exercises.sql`.
+6. Optionally run the generated large seed in `docs/db/seed-exercises-free-exercise-db.sql`.
 
 ## Generate The Large Seed
 
@@ -24,7 +25,7 @@ Or explicitly allow the script to download the source JSON:
 node scripts/import-free-exercise-db.mjs --download
 ```
 
-The generated SQL inserts global exercises with `is_system = true`, leaves `media_id = NULL`, and uses `ON CONFLICT (name) DO UPDATE` so it can be rerun safely.
+The generated SQL inserts global exercises with `is_system = true`, leaves demonstration media unassigned, and uses `ON CONFLICT (name) DO UPDATE` so it can be rerun safely.
 
 ## Verify The App Can See Rows
 

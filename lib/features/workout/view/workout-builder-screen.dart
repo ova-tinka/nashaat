@@ -18,7 +18,7 @@ import '../../../shared/utils/week-helper.dart';
 import '../model/workout-models.dart';
 import '../view-model/workout-builder-view-model.dart';
 import 'exercise-library-screen.dart';
-
+WorkoutBuilderViewModel? workoutBuilderDraft;
 class WorkoutBuilderScreen extends StatefulWidget {
   final String? editPlanId;
 
@@ -37,17 +37,29 @@ class _WorkoutBuilderScreenState extends State<WorkoutBuilderScreen> {
   @override
   void initState() {
     super.initState();
-    _vm = WorkoutBuilderViewModel(
-      planRepo: RepositoryLocator.instance.workoutPlan,
-      exerciseRepo: RepositoryLocator.instance.exercise,
-    );
+        if (widget.editPlanId == null && workoutBuilderDraft != null) {
+        _vm = workoutBuilderDraft!;
+      } else {
+        _vm = WorkoutBuilderViewModel(
+          planRepo: RepositoryLocator.instance.workoutPlan,
+          exerciseRepo: RepositoryLocator.instance.exercise,
+        );
 
-    if (widget.editPlanId != null) {
+        if (widget.editPlanId == null) {
+          workoutBuilderDraft = _vm;
+        }
+      }
+
+      if (widget.editPlanId != null) {
       _vm.loadForEdit(widget.editPlanId!).then((_) {
         _titleController.text = _vm.title;
         _descController.text = _vm.description;
       });
     }
+    else {
+  _titleController.text = _vm.title;
+  _descController.text = _vm.description;
+}
 
     _titleController.addListener(() {
       _vm.setTitleFromController(_titleController.text);
@@ -61,8 +73,10 @@ class _WorkoutBuilderScreenState extends State<WorkoutBuilderScreen> {
   void dispose() {
     _titleController.dispose();
     _descController.dispose();
+ if (widget.editPlanId != null || workoutBuilderDraft != _vm) {
     _vm.dispose();
-    super.dispose();
+  }   
+   super.dispose();
   }
 
   @override
@@ -104,7 +118,7 @@ class _WorkoutBuilderScreenState extends State<WorkoutBuilderScreen> {
                 child: AppButton.primary(
                   'Save',
                   isLoading: _vm.isSaving,
-                  onPressed: _vm.isValid && !_vm.isSaving ? _handleSave : null,
+                  onPressed:  !_vm.isSaving ? _confirmSave : null,
                 ),
               ),
             ],
@@ -170,6 +184,26 @@ class _WorkoutBuilderScreenState extends State<WorkoutBuilderScreen> {
                         padding: EdgeInsets.zero,
                       ),
                     ),
+                     const SizedBox(width: AppSpacing.sm),
+
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '${_vm.entries.length} Exercises',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
                     const SizedBox(width: AppSpacing.sm),
                     AppButton.ghost(
                       'Add',
@@ -197,6 +231,8 @@ class _WorkoutBuilderScreenState extends State<WorkoutBuilderScreen> {
                         index: index,
                         entry: _vm.entries[index],
                         vm: _vm,
+                          onChangeExercise: _changeExercise,
+
                       );
                     },
                   ),
@@ -220,10 +256,26 @@ class _WorkoutBuilderScreenState extends State<WorkoutBuilderScreen> {
     }
   }
 
+Future<void> _changeExercise(int index) async {
+  final exercise = await Navigator.push<ExerciseEntity>(
+    context,
+    MaterialPageRoute(
+      builder: (_) => const ExerciseLibraryScreen(
+        selectionMode: true,
+      ),
+    ),
+  );
+
+  if (exercise != null) {
+    _vm.changeExercise(index, exercise);
+  }
+}
   Future<void> _handleSave() async {
-    if (!(_formKey.currentState?.validate() ?? false)) return;
     final result = await _vm.save();
     if (result != null && mounted) {
+      if (widget.editPlanId == null) {
+      workoutBuilderDraft = null;
+    }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -236,6 +288,41 @@ class _WorkoutBuilderScreenState extends State<WorkoutBuilderScreen> {
       Navigator.pop(context, true);
     }
   }
+Future<void> _confirmSave() async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (context) {
+      return AlertDialog(
+        title: const Text('Confirm'),
+        content: const Text(
+          'Are you sure you want to perform this action?',
+        ),
+        actions: [
+                TextButton(
+            style: TextButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('No'),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Yes'),
+          ),
+        ],
+      );
+    },
+  );
+
+  if (confirmed == true) {
+    await _handleSave();
+  }
+}
 }
 
 // ── Session size selector ─────────────────────────────────────────────────────
@@ -322,12 +409,15 @@ class _ExerciseEntryCard extends StatelessWidget {
   final int index;
   final BuilderEntry entry;
   final WorkoutBuilderViewModel vm;
+  final Future<void> Function(int index) onChangeExercise;
 
   const _ExerciseEntryCard({
     required super.key,
     required this.index,
     required this.entry,
     required this.vm,
+      required this.onChangeExercise,
+
   });
 
   @override
@@ -367,6 +457,18 @@ class _ExerciseEntryCard extends StatelessWidget {
                     style: AppTypography.body.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
+                  ),
+                ),
+               IconButton(
+                  icon: const Icon(
+                    Icons.swap_horiz,
+                    size: 18,
+                  ),
+                  onPressed: () => onChangeExercise(index),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(
+                    minWidth: 32,
+                    minHeight: 32,
                   ),
                 ),
                 IconButton(
@@ -547,6 +649,10 @@ class _NumberFieldState extends State<_NumberField> {
           if (v != null && v >= widget.min && v <= widget.max) {
             widget.onChanged(v);
           }
+          else
+          {
+            widget.onChanged(0);
+          }
         },
       ),
     );
@@ -607,7 +713,12 @@ class _DecimalFieldState extends State<_DecimalField> {
         ],
         onChanged: (s) {
           final v = double.tryParse(s);
-          if (v != null && v >= 0) widget.onChanged(v);
+          if (v != null && v >= 0){
+            widget.onChanged(v);
+          }
+          else{
+            widget.onChanged(0.0);
+          }
         },
       ),
     );

@@ -16,6 +16,8 @@ class ExerciseLibraryViewModel extends ChangeNotifier {
   List<ExerciseEntity> _filtered = [];
   String _searchQuery = '';
   String? _selectedMuscleGroup;
+  ExerciseMeasurement? _selectedMeasurement;
+  ExerciseSort? _selectedSort;
   DifficultyLevel? _selectedDifficulty;
   bool _isLoading = false;
   String? _error;
@@ -27,6 +29,8 @@ class ExerciseLibraryViewModel extends ChangeNotifier {
   String get searchQuery => _searchQuery;
   String? get selectedMuscleGroup => _selectedMuscleGroup;
   DifficultyLevel? get selectedDifficulty => _selectedDifficulty;
+  ExerciseMeasurement? get selectedMeasurement => _selectedMeasurement;
+  ExerciseSort? get selectedSort => _selectedSort;
 
   List<String> get availableMuscleGroups {
     final groups = <String>{};
@@ -75,27 +79,95 @@ class ExerciseLibraryViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  void clearFilters() {
-    _searchQuery = '';
-    _selectedMuscleGroup = null;
-    _selectedDifficulty = null;
-    _applyFilters();
-    notifyListeners();
-  }
+  void setMeasurement(ExerciseMeasurement? measurement) {
+  _selectedMeasurement = measurement;
+  _applyFilters();
+  notifyListeners();
+}
+void setSort(ExerciseSort? sort) {
+  _selectedSort = sort;
+  _applyFilters();
+  notifyListeners();
+}
+ 
+ void clearFilters() {
+  _searchQuery = '';
+  _selectedMuscleGroup = null;
+  _selectedDifficulty = null;
+  _selectedMeasurement = null;
+  _selectedSort = null;
 
-  void _applyFilters() {
-    _filtered = _allExercises.where((e) {
-      final matchesSearch = _searchQuery.isEmpty ||
-          e.name.toLowerCase().contains(_searchQuery.toLowerCase());
-      final matchesMuscle = _selectedMuscleGroup == null ||
-          e.muscleGroups.any(
-            (m) => m.toLowerCase() == _selectedMuscleGroup!.toLowerCase(),
-          );
-      final matchesDifficulty =
-          _selectedDifficulty == null || e.difficultyLevel == _selectedDifficulty;
-      return matchesSearch && matchesMuscle && matchesDifficulty;
-    }).toList();
+  _applyFilters();
+  notifyListeners();
+}
+void clearFiltersOnly() {
+  _selectedMuscleGroup = null;
+  _selectedDifficulty = null;
+  _selectedMeasurement = null;
+  _selectedSort = null;
+
+  _applyFilters();
+  notifyListeners();
+}
+void _applyFilters() {
+  _filtered = _allExercises.where((e) {
+    final matchesSearch = _searchQuery.isEmpty ||
+        e.name.toLowerCase().contains(_searchQuery.toLowerCase());
+
+    final matchesMuscle = _selectedMuscleGroup == null ||
+        e.muscleGroups.any(
+          (m) => m.toLowerCase() == _selectedMuscleGroup!.toLowerCase(),
+        );
+
+    final matchesDifficulty =
+        _selectedDifficulty == null ||
+        e.difficultyLevel == _selectedDifficulty;
+
+    final matchesMeasurement =
+        _selectedMeasurement == null ||
+        e.measurementType == _selectedMeasurement;
+
+    return matchesSearch &&
+        matchesMuscle &&
+        matchesDifficulty &&
+        matchesMeasurement;
+  }).toList();
+
+if (_selectedSort != null) {
+  _filtered.sort((a, b) {
+    switch (_selectedSort!) {
+      case ExerciseSort.nameAsc:
+        return a.name.toLowerCase().compareTo(
+              b.name.toLowerCase(),
+            );
+
+      case ExerciseSort.nameDesc:
+        return b.name.toLowerCase().compareTo(
+              a.name.toLowerCase(),
+            );
+
+      case ExerciseSort.difficultyAsc:
+        return _difficultyValue(a.difficultyLevel)
+            .compareTo(_difficultyValue(b.difficultyLevel));
+
+      case ExerciseSort.difficultyDesc:
+        return _difficultyValue(b.difficultyLevel)
+            .compareTo(_difficultyValue(a.difficultyLevel));
+    }
+  });
+}
+  
+}
+int _difficultyValue(DifficultyLevel level) {
+  switch (level) {
+    case DifficultyLevel.easy:
+      return 0;
+    case DifficultyLevel.medium:
+      return 1;
+    case DifficultyLevel.hard:
+      return 2;
   }
+}
 
   @override
   void dispose() {

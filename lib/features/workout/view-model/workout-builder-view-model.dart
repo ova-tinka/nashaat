@@ -119,6 +119,21 @@ class WorkoutBuilderViewModel extends ChangeNotifier {
     entries.add(BuilderEntry(exercise: exercise));
     notifyListeners();
   }
+  void changeExercise(int index, ExerciseEntity exercise) {
+  final oldEntry = entries[index];
+
+  entries[index] = BuilderEntry(
+    exercise: exercise,
+    sets: oldEntry.sets,
+    reps: oldEntry.reps,
+    durationSeconds: oldEntry.durationSeconds,
+    restSeconds: oldEntry.restSeconds,
+    weightKg: oldEntry.weightKg,
+    distanceKm: oldEntry.distanceKm,
+  );
+
+  notifyListeners();
+}
 
   void removeExercise(int index) {
     entries.removeAt(index);
@@ -156,9 +171,58 @@ class WorkoutBuilderViewModel extends ChangeNotifier {
 
   // ── Save ──────────────────────────────────────────────────────────────────
 
-  Future<WorkoutPlanEntity?> save() async {
-    if (!isValid) return null;
+String? validateForm() {
+  if (title.trim().isEmpty) {
+    return 'Please enter a plan title.';
+  } else if (entries.isEmpty) {
+    return 'Please add at least one exercise.';
+  }
+  else if(scheduledDays.isEmpty){
+    return 'Please select at least one scheduled day.';
+  }
 
+  for (final entry in entries) {
+    final measurement = entry.exercise.measurementType;
+
+    if (measurement == ExerciseMeasurement.timeOnly) {
+      if (entry.sets  <= 0 ||
+          (entry.durationSeconds ?? 0) <= 0 ||
+          (entry.restSeconds ?? 0) <= 0) {
+        return 'Please check the exercise fields.';
+      }
+    } else if (measurement == ExerciseMeasurement.repsOnly) {
+      if (entry.sets  <= 0 ||
+          (entry.reps ?? 0) <= 0 ||
+          (entry.restSeconds ?? 0) <= 0) {
+        return 'Please check the exercise fields.';
+      }
+    } else if (measurement == ExerciseMeasurement.repsWeight) {
+      if (entry.sets <= 0 ||
+          (entry.reps ?? 0) <= 0 ||
+          (entry.weightKg ?? 0) <= 0 ||
+          (entry.restSeconds ?? 0) <= 0) {
+        return 'Please check the exercise fields.';
+      }
+    }
+    else if (measurement == ExerciseMeasurement.timeDistance) {
+      if (entry.sets <= 0 ||
+          (entry.durationSeconds ?? 0) <= 0 ||
+          (entry.distanceKm ?? 0) <= 0 ||
+          (entry.restSeconds ?? 0) <= 0) {
+        return 'Please check the exercise fields.';
+      }
+    }
+  }
+
+  return null;
+}
+  Future<WorkoutPlanEntity?> save() async {
+    final error = validateForm();
+  if (error != null) {
+    _error = error;
+    notifyListeners();
+    return null;
+  }
     _isSaving = true;
     _error = null;
     notifyListeners();
