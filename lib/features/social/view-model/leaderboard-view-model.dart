@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/entities/leaderboard-entity.dart';
-import '../../../core/entities/profile-entity.dart';
+import '../../../core/entities/public-profile-entity.dart';
 import '../../../core/repositories/leaderboard-repository.dart';
 import '../../../core/repositories/profile-repository.dart';
 import '../../../shared/logger.dart';
@@ -34,10 +34,11 @@ class LeaderboardViewModel extends ChangeNotifier {
     required LeaderboardRepository leaderboardRepo,
     required ProfileRepository profileRepo,
     String Function()? getUserId,
-  })  : _leaderboardRepo = leaderboardRepo,
-        _profileRepo = profileRepo,
-        _getUserId = getUserId ??
-            (() => Supabase.instance.client.auth.currentUser?.id ?? '');
+  }) : _leaderboardRepo = leaderboardRepo,
+       _profileRepo = profileRepo,
+       _getUserId =
+           getUserId ??
+           (() => Supabase.instance.client.auth.currentUser?.id ?? '');
 
   List<LeaderboardEntity> _leaderboards = [];
   LeaderboardEntity? _selectedLeaderboard;
@@ -46,8 +47,7 @@ class LeaderboardViewModel extends ChangeNotifier {
   bool _isLoadingRankings = false;
   String? _error;
 
-  List<LeaderboardEntity> get leaderboards =>
-      List.unmodifiable(_leaderboards);
+  List<LeaderboardEntity> get leaderboards => List.unmodifiable(_leaderboards);
   LeaderboardEntity? get selectedLeaderboard => _selectedLeaderboard;
   List<LeaderboardEntry> get rankings => List.unmodifiable(_rankings);
   bool get isLoading => _isLoading;
@@ -67,8 +67,7 @@ class LeaderboardViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      _leaderboards =
-          await _leaderboardRepo.getUserLeaderboards(currentUserId);
+      _leaderboards = await _leaderboardRepo.getUserLeaderboards(currentUserId);
       if (_leaderboards.isNotEmpty && _selectedLeaderboard == null) {
         _selectedLeaderboard = _leaderboards.first;
         await _loadRankings(_selectedLeaderboard!.id);
@@ -94,20 +93,22 @@ class LeaderboardViewModel extends ChangeNotifier {
     try {
       final members = await _leaderboardRepo.getMembers(leaderboardId);
       final profiles = await Future.wait(
-        members.map((m) => _profileRepo.getProfile(m.userId)),
+        members.map((m) => _profileRepo.getPublicProfile(m.userId)),
       );
 
       _rankings = [];
       for (int i = 0; i < members.length; i++) {
         final member = members[i];
         final profile = profiles[i];
-        _rankings.add(LeaderboardEntry(
-          userId: member.userId,
-          displayName: _displayName(profile),
-          weeklyScore: member.weeklyScore,
-          rank: i + 1,
-          streakCount: profile?.streakCount ?? 0,
-        ));
+        _rankings.add(
+          LeaderboardEntry(
+            userId: member.userId,
+            displayName: _displayName(profile),
+            weeklyScore: member.weeklyScore,
+            rank: i + 1,
+            streakCount: profile?.streakCount ?? 0,
+          ),
+        );
       }
       Log.db('loaded ${_rankings.length} leaderboard entries');
     } catch (e) {
@@ -169,9 +170,9 @@ class LeaderboardViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  String _displayName(ProfileEntity? p) {
+  String _displayName(PublicProfileEntity? p) {
     if (p == null) return 'Athlete';
-    return p.username ?? p.firstName ?? p.email.split('@').first;
+    return p.username ?? p.firstName ?? 'Athlete';
   }
 
   String _generateInviteCode() {
