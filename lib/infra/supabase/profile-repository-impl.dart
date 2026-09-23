@@ -45,6 +45,7 @@ class SupabaseProfileRepository implements ProfileRepository {
     String? firstName,
     String? lastName,
     int? weeklyExerciseTargetMinutes,
+    String? timezone,
     String? fcmToken,
     String? avatarMediaId,
   }) async {
@@ -57,6 +58,7 @@ class SupabaseProfileRepository implements ProfileRepository {
     if (weeklyExerciseTargetMinutes != null) {
       updates['weekly_exercise_target_minutes'] = weeklyExerciseTargetMinutes;
     }
+    if (timezone != null) updates['timezone'] = timezone;
     if (fcmToken != null) updates['fcm_token'] = fcmToken;
     if (avatarMediaId != null) updates['avatar_media_id'] = avatarMediaId;
 
@@ -91,22 +93,6 @@ class SupabaseProfileRepository implements ProfileRepository {
         .from('profiles')
         .update({
           'screen_time_balance_minutes': balanceMinutes,
-          'updated_at': DateTime.now().toIso8601String(),
-        })
-        .eq('id', userId);
-  }
-
-  @override
-  Future<void> updateStreak(
-    String userId,
-    int streakCount,
-    DateTime? lastWorkoutDate,
-  ) async {
-    await _db
-        .from('profiles')
-        .update({
-          'streak_count': streakCount,
-          'last_workout_date': lastWorkoutDate?.toIso8601String(),
           'updated_at': DateTime.now().toIso8601String(),
         })
         .eq('id', userId);
@@ -172,10 +158,13 @@ class SupabaseProfileRepository implements ProfileRepository {
     weeklyExerciseTargetMinutes:
         map['weekly_exercise_target_minutes'] as int? ?? 0,
     screenTimeBalanceMinutes: map['screen_time_balance_minutes'] as int? ?? 0,
+    pointsTotal: map['points_total'] as int? ?? 0,
     streakCount: map['streak_count'] as int? ?? 0,
+    longestStreak: map['longest_streak'] as int? ?? 0,
     lastWorkoutDate: map['last_workout_date'] != null
         ? DateTime.tryParse(map['last_workout_date'] as String)
         : null,
+    timezone: map['timezone'] as String? ?? 'UTC',
     subscriptionTier: _parseTier(map['subscription_tier'] as String? ?? 'free'),
     fcmToken: map['fcm_token'] as String?,
     avatarMediaId: map['avatar_media_id'] as String?,

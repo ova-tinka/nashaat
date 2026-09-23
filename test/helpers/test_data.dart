@@ -2,6 +2,7 @@ import 'package:nashaat/core/entities/blocking-rule-entity.dart';
 import 'package:nashaat/core/entities/enums.dart';
 import 'package:nashaat/core/entities/exercise-entity.dart';
 import 'package:nashaat/core/entities/leaderboard-entity.dart';
+import 'package:nashaat/core/entities/point-award-entity.dart';
 import 'package:nashaat/core/entities/profile-entity.dart';
 import 'package:nashaat/core/entities/public-profile-entity.dart';
 import 'package:nashaat/core/entities/screen-time-transaction-entity.dart';
@@ -21,7 +22,11 @@ class TestData {
     UserStatus status = UserStatus.active,
     int weeklyExerciseTargetMinutes = 120,
     int screenTimeBalanceMinutes = 60,
+    int pointsTotal = 0,
     int streakCount = 3,
+    int longestStreak = 5,
+    DateTime? lastWorkoutDate,
+    String timezone = 'UTC',
     SubscriptionTier subscriptionTier = SubscriptionTier.free,
     int dailyPhoneHours = 0,
     int weeklySmallSessions = 0,
@@ -35,7 +40,11 @@ class TestData {
       status: status,
       weeklyExerciseTargetMinutes: weeklyExerciseTargetMinutes,
       screenTimeBalanceMinutes: screenTimeBalanceMinutes,
+      pointsTotal: pointsTotal,
       streakCount: streakCount,
+      longestStreak: longestStreak,
+      lastWorkoutDate: lastWorkoutDate,
+      timezone: timezone,
       subscriptionTier: subscriptionTier,
       createdAt: _now,
       updatedAt: _now,
@@ -49,14 +58,44 @@ class TestData {
     String id = 'u1',
     String email = 'test@example.com',
     int screenTimeBalanceMinutes = 60,
+    int pointsTotal = 0,
+    int streakCount = 3,
+    int longestStreak = 5,
   }) {
     return profile(
       id: id,
       email: email,
       screenTimeBalanceMinutes: screenTimeBalanceMinutes,
+      pointsTotal: pointsTotal,
+      streakCount: streakCount,
+      longestStreak: longestStreak,
       dailyPhoneHours: 8,
       weeklySmallSessions: 2,
       weeklyBigSessions: 3,
+    );
+  }
+
+  static PointAwardEntity pointAward({
+    String id = 'award1',
+    String userId = 'u1',
+    int points = 100,
+    PointReason reason = PointReason.workoutCompletion,
+    String description = 'Completed a qualifying workout',
+    String sourceType = 'workout',
+    String sourceEventId = 'log1',
+    String? workoutLogId = 'log1',
+    DateTime? createdAt,
+  }) {
+    return PointAwardEntity(
+      id: id,
+      userId: userId,
+      points: points,
+      reason: reason,
+      description: description,
+      sourceType: sourceType,
+      sourceEventId: sourceEventId,
+      workoutLogId: workoutLogId,
+      createdAt: createdAt ?? _now,
     );
   }
 

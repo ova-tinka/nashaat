@@ -13,6 +13,7 @@ abstract class ProfileRepository {
     String? firstName,
     String? lastName,
     int? weeklyExerciseTargetMinutes,
+    String? timezone,
     String? fcmToken,
     String? avatarMediaId,
   });
@@ -20,12 +21,6 @@ abstract class ProfileRepository {
   Future<void> updateStatus(String userId, UserStatus status);
 
   Future<void> updateScreenTimeBalance(String userId, int balanceMinutes);
-
-  Future<void> updateStreak(
-    String userId,
-    int streakCount,
-    DateTime? lastWorkoutDate,
-  );
 
   Future<void> updateScreenTimeSetup(
     String userId, {

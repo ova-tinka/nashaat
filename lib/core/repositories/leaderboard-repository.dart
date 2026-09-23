@@ -20,9 +20,5 @@ abstract class LeaderboardRepository {
     String userId,
   );
 
-  Future<void> updateMemberScore(
-    String leaderboardId,
-    String userId,
-    int score,
-  );
+  Future<void> recalculateMyWeeklyScore();
 }

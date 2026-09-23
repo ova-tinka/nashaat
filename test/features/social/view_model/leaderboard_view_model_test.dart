@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nashaat/core/entities/achievement-entity.dart';
+import 'package:nashaat/core/entities/enums.dart';
 import 'package:nashaat/features/social/view-model/leaderboard-view-model.dart';
 
 import '../../../helpers/mock_repositories.dart';
@@ -8,14 +10,20 @@ import '../../../helpers/test_data.dart';
 void main() {
   late MockLeaderboardRepository mockLeaderboardRepo;
   late MockProfileRepository mockProfileRepo;
+  late MockAchievementRepository mockAchievementRepo;
   late LeaderboardViewModel vm;
 
   setUp(() {
     mockLeaderboardRepo = MockLeaderboardRepository();
+    when(
+      () => mockLeaderboardRepo.recalculateMyWeeklyScore(),
+    ).thenAnswer((_) async {});
     mockProfileRepo = MockProfileRepository();
+    mockAchievementRepo = MockAchievementRepository();
     vm = LeaderboardViewModel(
       leaderboardRepo: mockLeaderboardRepo,
       profileRepo: mockProfileRepo,
+      achievementRepo: mockAchievementRepo,
       getUserId: () => 'u1',
     );
   });
@@ -61,6 +69,11 @@ void main() {
         expect(vm.leaderboards.length, 1);
         expect(vm.selectedLeaderboard?.id, 'lb1');
         expect(vm.rankings.length, 1);
+        verifyInOrder([
+          () => mockLeaderboardRepo.getUserLeaderboards('u1'),
+          () => mockLeaderboardRepo.recalculateMyWeeklyScore(),
+          () => mockLeaderboardRepo.getMembers('lb1'),
+        ]);
       },
     );
 
@@ -73,6 +86,53 @@ void main() {
 
       expect(vm.error, isNotNull);
     });
+
+    test('reload refreshes rankings for the selected board', () async {
+      final lb = TestData.leaderboard();
+      var score = 10;
+      when(
+        () => mockLeaderboardRepo.getUserLeaderboards(any()),
+      ).thenAnswer((_) async => [lb]);
+      when(() => mockLeaderboardRepo.getMembers(lb.id)).thenAnswer(
+        (_) async => [TestData.leaderboardMember(weeklyScore: score)],
+      );
+      when(
+        () => mockProfileRepo.getPublicProfile(any()),
+      ).thenAnswer((_) async => TestData.publicProfile());
+
+      await vm.load();
+      score = 25;
+      await vm.load();
+
+      expect(vm.rankings.single.weeklyScore, 25);
+      verify(() => mockLeaderboardRepo.getMembers(lb.id)).called(2);
+    });
+
+    test(
+      'ranks members by weekly score even if rows arrive unsorted',
+      () async {
+        final lb = TestData.leaderboard();
+        when(
+          () => mockLeaderboardRepo.getUserLeaderboards(any()),
+        ).thenAnswer((_) async => [lb]);
+        when(() => mockLeaderboardRepo.getMembers(lb.id)).thenAnswer(
+          (_) async => [
+            TestData.leaderboardMember(userId: 'u1', weeklyScore: 30),
+            TestData.leaderboardMember(userId: 'u2', weeklyScore: 90),
+            TestData.leaderboardMember(userId: 'u3', weeklyScore: 50),
+          ],
+        );
+        when(
+          () => mockProfileRepo.getPublicProfile(any()),
+        ).thenAnswer((_) async => TestData.publicProfile());
+
+        await vm.load();
+
+        expect(vm.rankings.map((entry) => entry.userId), ['u2', 'u3', 'u1']);
+        expect(vm.rankings.map((entry) => entry.rank), [1, 2, 3]);
+        expect(vm.myRank, 3);
+      },
+    );
   });
 
   // ── selectLeaderboard ──────────────────────────────────────────────────────
@@ -88,7 +148,6 @@ void main() {
       when(
         () => mockProfileRepo.getPublicProfile(any()),
       ).thenAnswer((_) async => TestData.publicProfile());
-
       await vm.selectLeaderboard(lb2);
 
       expect(vm.selectedLeaderboard?.id, 'lb2');
@@ -157,12 +216,33 @@ void main() {
         when(
           () => mockLeaderboardRepo.createLeaderboard(any(), any(), any()),
         ).thenAnswer((_) async => newLb);
+        when(
+          () => mockLeaderboardRepo.recalculateMyWeeklyScore(),
+        ).thenAnswer((_) async {});
+        when(() => mockLeaderboardRepo.getMembers(newLb.id)).thenAnswer(
+          (_) async => [
+            TestData.leaderboardMember(
+              leaderboardId: newLb.id,
+              userId: 'u1',
+              weeklyScore: 42,
+            ),
+          ],
+        );
+        when(
+          () => mockProfileRepo.getPublicProfile('u1'),
+        ).thenAnswer((_) async => TestData.publicProfile());
 
         await vm.createLeaderboard('My Squad');
 
         expect(vm.leaderboards.length, 1);
         expect(vm.leaderboards.first.id, 'lb-new');
         expect(vm.selectedLeaderboard?.id, 'lb-new');
+        expect(vm.rankings.single.weeklyScore, 42);
+        verifyInOrder([
+          () => mockLeaderboardRepo.createLeaderboard('u1', 'My Squad', any()),
+          () => mockLeaderboardRepo.recalculateMyWeeklyScore(),
+          () => mockLeaderboardRepo.getMembers('lb-new'),
+        ]);
       },
     );
 
@@ -174,6 +254,7 @@ void main() {
       await vm.createLeaderboard('My Squad');
 
       expect(vm.error, isNotNull);
+      verifyNever(() => mockLeaderboardRepo.recalculateMyWeeklyScore());
     });
   });
 
@@ -189,15 +270,49 @@ void main() {
         () => mockLeaderboardRepo.joinLeaderboard(any(), any()),
       ).thenAnswer((_) async => TestData.leaderboardMember());
       when(
-        () => mockLeaderboardRepo.getMembers(any()),
-      ).thenAnswer((_) async => [TestData.leaderboardMember()]);
+        () => mockLeaderboardRepo.recalculateMyWeeklyScore(),
+      ).thenAnswer((_) async {});
+      when(() => mockLeaderboardRepo.getMembers(any())).thenAnswer(
+        (_) async => [
+          TestData.leaderboardMember(
+            leaderboardId: lb.id,
+            userId: 'u1',
+            weeklyScore: 42,
+          ),
+        ],
+      );
       when(
         () => mockProfileRepo.getPublicProfile(any()),
       ).thenAnswer((_) async => TestData.publicProfile());
+      when(
+        () => mockProfileRepo.getProfile('u1'),
+      ).thenAnswer((_) async => TestData.profile());
+      when(() => mockAchievementRepo.evaluateUserAchievements()).thenAnswer(
+        (_) async => const [
+          UnlockedAchievementEntity(
+            id: 'achievement-social',
+            code: 'join_private_board',
+            name: 'Friendly Start',
+            rewardType: RewardType.recognition,
+            rewardAmount: 0,
+          ),
+        ],
+      );
+      when(
+        () => mockAchievementRepo.getUserAchievements('u1'),
+      ).thenAnswer((_) async => []);
 
       await vm.joinByInviteCode('ABC123');
 
       expect(vm.leaderboards, contains(lb));
+      expect(vm.rankings.single.weeklyScore, 42);
+      expect(vm.newlyUnlockedAchievements.single.code, 'join_private_board');
+      verifyInOrder([
+        () => mockLeaderboardRepo.joinLeaderboard('lb-join', 'u1'),
+        () => mockLeaderboardRepo.recalculateMyWeeklyScore(),
+        () => mockAchievementRepo.evaluateUserAchievements(),
+        () => mockLeaderboardRepo.getMembers('lb-join'),
+      ]);
     });
 
     test('invite code not found: error set', () async {
@@ -208,6 +323,7 @@ void main() {
       await vm.joinByInviteCode('INVALID');
 
       expect(vm.error, contains('not found'));
+      verifyNever(() => mockLeaderboardRepo.recalculateMyWeeklyScore());
     });
   });
 

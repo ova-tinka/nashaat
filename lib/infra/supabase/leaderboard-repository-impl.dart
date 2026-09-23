@@ -77,7 +77,6 @@ class SupabaseLeaderboardRepository implements LeaderboardRepository {
     await _db.from('leaderboard_members').insert({
       'leaderboard_id': data['id'],
       'user_id': ownerId,
-      'weekly_score': 0,
     });
 
     Log.db('leaderboard created ✓');
@@ -103,25 +102,16 @@ class SupabaseLeaderboardRepository implements LeaderboardRepository {
   ) async {
     final data = await _db
         .from('leaderboard_members')
-        .insert({
-          'leaderboard_id': leaderboardId,
-          'user_id': userId,
-          'weekly_score': 0,
-        })
+        .insert({'leaderboard_id': leaderboardId, 'user_id': userId})
         .select()
         .single();
     return _memberFromMap(data);
   }
 
   @override
-  Future<void> updateMemberScore(
-    String leaderboardId,
-    String userId,
-    int score,
-  ) async {
-    await _db.from('leaderboard_members').update({'weekly_score': score}).match(
-      {'leaderboard_id': leaderboardId, 'user_id': userId},
-    );
+  Future<void> recalculateMyWeeklyScore() async {
+    await _db.rpc('recalculate_my_weekly_leaderboard_score');
+    Log.db('weekly leaderboard score recalculated');
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────

@@ -37,6 +37,9 @@ class _ActiveSessionScreenState extends State<ActiveSessionScreen> {
       mode: widget.mode,
       logRepo: RepositoryLocator.instance.workoutLog,
       profileRepo: RepositoryLocator.instance.profile,
+      achievementRepo: RepositoryLocator.instance.achievement,
+      pointAwardRepo: RepositoryLocator.instance.pointAward,
+      leaderboardRepo: RepositoryLocator.instance.leaderboard,
       txnRepo: RepositoryLocator.instance.screenTimeTransaction,
     );
   }
@@ -79,8 +82,9 @@ class _ActiveSessionScreenState extends State<ActiveSessionScreen> {
               leading: IconButton(
                 icon: const Icon(Icons.close, color: AppColors.ink),
                 onPressed: () async {
-                  if (await _confirmExit() && context.mounted)
+                  if (await _confirmExit() && context.mounted) {
                     Navigator.pop(context);
+                  }
                 },
               ),
               actions: [
@@ -546,6 +550,28 @@ class _CompletedViewState extends State<_CompletedView> {
                   value: _formatMinutes(
                     (vm.elapsedSeconds / 60).ceil().clamp(1, 9999),
                   ),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                _StatRow(
+                  icon: Icons.stars_outlined,
+                  label: 'Reward Points',
+                  value: vm.pointsEarned > 0
+                      ? '+${vm.pointsEarned} reward points'
+                      : 'No reward points earned for this workout',
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                _StatRow(
+                  icon: Icons.workspace_premium_outlined,
+                  label: 'Point Balance',
+                  value: 'Total points: ${vm.pointsTotal}',
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                _StatRow(
+                  icon: Icons.local_fire_department,
+                  label: 'Workout Streak',
+                  value:
+                      '${vm.currentStreak} ${vm.currentStreak == 1 ? 'day' : 'days'} · '
+                      'Longest: ${vm.longestStreak}',
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 _StatRow(

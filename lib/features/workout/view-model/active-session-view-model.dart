@@ -4,9 +4,14 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/entities/enums.dart';
+import '../../../core/entities/achievement-entity.dart';
+import '../../../core/entities/profile-entity.dart';
 import '../../../core/entities/workout-log-entity.dart';
 import '../../../core/entities/workout-plan-entity.dart';
 import '../../../core/repositories/profile-repository.dart';
+import '../../../core/repositories/achievement-repository.dart';
+import '../../../core/repositories/point-award-repository.dart';
+import '../../../core/repositories/leaderboard-repository.dart';
 import '../../../core/repositories/screen-time-transaction-repository.dart';
 import '../../../core/repositories/workout-log-repository.dart';
 import '../../../core/entities/screen-time-transaction-entity.dart';
@@ -18,6 +23,9 @@ class ActiveSessionViewModel extends ChangeNotifier {
   final WorkoutPlanEntity plan;
   final WorkoutLogRepository _logRepo;
   final ProfileRepository _profileRepo;
+  final AchievementRepository _achievementRepo;
+  final PointAwardRepository _pointAwardRepo;
+  final LeaderboardRepository _leaderboardRepo;
   final ScreenTimeTransactionRepository _txnRepo;
   final SessionMode mode;
   final String Function() _getUserId;
@@ -27,13 +35,19 @@ class ActiveSessionViewModel extends ChangeNotifier {
     required this.mode,
     required WorkoutLogRepository logRepo,
     required ProfileRepository profileRepo,
+    required AchievementRepository achievementRepo,
+    required PointAwardRepository pointAwardRepo,
+    required LeaderboardRepository leaderboardRepo,
     required ScreenTimeTransactionRepository txnRepo,
     String Function()? getUserId,
-  })  : _logRepo = logRepo,
-        _profileRepo = profileRepo,
-        _txnRepo = txnRepo,
-        _getUserId = getUserId ??
-            (() => Supabase.instance.client.auth.currentUser!.id) {
+  }) : _logRepo = logRepo,
+       _profileRepo = profileRepo,
+       _achievementRepo = achievementRepo,
+       _pointAwardRepo = pointAwardRepo,
+       _leaderboardRepo = leaderboardRepo,
+       _txnRepo = txnRepo,
+       _getUserId =
+           getUserId ?? (() => Supabase.instance.client.auth.currentUser!.id) {
     _initSets();
   }
 
@@ -51,6 +65,13 @@ class ActiveSessionViewModel extends ChangeNotifier {
   bool _isSaving = false;
   String? _error;
   int _earnedMinutes = 0;
+  int _pointsEarned = 0;
+  int _pointsTotal = 0;
+  int _currentStreak = 0;
+  int _longestStreak = 0;
+  ProfileEntity? _profile;
+  List<UserAchievementEntity> _userAchievements = [];
+  List<UnlockedAchievementEntity> _newlyUnlockedAchievements = [];
 
   // ── Getters ───────────────────────────────────────────────────────────────
 
@@ -62,12 +83,21 @@ class ActiveSessionViewModel extends ChangeNotifier {
   bool get isSaving => _isSaving;
   String? get error => _error;
   int get earnedMinutes => _earnedMinutes;
+  int get pointsEarned => _pointsEarned;
+  int get pointsTotal => _pointsTotal;
+  int get currentStreak => _currentStreak;
+  int get longestStreak => _longestStreak;
+  ProfileEntity? get profile => _profile;
+  List<UserAchievementEntity> get userAchievements =>
+      List.unmodifiable(_userAchievements);
+  List<UnlockedAchievementEntity> get newlyUnlockedAchievements =>
+      List.unmodifiable(_newlyUnlockedAchievements);
   List<List<bool>> get setCompletions => _setCompletions;
 
   WorkoutPlanExercise? get currentExercise =>
       _exerciseIndex < plan.exercises.length
-          ? plan.exercises[_exerciseIndex]
-          : null;
+      ? plan.exercises[_exerciseIndex]
+      : null;
 
   int get totalExercises => plan.exercises.length;
   int get totalSetsForCurrent => currentExercise?.sets ?? 0;
@@ -99,9 +129,7 @@ class ActiveSessionViewModel extends ChangeNotifier {
     for (final e in plan.exercises) {
       _setCompletions.add(List.filled(e.sets, false));
     }
-    if (mode == SessionMode.guided) {
-      _startSessionTimer();
-    }
+    _startSessionTimer();
   }
 
   // ── Actions ───────────────────────────────────────────────────────────────
@@ -148,7 +176,8 @@ class ActiveSessionViewModel extends ChangeNotifier {
   void toggleSet(int exerciseIdx, int setIdx) {
     if (exerciseIdx >= _setCompletions.length) return;
     if (setIdx >= _setCompletions[exerciseIdx].length) return;
-    _setCompletions[exerciseIdx][setIdx] = !_setCompletions[exerciseIdx][setIdx];
+    _setCompletions[exerciseIdx][setIdx] =
+        !_setCompletions[exerciseIdx][setIdx];
     notifyListeners();
   }
 
@@ -237,18 +266,21 @@ class ActiveSessionViewModel extends ChangeNotifier {
       final completedExercises = <CompletedExercise>[];
       for (int i = 0; i < plan.exercises.length; i++) {
         final ex = plan.exercises[i];
-        final completedSets =
-            i < _setCompletions.length ? _setCompletions[i].where((s) => s).length : 0;
+        final completedSets = i < _setCompletions.length
+            ? _setCompletions[i].where((s) => s).length
+            : 0;
         if (completedSets == 0) continue;
-        completedExercises.add(CompletedExercise(
-          exerciseId: ex.exerciseId,
-          exerciseName: ex.exerciseName,
-          setsCompleted: completedSets,
-          repsCompleted: ex.reps,
-          durationSeconds: ex.durationSeconds,
-          weightKg: ex.weightKg,
-          distanceKm: ex.distanceKm,
-        ));
+        completedExercises.add(
+          CompletedExercise(
+            exerciseId: ex.exerciseId,
+            exerciseName: ex.exerciseName,
+            setsCompleted: completedSets,
+            repsCompleted: ex.reps,
+            durationSeconds: ex.durationSeconds,
+            weightKg: ex.weightKg,
+            distanceKm: ex.distanceKm,
+          ),
+        );
       }
 
       final log = WorkoutLogEntity(
@@ -262,25 +294,79 @@ class ActiveSessionViewModel extends ChangeNotifier {
       );
       final savedLog = await _logRepo.createLog(log);
 
+      final pointsResult = await _pointAwardRepo.awardWorkoutPoints(
+        savedLog.id,
+      );
+      _pointsEarned = pointsResult.pointsEarned;
+
+      // Base points and the workout log are already persisted at this point.
+      // A milestone failure must not make the completed workout look unsaved;
+      // the server-side operation is idempotent and can be retried safely.
+      try {
+        final milestoneResult = await _pointAwardRepo
+            .awardStreakMilestonePoints(savedLog.id);
+        Log.db(
+          'streak milestone RPC result: '
+          'streak_days=${milestoneResult.streakDays}, '
+          'bonus_points=${milestoneResult.bonusPoints}, '
+          'points_total=${milestoneResult.pointsTotal}',
+        );
+      } on PostgrestException catch (e, stackTrace) {
+        Log.error(
+          'ActiveSessionViewModel.streakMilestone',
+          'PostgrestException\n'
+              'code: ${e.code}\n'
+              'message: ${e.message}\n'
+              'details: ${e.details}\n'
+              'hint: ${e.hint}\n'
+              'stackTrace:\n$stackTrace',
+        );
+      } catch (e, stackTrace) {
+        Log.error(
+          'ActiveSessionViewModel.streakMilestone',
+          '$e\nstackTrace:\n$stackTrace',
+        );
+      }
+
+      // Supabase decides which saved workouts qualify for the weekly score.
+      await _leaderboardRepo.recalculateMyWeeklyScore();
+
+      _newlyUnlockedAchievements = await _achievementRepo
+          .evaluateUserAchievements();
+      final refreshedData = await Future.wait([
+        _profileRepo.getProfile(userId),
+        _achievementRepo.getUserAchievements(userId),
+      ]);
+      _profile = refreshedData[0] as ProfileEntity?;
+      _userAchievements = refreshedData[1] as List<UserAchievementEntity>;
+
+      _pointsTotal = _profile?.pointsTotal ?? pointsResult.pointsTotal;
+      _currentStreak = _profile?.streakCount ?? pointsResult.currentStreak;
+      _longestStreak = _profile?.longestStreak ?? pointsResult.longestStreak;
+
       // Record screen time transaction (only when reward > 0)
       if (earned > 0) {
-        await _txnRepo.recordTransaction(ScreenTimeTransactionEntity(
-          id: '',
-          userId: userId,
-          amountMinutes: earned,
-          transactionType: TransactionType.earned,
-          description: 'Completed: ${plan.title}',
-          referenceId: savedLog.id,
-          createdAt: DateTime.now(),
-        ));
+        await _txnRepo.recordTransaction(
+          ScreenTimeTransactionEntity(
+            id: '',
+            userId: userId,
+            amountMinutes: earned,
+            transactionType: TransactionType.earned,
+            description: 'Completed: ${plan.title}',
+            referenceId: savedLog.id,
+            createdAt: DateTime.now(),
+          ),
+        );
       }
 
       // Update balance on profile
-      if (profile != null && earned > 0) {
+      final balanceProfile = _profile ?? profile;
+      if (balanceProfile != null && earned > 0) {
         await _profileRepo.updateScreenTimeBalance(
           userId,
-          profile.screenTimeBalanceMinutes + earned,
+          balanceProfile.screenTimeBalanceMinutes + earned,
         );
+        _profile = await _profileRepo.getProfile(userId);
       }
 
       _earnedMinutes = earned;

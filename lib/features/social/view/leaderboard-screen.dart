@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 
 import '../../../core/entities/leaderboard-entity.dart';
 import '../../../infra/repository-locator.dart';
@@ -13,7 +14,9 @@ import '../../../shared/design/tokens/app-typography.dart';
 import '../view-model/leaderboard-view-model.dart';
 
 class LeaderboardScreen extends StatefulWidget {
-  const LeaderboardScreen({super.key});
+  final bool isActive;
+
+  const LeaderboardScreen({super.key, this.isActive = true});
 
   @override
   State<LeaderboardScreen> createState() => _LeaderboardScreenState();
@@ -28,8 +31,15 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     _vm = LeaderboardViewModel(
       leaderboardRepo: RepositoryLocator.instance.leaderboard,
       profileRepo: RepositoryLocator.instance.profile,
+      achievementRepo: RepositoryLocator.instance.achievement,
     );
     _vm.load();
+  }
+
+  @override
+  void didUpdateWidget(covariant LeaderboardScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isActive && !oldWidget.isActive) _vm.load();
   }
 
   @override
@@ -46,7 +56,13 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
         return Scaffold(
           backgroundColor: AppColors.paper,
           appBar: AppBar(
-            title: Text('SOCIAL', style: AppTypography.sectionHeader.copyWith(fontSize: 13, letterSpacing: 2)),
+            title: Text(
+              'SOCIAL',
+              style: AppTypography.sectionHeader.copyWith(
+                fontSize: 13,
+                letterSpacing: 2,
+              ),
+            ),
             actions: [
               IconButton(
                 icon: const Icon(Icons.add, color: AppColors.ink),
@@ -63,14 +79,19 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
 
   Widget _buildBody(BuildContext context) {
     if (_vm.isLoading) {
-      return const Center(child: CircularProgressIndicator(color: AppColors.ink));
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.ink),
+      );
     }
     if (_vm.error != null) {
       return AppEmptyState(
         title: 'Something went wrong',
         body: _vm.error!,
         primaryLabel: 'Retry',
-        onPrimary: () { _vm.clearError(); _vm.load(); },
+        onPrimary: () {
+          _vm.clearError();
+          _vm.load();
+        },
         icon: Icons.error_outline,
       );
     }
@@ -94,7 +115,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
               height: 48,
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md,
+                  vertical: 6,
+                ),
                 itemCount: _vm.leaderboards.length,
                 itemBuilder: (context, i) {
                   final lb = _vm.leaderboards[i];
@@ -104,13 +128,18 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                     child: GestureDetector(
                       onTap: () => _vm.selectLeaderboard(lb),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 6,
+                        ),
                         color: selected ? AppColors.ink : AppColors.paperAlt,
                         child: Text(
                           lb.name,
                           style: AppTypography.label.copyWith(
                             fontSize: 12,
-                            color: selected ? AppColors.paper : AppColors.inkMuted,
+                            color: selected
+                                ? AppColors.paper
+                                : AppColors.inkMuted,
                           ),
                         ),
                       ),
@@ -120,25 +149,40 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
               ),
             ),
 
-          if (_vm.selectedLeaderboard != null)
+          if (_vm.selectedLeaderboard != null) ...[
             _LeaderboardHeader(vm: _vm, leaderboard: _vm.selectedLeaderboard!),
+            const _ScoreExplanation(),
+          ],
 
           Expanded(
             child: _vm.isLoadingRankings
-                ? const Center(child: CircularProgressIndicator(color: AppColors.ink))
+                ? const Center(
+                    child: CircularProgressIndicator(color: AppColors.ink),
+                  )
                 : _vm.rankings.isEmpty
-                    ? const Center(child: Padding(
-                        padding: EdgeInsets.all(40),
-                        child: Text('No members yet. Share your invite code.', textAlign: TextAlign.center),
-                      ))
-                    : ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(AppSpacing.base, AppSpacing.xs, AppSpacing.base, AppSpacing.base),
-                        itemCount: _vm.rankings.length,
-                        itemBuilder: (context, i) => _RankingTile(
-                          entry: _vm.rankings[i],
-                          isCurrentUser: _vm.rankings[i].userId == _vm.currentUserId,
-                        ),
+                ? const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(40),
+                      child: Text(
+                        'No members yet. Share your invite code.',
+                        textAlign: TextAlign.center,
                       ),
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.base,
+                      AppSpacing.xs,
+                      AppSpacing.base,
+                      AppSpacing.base,
+                    ),
+                    itemCount: _vm.rankings.length,
+                    itemBuilder: (context, i) => _RankingTile(
+                      entry: _vm.rankings[i],
+                      isCurrentUser:
+                          _vm.rankings[i].userId == _vm.currentUserId,
+                    ),
+                  ),
           ),
         ],
       ),
@@ -162,8 +206,23 @@ class _LeaderboardHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final myRank = vm.myRank;
+    final todayUtc = DateTime.now().toUtc();
+    final weekStart = DateTime.utc(
+      todayUtc.year,
+      todayUtc.month,
+      todayUtc.day,
+    ).subtract(Duration(days: todayUtc.weekday - DateTime.monday));
+    final weekEnd = weekStart.add(const Duration(days: 6));
+    final period =
+        '${DateFormat('d MMM').format(weekStart)} – '
+        '${DateFormat('d MMM y').format(weekEnd)} (UTC)';
     return Container(
-      margin: const EdgeInsets.fromLTRB(AppSpacing.base, AppSpacing.sm, AppSpacing.base, 0),
+      margin: const EdgeInsets.fromLTRB(
+        AppSpacing.base,
+        AppSpacing.sm,
+        AppSpacing.base,
+        0,
+      ),
       padding: const EdgeInsets.all(AppSpacing.md),
       color: AppColors.paperAlt,
       child: Row(
@@ -172,8 +231,19 @@ class _LeaderboardHeader extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(leaderboard.name, style: AppTypography.heading.copyWith(fontSize: 15)),
-                if (myRank > 0) Text('Your rank: #$myRank', style: AppTypography.labelMuted),
+                Text(
+                  leaderboard.name,
+                  style: AppTypography.heading.copyWith(fontSize: 15),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Text('Current week: $period', style: AppTypography.labelMuted),
+                if (!vm.isLoadingRankings)
+                  Text(
+                    '${vm.rankings.length} ${vm.rankings.length == 1 ? 'member' : 'members'}',
+                    style: AppTypography.labelMuted,
+                  ),
+                if (!vm.isLoadingRankings && myRank > 0)
+                  Text('Your rank: #$myRank', style: AppTypography.labelMuted),
               ],
             ),
           ),
@@ -205,6 +275,43 @@ class _InviteButton extends StatelessWidget {
   }
 }
 
+class _ScoreExplanation extends StatelessWidget {
+  const _ScoreExplanation();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(
+        AppSpacing.base,
+        AppSpacing.sm,
+        AppSpacing.base,
+        AppSpacing.sm,
+      ),
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.paperBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('HOW WEEKLY SCORES WORK', style: AppTypography.sectionHeader),
+          const SizedBox(height: AppSpacing.xs),
+          Text('10 points per workout (at least 1 minute)', style: AppTypography.labelMuted),
+          Text(
+            '1 point per 10 total qualifying workout minutes',
+            style: AppTypography.labelMuted,
+          ),
+          Text(
+            '5 points if your current streak is at least 7 days',
+            style: AppTypography.labelMuted,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _RankingTile extends StatelessWidget {
   final LeaderboardEntry entry;
   final bool isCurrentUser;
@@ -215,9 +322,9 @@ class _RankingTile extends StatelessWidget {
     final rank = entry.rank;
     final rankColor = switch (rank) {
       1 => AppColors.signal,
-      2 => AppColors.paperBorder,
+      2 => AppColors.ink,
       3 => AppColors.inkMuted,
-      _ => null,
+      _ => AppColors.inkMuted,
     };
 
     return Container(
@@ -230,14 +337,35 @@ class _RankingTile extends StatelessWidget {
         ),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.md),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.md,
+        ),
         child: Row(
           children: [
             SizedBox(
               width: 36,
-              child: rank <= 3
-                  ? Container(width: 10, height: 10, color: rankColor)
-                  : Text('#$rank', style: AppTypography.monoStrong.copyWith(fontSize: 12, color: AppColors.inkMuted)),
+              child: Text(
+                '#$rank',
+                style: AppTypography.monoStrong.copyWith(
+                  fontSize: 12,
+                  color: rankColor,
+                ),
+              ),
+            ),
+            CircleAvatar(
+              radius: 18,
+              backgroundColor: isCurrentUser
+                  ? AppColors.ink
+                  : AppColors.paperAlt,
+              child: Text(
+                entry.displayName.trim().isEmpty
+                    ? '?'
+                    : entry.displayName.trim()[0].toUpperCase(),
+                style: AppTypography.label.copyWith(
+                  color: isCurrentUser ? AppColors.paper : AppColors.ink,
+                ),
+              ),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -246,19 +374,39 @@ class _RankingTile extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Text(entry.displayName, style: AppTypography.body.copyWith(fontWeight: FontWeight.w600)),
+                      Flexible(
+                        child: Text(
+                          entry.displayName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.body.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
                       if (isCurrentUser) ...[
                         const SizedBox(width: 6),
-                        const AppBadge('YOU', background: AppColors.ink, foreground: AppColors.paper),
+                        const AppBadge(
+                          'YOU',
+                          background: AppColors.ink,
+                          foreground: AppColors.paper,
+                        ),
                       ],
                     ],
                   ),
                   if (entry.streakCount > 0)
                     Row(
                       children: [
-                        const Icon(Icons.local_fire_department, size: 11, color: AppColors.signal),
+                        const Icon(
+                          Icons.local_fire_department,
+                          size: 11,
+                          color: AppColors.signal,
+                        ),
                         const SizedBox(width: 2),
-                        Text('${entry.streakCount}d streak', style: AppTypography.labelMuted),
+                        Text(
+                          '${entry.streakCount}d streak',
+                          style: AppTypography.labelMuted,
+                        ),
                       ],
                     ),
                 ],
@@ -267,7 +415,10 @@ class _RankingTile extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text('${entry.weeklyScore}', style: AppTypography.monoStrong.copyWith(fontSize: 16)),
+                Text(
+                  '${entry.weeklyScore}',
+                  style: AppTypography.monoStrong.copyWith(fontSize: 16),
+                ),
                 Text('pts', style: AppTypography.labelMuted),
               ],
             ),
@@ -302,7 +453,12 @@ class _CreateJoinSheetState extends State<_CreateJoinSheet> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.fromLTRB(AppSpacing.xl, AppSpacing.xl, AppSpacing.xl, MediaQuery.of(context).viewInsets.bottom + AppSpacing.xl),
+      padding: EdgeInsets.fromLTRB(
+        AppSpacing.xl,
+        AppSpacing.xl,
+        AppSpacing.xl,
+        MediaQuery.of(context).viewInsets.bottom + AppSpacing.xl,
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -310,7 +466,10 @@ class _CreateJoinSheetState extends State<_CreateJoinSheet> {
           Text('Leaderboard', style: AppTypography.title),
           const SizedBox(height: AppSpacing.lg),
 
-          Text('Create New', style: AppTypography.heading.copyWith(fontSize: 15)),
+          Text(
+            'Create New',
+            style: AppTypography.heading.copyWith(fontSize: 15),
+          ),
           const SizedBox(height: AppSpacing.sm),
           TextField(
             controller: _nameCtrl,
@@ -321,14 +480,16 @@ class _CreateJoinSheetState extends State<_CreateJoinSheet> {
           AppButton.primary(
             'Create',
             isLoading: _creating,
-            onPressed: _creating ? null : () {
-              final name = _nameCtrl.text.trim();
-              if (name.isEmpty) return;
-              setState(() => _creating = true);
-              widget.vm.createLeaderboard(name).then((_) {
-                if (mounted) Navigator.pop(context);
-              });
-            },
+            onPressed: _creating
+                ? null
+                : () {
+                    final name = _nameCtrl.text.trim();
+                    if (name.isEmpty) return;
+                    setState(() => _creating = true);
+                    widget.vm.createLeaderboard(name).then((_) {
+                      if (context.mounted) Navigator.pop(context);
+                    });
+                  },
             width: double.infinity,
           ),
 
@@ -346,7 +507,10 @@ class _CreateJoinSheetState extends State<_CreateJoinSheet> {
             ),
           ),
 
-          Text('Join with Invite Code', style: AppTypography.heading.copyWith(fontSize: 15)),
+          Text(
+            'Join with Invite Code',
+            style: AppTypography.heading.copyWith(fontSize: 15),
+          ),
           const SizedBox(height: AppSpacing.sm),
           TextField(
             controller: _codeCtrl,
@@ -357,14 +521,16 @@ class _CreateJoinSheetState extends State<_CreateJoinSheet> {
           AppButton.secondary(
             'Join',
             isLoading: _joining,
-            onPressed: _joining ? null : () {
-              final code = _codeCtrl.text.trim().toUpperCase();
-              if (code.isEmpty) return;
-              setState(() => _joining = true);
-              widget.vm.joinByInviteCode(code).then((_) {
-                if (mounted) Navigator.pop(context);
-              });
-            },
+            onPressed: _joining
+                ? null
+                : () {
+                    final code = _codeCtrl.text.trim().toUpperCase();
+                    if (code.isEmpty) return;
+                    setState(() => _joining = true);
+                    widget.vm.joinByInviteCode(code).then((_) {
+                      if (context.mounted) Navigator.pop(context);
+                    });
+                  },
             width: double.infinity,
           ),
         ],

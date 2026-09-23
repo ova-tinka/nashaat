@@ -9,8 +9,11 @@ class ProfileEntity {
   final UserStatus status;
   final int weeklyExerciseTargetMinutes;
   final int screenTimeBalanceMinutes;
+  final int pointsTotal;
   final int streakCount;
+  final int longestStreak;
   final DateTime? lastWorkoutDate;
+  final String timezone;
   final SubscriptionTier subscriptionTier;
   final String? fcmToken;
   final String? avatarMediaId;
@@ -36,8 +39,11 @@ class ProfileEntity {
     this.status = UserStatus.active,
     this.weeklyExerciseTargetMinutes = 0,
     this.screenTimeBalanceMinutes = 0,
+    this.pointsTotal = 0,
     this.streakCount = 0,
+    this.longestStreak = 0,
     this.lastWorkoutDate,
+    this.timezone = 'UTC',
     this.subscriptionTier = SubscriptionTier.free,
     this.fcmToken,
     this.avatarMediaId,
@@ -61,8 +67,11 @@ class ProfileEntity {
     UserStatus? status,
     int? weeklyExerciseTargetMinutes,
     int? screenTimeBalanceMinutes,
+    int? pointsTotal,
     int? streakCount,
+    int? longestStreak,
     DateTime? lastWorkoutDate,
+    String? timezone,
     SubscriptionTier? subscriptionTier,
     String? fcmToken,
     String? avatarMediaId,
@@ -84,8 +93,11 @@ class ProfileEntity {
           weeklyExerciseTargetMinutes ?? this.weeklyExerciseTargetMinutes,
       screenTimeBalanceMinutes:
           screenTimeBalanceMinutes ?? this.screenTimeBalanceMinutes,
+      pointsTotal: pointsTotal ?? this.pointsTotal,
       streakCount: streakCount ?? this.streakCount,
+      longestStreak: longestStreak ?? this.longestStreak,
       lastWorkoutDate: lastWorkoutDate ?? this.lastWorkoutDate,
+      timezone: timezone ?? this.timezone,
       subscriptionTier: subscriptionTier ?? this.subscriptionTier,
       fcmToken: fcmToken ?? this.fcmToken,
       avatarMediaId: avatarMediaId ?? this.avatarMediaId,

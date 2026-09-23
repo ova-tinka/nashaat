@@ -14,12 +14,30 @@ enum NotificationStatus { unread, read, archived }
 
 enum MediaType { image, video, document }
 
+enum ExerciseMeasurement { repsWeight, timeDistance, timeOnly, repsOnly }
+
 enum TransactionType { earned, spent, penalty, manualAdjustment }
 
-enum SessionSize { small, big }
-enum ExerciseSort {  nameAsc,  nameDesc,  difficultyAsc,  difficultyDesc}
+enum ExerciseSort { nameAsc, nameDesc, difficultyAsc, difficultyDesc }
 
 enum DifficultyLevel { easy, medium, hard }
 
+enum SessionSize { small, big }
 
-enum ExerciseMeasurement { repsWeight, timeDistance, timeOnly, repsOnly }
+enum PointReason {
+  workoutCompletion,
+  streakBonus,
+  achievementBonus,
+  manualAdjustment,
+}
+
+enum AchievementCategory { workout, streak, social, milestone }
+
+enum AchievementCriteria {
+  qualifyingWorkoutCount,
+  currentStreak,
+  leaderboardJoin,
+  weeklyLeaderboardWin,
+}
+
+enum RewardType { recognition, points, screenTime }

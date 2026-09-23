@@ -4,8 +4,11 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/entities/leaderboard-entity.dart';
+import '../../../core/entities/achievement-entity.dart';
+import '../../../core/entities/profile-entity.dart';
 import '../../../core/entities/public-profile-entity.dart';
 import '../../../core/repositories/leaderboard-repository.dart';
+import '../../../core/repositories/achievement-repository.dart';
 import '../../../core/repositories/profile-repository.dart';
 import '../../../shared/logger.dart';
 
@@ -28,14 +31,17 @@ class LeaderboardEntry {
 class LeaderboardViewModel extends ChangeNotifier {
   final LeaderboardRepository _leaderboardRepo;
   final ProfileRepository _profileRepo;
+  final AchievementRepository _achievementRepo;
   final String Function() _getUserId;
 
   LeaderboardViewModel({
     required LeaderboardRepository leaderboardRepo,
     required ProfileRepository profileRepo,
+    required AchievementRepository achievementRepo,
     String Function()? getUserId,
   }) : _leaderboardRepo = leaderboardRepo,
        _profileRepo = profileRepo,
+       _achievementRepo = achievementRepo,
        _getUserId =
            getUserId ??
            (() => Supabase.instance.client.auth.currentUser?.id ?? '');
@@ -46,6 +52,9 @@ class LeaderboardViewModel extends ChangeNotifier {
   bool _isLoading = false;
   bool _isLoadingRankings = false;
   String? _error;
+  ProfileEntity? _currentUserProfile;
+  List<UserAchievementEntity> _userAchievements = [];
+  List<UnlockedAchievementEntity> _newlyUnlockedAchievements = [];
 
   List<LeaderboardEntity> get leaderboards => List.unmodifiable(_leaderboards);
   LeaderboardEntity? get selectedLeaderboard => _selectedLeaderboard;
@@ -53,6 +62,11 @@ class LeaderboardViewModel extends ChangeNotifier {
   bool get isLoading => _isLoading;
   bool get isLoadingRankings => _isLoadingRankings;
   String? get error => _error;
+  ProfileEntity? get currentUserProfile => _currentUserProfile;
+  List<UserAchievementEntity> get userAchievements =>
+      List.unmodifiable(_userAchievements);
+  List<UnlockedAchievementEntity> get newlyUnlockedAchievements =>
+      List.unmodifiable(_newlyUnlockedAchievements);
 
   String get currentUserId => _getUserId();
 
@@ -68,8 +82,17 @@ class LeaderboardViewModel extends ChangeNotifier {
 
     try {
       _leaderboards = await _leaderboardRepo.getUserLeaderboards(currentUserId);
-      if (_leaderboards.isNotEmpty && _selectedLeaderboard == null) {
-        _selectedLeaderboard = _leaderboards.first;
+      if (_leaderboards.isEmpty) {
+        _selectedLeaderboard = null;
+        _rankings = [];
+      } else {
+        // Reconcile saved workouts that predate the latest scoring rule.
+        await _leaderboardRepo.recalculateMyWeeklyScore();
+        final selectedId = _selectedLeaderboard?.id;
+        _selectedLeaderboard = _leaderboards.firstWhere(
+          (leaderboard) => leaderboard.id == selectedId,
+          orElse: () => _leaderboards.first,
+        );
         await _loadRankings(_selectedLeaderboard!.id);
       }
     } catch (e) {
@@ -92,13 +115,18 @@ class LeaderboardViewModel extends ChangeNotifier {
 
     try {
       final members = await _leaderboardRepo.getMembers(leaderboardId);
+      final sortedMembers = [...members]
+        ..sort((a, b) {
+          final byScore = b.weeklyScore.compareTo(a.weeklyScore);
+          return byScore != 0 ? byScore : a.userId.compareTo(b.userId);
+        });
       final profiles = await Future.wait(
-        members.map((m) => _profileRepo.getPublicProfile(m.userId)),
+        sortedMembers.map((m) => _profileRepo.getPublicProfile(m.userId)),
       );
 
       _rankings = [];
-      for (int i = 0; i < members.length; i++) {
-        final member = members[i];
+      for (int i = 0; i < sortedMembers.length; i++) {
+        final member = sortedMembers[i];
         final profile = profiles[i];
         _rankings.add(
           LeaderboardEntry(
@@ -127,18 +155,10 @@ class LeaderboardViewModel extends ChangeNotifier {
         name,
         inviteCode,
       );
+      await _leaderboardRepo.recalculateMyWeeklyScore();
       _leaderboards.insert(0, lb);
       _selectedLeaderboard = lb;
-      _rankings = [
-        LeaderboardEntry(
-          userId: currentUserId,
-          displayName: 'You',
-          weeklyScore: 0,
-          rank: 1,
-          streakCount: 0,
-        ),
-      ];
-      notifyListeners();
+      await _loadRankings(lb.id);
     } catch (e) {
       Log.error('LeaderboardViewModel.createLeaderboard', e);
       _error = 'Could not create leaderboard.';
@@ -155,6 +175,15 @@ class LeaderboardViewModel extends ChangeNotifier {
         return;
       }
       await _leaderboardRepo.joinLeaderboard(lb.id, currentUserId);
+      await _leaderboardRepo.recalculateMyWeeklyScore();
+      _newlyUnlockedAchievements = await _achievementRepo
+          .evaluateUserAchievements();
+      final refreshedData = await Future.wait([
+        _profileRepo.getProfile(currentUserId),
+        _achievementRepo.getUserAchievements(currentUserId),
+      ]);
+      _currentUserProfile = refreshedData[0] as ProfileEntity?;
+      _userAchievements = refreshedData[1] as List<UserAchievementEntity>;
       _leaderboards.add(lb);
       _selectedLeaderboard = lb;
       await _loadRankings(lb.id);
