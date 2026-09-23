@@ -1,29 +1,41 @@
-CREATE TYPE public.point_reason_enum AS ENUM (
-    'workout_completion',
-    'streak_bonus',
-    'achievement_bonus',
-    'manual_adjustment'
-);
+DO $do$
+BEGIN
+    IF to_regtype('public.point_reason_enum') IS NULL THEN
+        CREATE TYPE public.point_reason_enum AS ENUM (
+            'workout_completion',
+            'streak_bonus',
+            'achievement_bonus',
+            'manual_adjustment'
+        );
+    END IF;
 
-CREATE TYPE public.achievement_category_enum AS ENUM (
-    'workout',
-    'streak',
-    'social',
-    'milestone'
-);
+    IF to_regtype('public.achievement_category_enum') IS NULL THEN
+        CREATE TYPE public.achievement_category_enum AS ENUM (
+            'workout',
+            'streak',
+            'social',
+            'milestone'
+        );
+    END IF;
 
-CREATE TYPE public.achievement_criteria_enum AS ENUM (
-    'qualifying_workout_count',
-    'current_streak',
-    'leaderboard_join',
-    'weekly_leaderboard_win'
-);
+    IF to_regtype('public.achievement_criteria_enum') IS NULL THEN
+        CREATE TYPE public.achievement_criteria_enum AS ENUM (
+            'qualifying_workout_count',
+            'current_streak',
+            'leaderboard_join',
+            'weekly_leaderboard_win'
+        );
+    END IF;
 
-CREATE TYPE public.reward_type_enum AS ENUM (
-    'recognition',
-    'points',
-    'screen_time'
-);
+    IF to_regtype('public.reward_type_enum') IS NULL THEN
+        CREATE TYPE public.reward_type_enum AS ENUM (
+            'recognition',
+            'points',
+            'screen_time'
+        );
+    END IF;
+END;
+$do$;
 
 ALTER TABLE public.profiles
 ADD COLUMN IF NOT EXISTS points_total INTEGER NOT NULL DEFAULT 0,
@@ -32,7 +44,7 @@ ADD COLUMN IF NOT EXISTS timezone TEXT NOT NULL DEFAULT 'UTC';
 
 
 
-CREATE TABLE public.point_awards (
+CREATE TABLE IF NOT EXISTS public.point_awards (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
 
     user_id UUID NOT NULL
@@ -64,7 +76,7 @@ CREATE TABLE public.point_awards (
         )
 );
 
-CREATE TABLE public.achievement_definitions (
+CREATE TABLE IF NOT EXISTS public.achievement_definitions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
 
     code TEXT UNIQUE NOT NULL,
@@ -93,7 +105,7 @@ CREATE TABLE public.achievement_definitions (
 );
 
 
-CREATE TABLE public.user_achievements (
+CREATE TABLE IF NOT EXISTS public.user_achievements (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
 
     user_id UUID NOT NULL
@@ -180,7 +192,7 @@ ON CONFLICT (code) DO NOTHING;
 
 
 
-CREATE TABLE public.leaderboard_period_scores (
+CREATE TABLE IF NOT EXISTS public.leaderboard_period_scores (
     leaderboard_id UUID NOT NULL,
     user_id UUID NOT NULL,
 
