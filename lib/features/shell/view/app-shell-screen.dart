@@ -1,17 +1,89 @@
-import 'dart:io';
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../shared/design/tokens/app-colors.dart';
-import '../../../shared/design/tokens/app-typography.dart';
+import '../../../shared/design/atoms/app-nav-icon.dart';
+import '../../../shared/design/atoms/app-sadu-band.dart';
+import '../../../shared/design/molecules/app-bottom-nav.dart';
+import '../../../shared/design/organisms/app-scaffold.dart';
 import '../../blocking/view/focus-screen.dart';
 import '../../dashboard/view/dashboard-screen.dart';
 import '../../social/view/leaderboard-screen.dart';
 import '../../settings/view/settings-screen.dart';
 import '../../workout/view/workout-hub-screen.dart';
 
+enum AppShellTab { home, workouts, focus, majlis, profile }
+
+class AppShellTabDefinition {
+  final AppShellTab tab;
+  final String label;
+  final AppNavGlyph glyph;
+  final AppSaduMotif motif;
+
+  const AppShellTabDefinition({
+    required this.tab,
+    required this.label,
+    required this.glyph,
+    required this.motif,
+  });
+
+  AppBottomNavItem navItem({String wasmLabel = 'N'}) => AppBottomNavItem(
+    label: label,
+    glyph: glyph,
+    motif: motif,
+    wasmLabel: wasmLabel,
+  );
+}
+
+class AppShellNavigation {
+  static List<AppShellTabDefinition> tabsFor(TargetPlatform platform) {
+    final tabs = <AppShellTabDefinition>[
+      const AppShellTabDefinition(
+        tab: AppShellTab.home,
+        label: 'Home',
+        glyph: AppNavGlyph.qasr,
+        motif: AppSaduMotif.diamonds,
+      ),
+      const AppShellTabDefinition(
+        tab: AppShellTab.workouts,
+        label: 'Workouts',
+        glyph: AppNavGlyph.crossedOars,
+        motif: AppSaduMotif.chevrons,
+      ),
+      const AppShellTabDefinition(
+        tab: AppShellTab.majlis,
+        label: 'Majlis',
+        glyph: AppNavGlyph.tent,
+        motif: AppSaduMotif.stars,
+      ),
+      const AppShellTabDefinition(
+        tab: AppShellTab.profile,
+        label: 'Profile',
+        glyph: AppNavGlyph.wasm,
+        motif: AppSaduMotif.steps,
+      ),
+    ];
+
+    if (platform == TargetPlatform.iOS) {
+      tabs.insert(
+        2,
+        const AppShellTabDefinition(
+          tab: AppShellTab.focus,
+          label: 'Focus',
+          glyph: AppNavGlyph.fanar,
+          motif: AppSaduMotif.waves,
+        ),
+      );
+    }
+
+    return List.unmodifiable(tabs);
+  }
+}
+
 class AppShellScreen extends StatefulWidget {
-  const AppShellScreen({super.key});
+  final TargetPlatform? platform;
+
+  const AppShellScreen({super.key, this.platform});
 
   @override
   State<AppShellScreen> createState() => _AppShellScreenState();
@@ -22,135 +94,38 @@ class _AppShellScreenState extends State<AppShellScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final platform = widget.platform ?? defaultTargetPlatform;
+    final tabs = AppShellNavigation.tabsFor(platform);
+    final isIOS = platform == TargetPlatform.iOS;
+    final selectedIndex = _tabIndex.clamp(0, tabs.length - 1).toInt();
+    final majlisIndex = tabs.indexWhere((tab) => tab.tab == AppShellTab.majlis);
+    final wasmLabel = _currentWasmLabel();
+
     final pages = <Widget>[
-      DashboardScreen(isActive: _tabIndex == 0),
+      DashboardScreen(isActive: selectedIndex == 0),
       const WorkoutHubScreen(),
-      LeaderboardScreen(isActive: _tabIndex == (Platform.isIOS ? 3 : 2)),
-      const SettingsScreen(),
     ];
-    final tabs = <_TabDef>[
-      const _TabDef(
-        icon: Icons.home_outlined,
-        selectedIcon: Icons.home,
-        label: 'Home',
-      ),
-      const _TabDef(
-        icon: Icons.fitness_center_outlined,
-        selectedIcon: Icons.fitness_center,
-        label: 'Workout',
-      ),
-      const _TabDef(
-        icon: Icons.leaderboard_outlined,
-        selectedIcon: Icons.leaderboard,
-        label: 'Social',
-      ),
-      const _TabDef(
-        icon: Icons.settings_outlined,
-        selectedIcon: Icons.settings,
-        label: 'Settings',
-      ),
-    ];
+    if (isIOS) pages.add(const FocusScreen());
+    pages.add(LeaderboardScreen(isActive: selectedIndex == majlisIndex));
+    pages.add(const SettingsScreen());
 
-    if (Platform.isIOS) {
-      pages.insert(2, const FocusScreen());
-      tabs.insert(
-        2,
-        const _TabDef(
-          icon: Icons.phone_android_outlined,
-          selectedIcon: Icons.phone_android,
-          label: 'Focus',
-        ),
-      );
-    }
-
-    final selectedIndex = _tabIndex.clamp(0, pages.length - 1).toInt();
-    return Scaffold(
-      backgroundColor: AppColors.paper,
+    return AppScaffold(
       body: IndexedStack(index: selectedIndex, children: pages),
-      bottomNavigationBar: _AppBottomNav(
+      bottomNavigationBar: AppBottomNav(
         selectedIndex: selectedIndex,
-        onTap: (i) => setState(() => _tabIndex = i),
-        tabs: tabs,
+        onTap: (index) => setState(() => _tabIndex = index),
+        items: tabs
+            .map((tab) => tab.navItem(wasmLabel: wasmLabel))
+            .toList(growable: false),
       ),
     );
   }
-}
 
-class _AppBottomNav extends StatelessWidget {
-  final int selectedIndex;
-  final ValueChanged<int> onTap;
-  final List<_TabDef> tabs;
-
-  const _AppBottomNav({
-    required this.selectedIndex,
-    required this.onTap,
-    required this.tabs,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: AppColors.paper,
-        border: Border(top: BorderSide(color: AppColors.paperBorder, width: 1)),
-      ),
-      child: SafeArea(
-        child: SizedBox(
-          height: 60,
-          child: Row(
-            children: List.generate(tabs.length, (i) {
-              final tab = tabs[i];
-              final selected = i == selectedIndex;
-              return Expanded(
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () => onTap(i),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 120),
-                    decoration: BoxDecoration(
-                      color: selected ? AppColors.acid : AppColors.paper,
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          selected ? tab.selectedIcon : tab.icon,
-                          size: 20,
-                          color: selected ? AppColors.ink : AppColors.inkMuted,
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          tab.label,
-                          style: AppTypography.labelMuted.copyWith(
-                            fontSize: 10,
-                            color: selected
-                                ? AppColors.ink
-                                : AppColors.inkMuted,
-                            fontWeight: selected
-                                ? FontWeight.w700
-                                : FontWeight.w400,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            }),
-          ),
-        ),
-      ),
-    );
+  String _currentWasmLabel() {
+    final user = Supabase.instance.client.auth.currentUser;
+    final metadata = user?.userMetadata ?? const <String, dynamic>{};
+    final value = metadata['username'] ?? metadata['name'] ?? user?.email;
+    if (value is! String || value.trim().isEmpty) return 'N';
+    return String.fromCharCode(value.trim().runes.first).toUpperCase();
   }
-}
-
-class _TabDef {
-  final IconData icon;
-  final IconData selectedIcon;
-  final String label;
-  const _TabDef({
-    required this.icon,
-    required this.selectedIcon,
-    required this.label,
-  });
 }
