@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../atoms/app-button.dart';
 import '../molecules/app-progress-bar.dart';
 import '../tokens/app-colors.dart';
-import '../tokens/app-typography.dart';
 
 class AppStepScaffold extends StatelessWidget {
   final int totalSteps;
@@ -28,14 +28,15 @@ class AppStepScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.nashaatPalette;
     return Scaffold(
-      backgroundColor: AppColors.paper,
+      backgroundColor: palette.background,
       body: SafeArea(
         child: Column(
           children: [
             // Progress header
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+              padding: const EdgeInsetsDirectional.fromSTEB(24, 20, 24, 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -44,13 +45,21 @@ class AppStepScaffold extends StatelessWidget {
                       if (currentStep > 0)
                         GestureDetector(
                           onTap: () => Navigator.of(context).maybePop(),
-                          child: const Icon(Icons.arrow_back, size: 20),
+                          child: Icon(
+                            Icons.arrow_back,
+                            size: 20,
+                            color: palette.textPrimary,
+                          ),
                         ),
                       if (currentStep > 0) const SizedBox(width: 12),
                       Expanded(
                         child: Text(
                           '${currentStep + 1} / $totalSteps',
-                          style: AppTypography.mono.copyWith(color: AppColors.inkMuted),
+                          style: GoogleFonts.jetBrainsMono(
+                            color: palette.textMuted,
+                            fontSize: 12,
+                            height: 1.5,
+                          ),
                         ),
                       ),
                     ],
@@ -69,10 +78,12 @@ class AppStepScaffold extends StatelessWidget {
 
             // Footer
             Container(
-              decoration: const BoxDecoration(
-                border: Border(top: BorderSide(color: AppColors.paperBorder, width: 1)),
+              decoration: BoxDecoration(
+                border: Border(
+                  top: BorderSide(color: palette.border, width: 1),
+                ),
               ),
-              padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+              padding: const EdgeInsetsDirectional.fromSTEB(24, 16, 24, 24),
               child: Column(
                 children: [
                   AppButton.primary(

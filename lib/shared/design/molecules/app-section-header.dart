@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../tokens/app-typography.dart';
 import '../atoms/app-divider.dart';
 
 class AppSectionHeader extends StatelessWidget {
@@ -19,10 +18,7 @@ class AppSectionHeader extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title.toUpperCase(),
-            style: AppTypography.sectionHeader,
-          ),
+          Text(title, style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: 6),
           const AppDivider(),
         ],

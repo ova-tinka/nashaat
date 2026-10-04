@@ -1,8 +1,16 @@
 import 'package:flutter/material.dart';
-import '../tokens/app-colors.dart';
-import '../tokens/app-typography.dart';
 
-enum _Variant { primary, secondary, ghost, destructive, acid }
+import '../tokens/app-colors.dart';
+import '../tokens/app-radii.dart';
+
+enum _AppButtonVariant {
+  primary,
+  secondary,
+  ghost,
+  reward,
+  destructive,
+  locked,
+}
 
 class AppButton extends StatelessWidget {
   final String label;
@@ -10,7 +18,7 @@ class AppButton extends StatelessWidget {
   final bool isLoading;
   final double? width;
   final IconData? icon;
-  final _Variant _variant;
+  final _AppButtonVariant _variant;
 
   const AppButton.primary(
     this.label, {
@@ -19,7 +27,7 @@ class AppButton extends StatelessWidget {
     this.isLoading = false,
     this.width,
     this.icon,
-  }) : _variant = _Variant.primary;
+  }) : _variant = _AppButtonVariant.primary;
 
   const AppButton.secondary(
     this.label, {
@@ -28,7 +36,7 @@ class AppButton extends StatelessWidget {
     this.isLoading = false,
     this.width,
     this.icon,
-  }) : _variant = _Variant.secondary;
+  }) : _variant = _AppButtonVariant.secondary;
 
   const AppButton.ghost(
     this.label, {
@@ -37,7 +45,16 @@ class AppButton extends StatelessWidget {
     this.isLoading = false,
     this.width,
     this.icon,
-  }) : _variant = _Variant.ghost;
+  }) : _variant = _AppButtonVariant.ghost;
+
+  const AppButton.reward(
+    this.label, {
+    super.key,
+    this.onPressed,
+    this.isLoading = false,
+    this.width,
+    this.icon,
+  }) : _variant = _AppButtonVariant.reward;
 
   const AppButton.destructive(
     this.label, {
@@ -46,8 +63,18 @@ class AppButton extends StatelessWidget {
     this.isLoading = false,
     this.width,
     this.icon,
-  }) : _variant = _Variant.destructive;
+  }) : _variant = _AppButtonVariant.destructive;
 
+  const AppButton.locked(
+    this.label, {
+    super.key,
+    this.onPressed,
+    this.isLoading = false,
+    this.width,
+    this.icon,
+  }) : _variant = _AppButtonVariant.locked;
+
+  /// Transitional alias for the former acid action.
   const AppButton.acid(
     this.label, {
     super.key,
@@ -55,59 +82,90 @@ class AppButton extends StatelessWidget {
     this.isLoading = false,
     this.width,
     this.icon,
-  }) : _variant = _Variant.acid;
+  }) : _variant = _AppButtonVariant.primary;
 
   @override
   Widget build(BuildContext context) {
-    final bg = switch (_variant) {
-      _Variant.primary => AppColors.ink,
-      _Variant.secondary => AppColors.paper,
-      _Variant.ghost => Colors.transparent,
-      _Variant.destructive => AppColors.error,
-      _Variant.acid => AppColors.acid,
-    };
-    final fg = switch (_variant) {
-      _Variant.primary => AppColors.paper,
-      _Variant.secondary => AppColors.ink,
-      _Variant.ghost => AppColors.ink,
-      _Variant.destructive => AppColors.paper,
-      _Variant.acid => AppColors.ink,
-    };
-    final side = switch (_variant) {
-      _Variant.secondary => const BorderSide(color: AppColors.ink, width: 1),
-      _Variant.ghost => const BorderSide(color: AppColors.paperBorder, width: 1),
-      _ => BorderSide.none,
+    final palette = context.nashaatPalette;
+    final textTheme = Theme.of(context).textTheme;
+    final enabled = onPressed != null && !isLoading;
+
+    final (background, foreground, border) = switch (_variant) {
+      _AppButtonVariant.primary => (
+        palette.accent,
+        palette.accentInk,
+        BorderSide.none,
+      ),
+      _AppButtonVariant.secondary => (
+        palette.card,
+        palette.textPrimary,
+        BorderSide(color: palette.border),
+      ),
+      _AppButtonVariant.ghost => (
+        Colors.transparent,
+        palette.textPrimary,
+        BorderSide(color: palette.border),
+      ),
+      _AppButtonVariant.reward => (
+        palette.reward,
+        palette.rewardInk,
+        BorderSide.none,
+      ),
+      _AppButtonVariant.destructive => (
+        palette.danger,
+        palette.dangerInk,
+        BorderSide.none,
+      ),
+      _AppButtonVariant.locked => (
+        palette.locked,
+        Colors.white,
+        BorderSide.none,
+      ),
     };
 
-    Widget child = isLoading
+    final effectiveBackground = enabled ? background : palette.raised;
+    final effectiveForeground = enabled ? foreground : palette.textMuted;
+    final child = isLoading
         ? SizedBox(
-            width: 16,
-            height: 16,
-            child: CircularProgressIndicator(strokeWidth: 2, color: fg),
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: effectiveForeground,
+            ),
           )
-        : icon != null
-            ? Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(icon, size: 16, color: fg),
-                  const SizedBox(width: 6),
-                  Text(label, style: AppTypography.label.copyWith(color: fg, fontSize: 14)),
-                ],
-              )
-            : Text(label, style: AppTypography.label.copyWith(color: fg, fontSize: 14));
+        : Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 18, color: effectiveForeground),
+                const SizedBox(width: 8),
+              ],
+              Text(
+                label,
+                style: textTheme.titleSmall?.copyWith(
+                  color: effectiveForeground,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          );
 
     return SizedBox(
       width: width,
-      height: 48,
+      height: 52,
       child: TextButton(
-        onPressed: isLoading ? null : onPressed,
+        onPressed: enabled ? onPressed : null,
         style: TextButton.styleFrom(
-          backgroundColor: bg,
-          foregroundColor: fg,
-          shape: const RoundedRectangleBorder(),
-          side: side,
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          minimumSize: const Size(64, 48),
+          backgroundColor: effectiveBackground,
+          foregroundColor: effectiveForeground,
+          disabledBackgroundColor: palette.raised,
+          disabledForegroundColor: palette.textMuted,
+          shape: RoundedRectangleBorder(borderRadius: AppRadii.button),
+          side: enabled ? border : BorderSide(color: palette.border),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          minimumSize: const Size(64, 52),
         ),
         child: child,
       ),

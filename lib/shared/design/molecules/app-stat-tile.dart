@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+
 import '../tokens/app-colors.dart';
-import '../tokens/app-typography.dart';
+import '../tokens/app-radii.dart';
 
 class AppStatTile extends StatelessWidget {
   final String value;
@@ -18,30 +20,38 @@ class AppStatTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.nashaatPalette;
+    final textTheme = Theme.of(context).textTheme;
+    final valueColor = accentColor ?? palette.textPrimary;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.paperAlt,
-        border: Border.all(color: AppColors.paperBorder, width: 1),
+        color: palette.card,
+        border: palette.cardEdge == Colors.transparent
+            ? null
+            : Border.all(color: palette.cardEdge),
+        borderRadius: AppRadii.control,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (icon != null) ...[
-            Icon(icon, size: 16, color: accentColor ?? AppColors.inkMuted),
+            Icon(icon, size: 16, color: accentColor ?? palette.textMuted),
             const SizedBox(height: 6),
           ],
           Text(
             value,
-            style: AppTypography.monoStrong.copyWith(
+            style: GoogleFonts.jetBrainsMono(
+              color: valueColor,
               fontSize: 18,
-              color: accentColor ?? AppColors.ink,
+              fontWeight: FontWeight.w600,
+              height: 1.3,
             ),
           ),
           const SizedBox(height: 2),
           Text(
             label,
-            style: AppTypography.labelMuted,
+            style: textTheme.labelSmall?.copyWith(color: palette.textMuted),
           ),
         ],
       ),

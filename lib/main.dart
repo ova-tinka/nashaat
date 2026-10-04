@@ -8,10 +8,10 @@ import 'package:timezone/data/latest_10y.dart' as timezone_data;
 
 import 'app/app-coordinator.dart';
 import 'app/app-router.dart';
+import 'app/appearance-provider.dart';
 import 'app/locale-provider.dart';
 import 'shared/logger.dart';
 import 'shared/design/theme.dart';
-import 'shared/design/tokens/app-typography.dart';
 
 final appCoordinator = AppCoordinator();
 
@@ -31,8 +31,11 @@ Future<void> main() async {
   Log.boot('Supabase ready → ${Uri.parse(url).host}');
 
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => LocaleProvider(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => LocaleProvider()),
+        ChangeNotifierProvider(create: (_) => AppearanceProvider()),
+      ],
       child: const NashaatApp(),
     ),
   );
@@ -44,16 +47,17 @@ class NashaatApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final localeProvider = context.watch<LocaleProvider>();
+    final appearanceProvider = context.watch<AppearanceProvider>();
     final locale = localeProvider.currentLocale;
 
-    final theme = AppTheme.light.copyWith(
-      textTheme: AppTypography.getTextTheme(locale: locale),
+    final theme = AppTheme.buildTheme(
+      appearanceProvider.palette,
+      locale: locale,
     );
 
     return MaterialApp(
       title: 'Nashaat',
       theme: theme,
-      darkTheme: theme,
       themeMode: ThemeMode.light,
       locale: locale,
       supportedLocales: const [Locale('en'), Locale('ar')],

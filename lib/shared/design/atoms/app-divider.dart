@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../tokens/app-colors.dart';
 
 class AppDivider extends StatelessWidget {
   final double indent;
@@ -10,7 +9,7 @@ class AppDivider extends StatelessWidget {
     return Divider(
       height: 1,
       thickness: 1,
-      color: AppColors.paperBorder,
+      color: Theme.of(context).dividerColor,
       indent: indent,
     );
   }
@@ -21,10 +20,10 @@ class AppVerticalDivider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const SizedBox(
+    return SizedBox(
       width: 1,
       height: double.infinity,
-      child: ColoredBox(color: AppColors.paperBorder),
+      child: ColoredBox(color: Theme.of(context).dividerColor),
     );
   }
 }

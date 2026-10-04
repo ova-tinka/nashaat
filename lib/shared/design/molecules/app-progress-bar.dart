@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+
 import '../tokens/app-colors.dart';
+import '../tokens/app-radii.dart';
 
 class AppProgressBar extends StatelessWidget {
-  final double value; // 0.0 to 1.0
+  final double value;
   final double height;
   final Color? activeColor;
   final Color? trackColor;
@@ -17,14 +19,17 @@ class AppProgressBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: height,
-      child: LinearProgressIndicator(
-        value: value.clamp(0.0, 1.0),
-        backgroundColor: trackColor ?? AppColors.paperBorder,
-        color: activeColor ?? AppColors.ink,
-        borderRadius: BorderRadius.zero,
-        minHeight: height,
+    final palette = context.nashaatPalette;
+    return ClipRRect(
+      borderRadius: AppRadii.sm,
+      child: SizedBox(
+        height: height,
+        child: LinearProgressIndicator(
+          value: value.clamp(0.0, 1.0),
+          backgroundColor: trackColor ?? palette.raised,
+          color: activeColor ?? palette.accent,
+          minHeight: height,
+        ),
       ),
     );
   }
@@ -32,26 +37,32 @@ class AppProgressBar extends StatelessWidget {
 
 class AppStepProgressBar extends StatelessWidget {
   final int totalSteps;
-  final int currentStep; // 0-indexed
+  final int currentStep;
   final double height;
 
   const AppStepProgressBar({
     super.key,
     required this.totalSteps,
     required this.currentStep,
-    this.height = 4,
+    this.height = 8,
   });
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.nashaatPalette;
     return Row(
-      children: List.generate(totalSteps, (i) {
-        final active = i <= currentStep;
+      children: List.generate(totalSteps, (index) {
+        final active = index <= currentStep;
         return Expanded(
           child: Container(
             height: height,
-            margin: EdgeInsets.only(right: i < totalSteps - 1 ? 4 : 0),
-            color: active ? AppColors.ink : AppColors.paperBorder,
+            margin: EdgeInsetsDirectional.only(
+              end: index < totalSteps - 1 ? 4 : 0,
+            ),
+            decoration: BoxDecoration(
+              color: active ? palette.calm : palette.raised,
+              borderRadius: AppRadii.xs,
+            ),
           ),
         );
       }),
