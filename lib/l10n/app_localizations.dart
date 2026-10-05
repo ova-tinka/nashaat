@@ -667,6 +667,162 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Try the beta generator'**
   String get workoutTryBeta;
+
+  /// Workout builder new plan title
+  ///
+  /// In en, this message translates to:
+  /// **'New plan'**
+  String get builderNewPlan;
+
+  /// Workout builder edit plan title
+  ///
+  /// In en, this message translates to:
+  /// **'Edit plan'**
+  String get builderEditPlan;
+
+  /// Workout builder title field label
+  ///
+  /// In en, this message translates to:
+  /// **'Plan title *'**
+  String get builderPlanTitle;
+
+  /// Workout builder title field hint
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. Push Day, Full Body HIIT'**
+  String get builderPlanTitleHint;
+
+  /// Workout builder description field label
+  ///
+  /// In en, this message translates to:
+  /// **'Description (optional)'**
+  String get builderDescriptionOptional;
+
+  /// Workout builder session size heading
+  ///
+  /// In en, this message translates to:
+  /// **'Session size'**
+  String get builderSessionSize;
+
+  /// Workout builder session size explanation
+  ///
+  /// In en, this message translates to:
+  /// **'Determines how much screen time this workout earns.'**
+  String get builderSessionSizeBody;
+
+  /// Workout builder small session option
+  ///
+  /// In en, this message translates to:
+  /// **'Small'**
+  String get builderSmall;
+
+  /// Workout builder big session option
+  ///
+  /// In en, this message translates to:
+  /// **'Big ×2'**
+  String get builderBig;
+
+  /// Workout builder schedule heading
+  ///
+  /// In en, this message translates to:
+  /// **'Schedule'**
+  String get builderSchedule;
+
+  /// Workout builder exercises heading
+  ///
+  /// In en, this message translates to:
+  /// **'Exercises'**
+  String get builderExercises;
+
+  /// Workout builder add exercise action
+  ///
+  /// In en, this message translates to:
+  /// **'Add exercise'**
+  String get builderAddExercise;
+
+  /// Workout builder empty exercise state
+  ///
+  /// In en, this message translates to:
+  /// **'No exercises added yet'**
+  String get builderNoExercises;
+
+  /// Workout builder swap exercise accessibility label
+  ///
+  /// In en, this message translates to:
+  /// **'Swap exercise'**
+  String get builderSwapExercise;
+
+  /// Workout builder remove exercise accessibility label
+  ///
+  /// In en, this message translates to:
+  /// **'Remove exercise'**
+  String get builderRemoveExercise;
+
+  /// Workout builder sets field label
+  ///
+  /// In en, this message translates to:
+  /// **'Sets'**
+  String get builderSets;
+
+  /// Workout builder reps field label
+  ///
+  /// In en, this message translates to:
+  /// **'Reps'**
+  String get builderReps;
+
+  /// Workout builder weight field label
+  ///
+  /// In en, this message translates to:
+  /// **'Weight (kg)'**
+  String get builderWeight;
+
+  /// Workout builder duration field label
+  ///
+  /// In en, this message translates to:
+  /// **'Duration (s)'**
+  String get builderDuration;
+
+  /// Workout builder distance field label
+  ///
+  /// In en, this message translates to:
+  /// **'Distance (km)'**
+  String get builderDistance;
+
+  /// Workout builder rest field label
+  ///
+  /// In en, this message translates to:
+  /// **'Rest (s)'**
+  String get builderRest;
+
+  /// Workout builder save action
+  ///
+  /// In en, this message translates to:
+  /// **'Save plan'**
+  String get builderSavePlan;
+
+  /// Workout builder create success message
+  ///
+  /// In en, this message translates to:
+  /// **'Plan created successfully'**
+  String get builderPlanCreated;
+
+  /// Workout builder update success message
+  ///
+  /// In en, this message translates to:
+  /// **'Plan updated successfully'**
+  String get builderPlanUpdated;
+
+  /// Workout builder exercise count
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0 {No exercises} =1 {1 exercise} other {{count} exercises}}'**
+  String builderExerciseCount(int count);
+
+  /// Workout builder invalid field message
+  ///
+  /// In en, this message translates to:
+  /// **'Check this value'**
+  String get builderInvalidValue;
 }
 
 class _AppLocalizationsDelegate

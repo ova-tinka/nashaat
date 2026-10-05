@@ -338,4 +338,95 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get workoutTryBeta => 'جرّب المولّد التجريبي';
+
+  @override
+  String get builderNewPlan => 'خطة جديدة';
+
+  @override
+  String get builderEditPlan => 'تعديل الخطة';
+
+  @override
+  String get builderPlanTitle => 'اسم الخطة *';
+
+  @override
+  String get builderPlanTitleHint => 'مثال: تمرين الصدر، تمارين الجسم كامل';
+
+  @override
+  String get builderDescriptionOptional => 'الوصف (اختياري)';
+
+  @override
+  String get builderSessionSize => 'حجم التمرين';
+
+  @override
+  String get builderSessionSizeBody =>
+      'يحدد مقدار وقت الشاشة الذي يكسبه هذا التمرين.';
+
+  @override
+  String get builderSmall => 'صغير';
+
+  @override
+  String get builderBig => 'كبير ×2';
+
+  @override
+  String get builderSchedule => 'الأيام';
+
+  @override
+  String get builderExercises => 'التمارين';
+
+  @override
+  String get builderAddExercise => 'أضف تمريناً';
+
+  @override
+  String get builderNoExercises => 'ما أضفت تمارين للحين';
+
+  @override
+  String get builderSwapExercise => 'تبديل التمرين';
+
+  @override
+  String get builderRemoveExercise => 'حذف التمرين';
+
+  @override
+  String get builderSets => 'المجموعات';
+
+  @override
+  String get builderReps => 'العدّات';
+
+  @override
+  String get builderWeight => 'الوزن (كغ)';
+
+  @override
+  String get builderDuration => 'المدة (ث)';
+
+  @override
+  String get builderDistance => 'المسافة (كم)';
+
+  @override
+  String get builderRest => 'الراحة (ث)';
+
+  @override
+  String get builderSavePlan => 'حفظ الخطة';
+
+  @override
+  String get builderPlanCreated => 'انحفظت الخطة بنجاح';
+
+  @override
+  String get builderPlanUpdated => 'تحدّثت الخطة بنجاح';
+
+  @override
+  String builderExerciseCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count تمرين',
+      many: '$count تمريناً',
+      few: '$count تمارين',
+      two: 'تمرينان',
+      one: 'تمرين واحد',
+      zero: 'ولا تمرين',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get builderInvalidValue => 'تحقق من القيمة';
 }

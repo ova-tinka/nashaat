@@ -332,4 +332,92 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get workoutTryBeta => 'Try the beta generator';
+
+  @override
+  String get builderNewPlan => 'New plan';
+
+  @override
+  String get builderEditPlan => 'Edit plan';
+
+  @override
+  String get builderPlanTitle => 'Plan title *';
+
+  @override
+  String get builderPlanTitleHint => 'e.g. Push Day, Full Body HIIT';
+
+  @override
+  String get builderDescriptionOptional => 'Description (optional)';
+
+  @override
+  String get builderSessionSize => 'Session size';
+
+  @override
+  String get builderSessionSizeBody =>
+      'Determines how much screen time this workout earns.';
+
+  @override
+  String get builderSmall => 'Small';
+
+  @override
+  String get builderBig => 'Big ×2';
+
+  @override
+  String get builderSchedule => 'Schedule';
+
+  @override
+  String get builderExercises => 'Exercises';
+
+  @override
+  String get builderAddExercise => 'Add exercise';
+
+  @override
+  String get builderNoExercises => 'No exercises added yet';
+
+  @override
+  String get builderSwapExercise => 'Swap exercise';
+
+  @override
+  String get builderRemoveExercise => 'Remove exercise';
+
+  @override
+  String get builderSets => 'Sets';
+
+  @override
+  String get builderReps => 'Reps';
+
+  @override
+  String get builderWeight => 'Weight (kg)';
+
+  @override
+  String get builderDuration => 'Duration (s)';
+
+  @override
+  String get builderDistance => 'Distance (km)';
+
+  @override
+  String get builderRest => 'Rest (s)';
+
+  @override
+  String get builderSavePlan => 'Save plan';
+
+  @override
+  String get builderPlanCreated => 'Plan created successfully';
+
+  @override
+  String get builderPlanUpdated => 'Plan updated successfully';
+
+  @override
+  String builderExerciseCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count exercises',
+      one: '1 exercise',
+      zero: 'No exercises',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get builderInvalidValue => 'Check this value';
 }
