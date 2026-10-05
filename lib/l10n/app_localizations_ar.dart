@@ -235,4 +235,107 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get onboardingSkipForNow => 'تخطي الآن';
+
+  @override
+  String get workoutMyPlans => 'خططي';
+
+  @override
+  String get workoutLibrary => 'المكتبة';
+
+  @override
+  String get workoutAi => 'الذكاء الاصطناعي';
+
+  @override
+  String get workoutNewPlan => 'خطة جديدة';
+
+  @override
+  String get workoutNextWorkout => 'التمرين التالي';
+
+  @override
+  String get workoutRecommended => 'مقترح';
+
+  @override
+  String get workoutToday => 'اليوم';
+
+  @override
+  String get workoutYourPlans => 'خططك';
+
+  @override
+  String get workoutNoPlansTitle => 'ما عندك خطط للحين';
+
+  @override
+  String get workoutNoPlansScreenTime => 'سوّ أول خطة وابدأ تكسب وقت جوال.';
+
+  @override
+  String get workoutNoPlansTraining => 'سوّ أول خطة وابدأ تمارينك.';
+
+  @override
+  String get workoutCouldNotLoad => 'ما قدرنا نحمّل خططك.';
+
+  @override
+  String workoutExerciseCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count تمرين',
+      many: '$count تمريناً',
+      few: '$count تمارين',
+      two: 'تمرينان',
+      one: 'تمرين واحد',
+      zero: 'ولا تمرين',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String workoutPlanSummary(int count, String duration) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count تمرين',
+      many: '$count تمريناً',
+      few: '$count تمارين',
+      two: 'تمرينان',
+      one: 'تمرين واحد',
+    );
+    return '$_temp0 · $duration';
+  }
+
+  @override
+  String get workoutPlanMenu => 'قائمة الخطة';
+
+  @override
+  String workoutDeleteConfirmation(String plan) {
+    return 'تحذف $plan؟ ما تقدر ترجعها.';
+  }
+
+  @override
+  String get workoutAiTitle => 'تمارين بالذكاء الاصطناعي';
+
+  @override
+  String get workoutAiBody => 'خطط مصمّمة لك من تاريخك وأهدافك.';
+
+  @override
+  String get workoutAiPlans => 'خطط تمارين بالذكاء الاصطناعي';
+
+  @override
+  String get workoutAiAnalytics => 'تحليلات تقدّم أعمق';
+
+  @override
+  String get workoutAiLibrary => 'مكتبة تمارين أكبر';
+
+  @override
+  String get workoutAiSupport => 'دعم بأولوية';
+
+  @override
+  String get workoutUpgradeVip => 'الترقية إلى VIP';
+
+  @override
+  String get workoutComingSoon => 'قريباً';
+
+  @override
+  String get workoutAiTrainingBody => 'ندرّب النموذج على تاريخ تمارينك.';
+
+  @override
+  String get workoutTryBeta => 'جرّب المولّد التجريبي';
 }

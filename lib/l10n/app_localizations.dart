@@ -511,6 +511,162 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Skip for now'**
   String get onboardingSkipForNow;
+
+  /// Workouts hub plans tab
+  ///
+  /// In en, this message translates to:
+  /// **'My plans'**
+  String get workoutMyPlans;
+
+  /// Workouts hub exercise library tab
+  ///
+  /// In en, this message translates to:
+  /// **'Library'**
+  String get workoutLibrary;
+
+  /// Workouts hub AI tab
+  ///
+  /// In en, this message translates to:
+  /// **'AI'**
+  String get workoutAi;
+
+  /// Workouts hub create plan action
+  ///
+  /// In en, this message translates to:
+  /// **'New plan'**
+  String get workoutNewPlan;
+
+  /// Workouts hub recommended workout heading
+  ///
+  /// In en, this message translates to:
+  /// **'Next workout'**
+  String get workoutNextWorkout;
+
+  /// Workouts hub recommended workout status
+  ///
+  /// In en, this message translates to:
+  /// **'Recommended'**
+  String get workoutRecommended;
+
+  /// Workouts hub workout scheduled today status
+  ///
+  /// In en, this message translates to:
+  /// **'Today'**
+  String get workoutToday;
+
+  /// Workouts hub plans section heading
+  ///
+  /// In en, this message translates to:
+  /// **'Your plans'**
+  String get workoutYourPlans;
+
+  /// Workouts hub empty state heading
+  ///
+  /// In en, this message translates to:
+  /// **'No plans yet'**
+  String get workoutNoPlansTitle;
+
+  /// Workouts hub iOS empty state body
+  ///
+  /// In en, this message translates to:
+  /// **'Create your first plan to start earning screen time.'**
+  String get workoutNoPlansScreenTime;
+
+  /// Workouts hub Android empty state body
+  ///
+  /// In en, this message translates to:
+  /// **'Create your first plan to start training.'**
+  String get workoutNoPlansTraining;
+
+  /// Workouts hub error state body
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load your plans.'**
+  String get workoutCouldNotLoad;
+
+  /// Workouts hub plan exercise count
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1 {1 exercise} other {{count} exercises}}'**
+  String workoutExerciseCount(int count);
+
+  /// Workouts hub plan summary
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1 {1 exercise} other {{count} exercises}} · {duration}'**
+  String workoutPlanSummary(int count, String duration);
+
+  /// Workouts hub plan menu accessibility label
+  ///
+  /// In en, this message translates to:
+  /// **'Plan menu'**
+  String get workoutPlanMenu;
+
+  /// Workouts hub delete plan confirmation
+  ///
+  /// In en, this message translates to:
+  /// **'Delete {plan}? This cannot be undone.'**
+  String workoutDeleteConfirmation(String plan);
+
+  /// Workouts hub AI feature title
+  ///
+  /// In en, this message translates to:
+  /// **'AI workouts'**
+  String get workoutAiTitle;
+
+  /// Workouts hub AI feature description
+  ///
+  /// In en, this message translates to:
+  /// **'Plans built for you from your history and goals.'**
+  String get workoutAiBody;
+
+  /// Workouts hub AI feature list item
+  ///
+  /// In en, this message translates to:
+  /// **'AI-generated workout plans'**
+  String get workoutAiPlans;
+
+  /// Workouts hub AI feature list item
+  ///
+  /// In en, this message translates to:
+  /// **'Advanced progress analytics'**
+  String get workoutAiAnalytics;
+
+  /// Workouts hub AI feature list item
+  ///
+  /// In en, this message translates to:
+  /// **'Expanded exercise library'**
+  String get workoutAiLibrary;
+
+  /// Workouts hub AI feature list item
+  ///
+  /// In en, this message translates to:
+  /// **'Priority support'**
+  String get workoutAiSupport;
+
+  /// Workouts hub subscription action
+  ///
+  /// In en, this message translates to:
+  /// **'Upgrade to VIP'**
+  String get workoutUpgradeVip;
+
+  /// Workouts hub VIP AI state heading
+  ///
+  /// In en, this message translates to:
+  /// **'Coming soon'**
+  String get workoutComingSoon;
+
+  /// Workouts hub VIP AI state description
+  ///
+  /// In en, this message translates to:
+  /// **'We are training the model on your workout history.'**
+  String get workoutAiTrainingBody;
+
+  /// Workouts hub VIP AI state action
+  ///
+  /// In en, this message translates to:
+  /// **'Try the beta generator'**
+  String get workoutTryBeta;
 }
 
 class _AppLocalizationsDelegate

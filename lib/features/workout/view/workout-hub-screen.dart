@@ -4,21 +4,29 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/entities/enums.dart';
 import '../../../core/entities/workout-plan-entity.dart';
 import '../../../infra/repository-locator.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../main.dart';
 import '../../../shared/design/atoms/app-badge.dart';
 import '../../../shared/design/atoms/app-button.dart';
+import '../../../shared/design/atoms/app-nav-icon.dart';
+import '../../../shared/design/atoms/app-status-pill.dart';
+import '../../../shared/design/atoms/app-text.dart';
 import '../../../shared/design/molecules/app-card.dart';
-import '../../../shared/design/organisms/app-empty-state.dart';
+import '../../../shared/design/molecules/app-segmented-control.dart';
+import '../../../shared/design/organisms/app-dialog.dart';
+import '../../../shared/design/organisms/app-scaffold.dart';
 import '../../../shared/design/tokens/app-colors.dart';
+import '../../../shared/design/tokens/app-radii.dart';
 import '../../../shared/design/tokens/app-spacing.dart';
-import '../../../shared/design/tokens/app-typography.dart';
 import '../../../shared/utils/duration-estimator.dart';
-import '../../../shared/utils/week-helper.dart';
 import '../view-model/workout-hub-view-model.dart';
 import 'exercise-library-screen.dart';
 
 class WorkoutHubScreen extends StatefulWidget {
-  const WorkoutHubScreen({super.key});
+  final WorkoutHubViewModel? viewModel;
+  final Widget? libraryScreen;
+
+  const WorkoutHubScreen({super.key, this.viewModel, this.libraryScreen});
 
   @override
   State<WorkoutHubScreen> createState() => _WorkoutHubScreenState();
@@ -28,16 +36,22 @@ class _WorkoutHubScreenState extends State<WorkoutHubScreen>
     with SingleTickerProviderStateMixin {
   late final WorkoutHubViewModel _vm;
   late final TabController _tabController;
+  late final bool _ownsViewModel;
 
   @override
   void initState() {
     super.initState();
-    final userId = Supabase.instance.client.auth.currentUser!.id;
-    _vm = WorkoutHubViewModel(
-      userId: userId,
-      repo: RepositoryLocator.instance.workoutPlan,
-      profileRepo: RepositoryLocator.instance.profile,
-    );
+    _ownsViewModel = widget.viewModel == null;
+    if (widget.viewModel != null) {
+      _vm = widget.viewModel!;
+    } else {
+      final userId = Supabase.instance.client.auth.currentUser!.id;
+      _vm = WorkoutHubViewModel(
+        userId: userId,
+        repo: RepositoryLocator.instance.workoutPlan,
+        profileRepo: RepositoryLocator.instance.profile,
+      );
+    }
     _tabController = TabController(length: 3, vsync: this);
     _vm.loadPlans();
   }
@@ -45,45 +59,75 @@ class _WorkoutHubScreenState extends State<WorkoutHubScreen>
   @override
   void dispose() {
     _tabController.dispose();
-    _vm.dispose();
+    if (_ownsViewModel) _vm.dispose();
     super.dispose();
+  }
+
+  Future<void> _openBuilder() async {
+    final result = await Navigator.pushNamed(context, '/workout-builder');
+    if (result == true) _vm.loadPlans();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.paper,
-      appBar: AppBar(
-        title: Text('WORKOUTS', style: AppTypography.sectionHeader.copyWith(fontSize: 13, letterSpacing: 2)),
-        centerTitle: false,
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: const [
-            Tab(text: 'My Plans'),
-            Tab(text: 'Library'),
-            Tab(text: 'AI Generated'),
+    final l10n = AppLocalizations.of(context)!;
+
+    return AppScaffold(
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsetsDirectional.fromSTEB(
+                AppSpacing.lg,
+                AppSpacing.lg,
+                AppSpacing.lg,
+                AppSpacing.md,
+              ),
+              child: Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: AppText.title(l10n.workouts),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsetsDirectional.symmetric(
+                horizontal: AppSpacing.lg,
+              ),
+              child: ListenableBuilder(
+                listenable: _tabController,
+                builder: (context, _) => AppSegmentedControl<int>(
+                  options: [
+                    AppSegmentOption(value: 0, label: l10n.workoutMyPlans),
+                    AppSegmentOption(value: 1, label: l10n.workoutLibrary),
+                    AppSegmentOption(value: 2, label: l10n.workoutAi),
+                  ],
+                  selected: _tabController.index,
+                  onChanged: _tabController.animateTo,
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _PlansTab(vm: _vm, onCreate: _openBuilder),
+                  widget.libraryScreen ?? const ExerciseLibraryScreen(),
+                  _AiGeneratedTab(vm: _vm),
+                ],
+              ),
+            ),
           ],
         ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _PlansTab(vm: _vm),
-          const ExerciseLibraryScreen(),
-          _AiGeneratedTab(vm: _vm),
-        ],
       ),
       floatingActionButton: ListenableBuilder(
         listenable: _tabController,
         builder: (context, _) {
           if (_tabController.index != 0) return const SizedBox.shrink();
           return FloatingActionButton.extended(
-            onPressed: () async {
-              final result = await Navigator.pushNamed(context, '/workout-builder');
-              if (result == true) _vm.loadPlans();
-            },
+            onPressed: _openBuilder,
             icon: const Icon(Icons.add, size: 18),
-            label: Text('New Plan', style: AppTypography.label.copyWith(color: AppColors.ink, fontSize: 13)),
+            label: Text(l10n.workoutNewPlan),
           );
         },
       ),
@@ -95,79 +139,182 @@ class _WorkoutHubScreenState extends State<WorkoutHubScreen>
 
 class _PlansTab extends StatelessWidget {
   final WorkoutHubViewModel vm;
-  const _PlansTab({required this.vm});
+  final VoidCallback onCreate;
+
+  const _PlansTab({required this.vm, required this.onCreate});
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final palette = context.nashaatPalette;
+
     return ListenableBuilder(
       listenable: vm,
       builder: (context, _) {
         if (vm.isLoading) {
-          return const Center(child: CircularProgressIndicator(color: AppColors.ink));
+          return Center(
+            child: CircularProgressIndicator(color: palette.accent),
+          );
         }
+
         if (vm.error != null) {
-          return AppEmptyState(
-            title: 'Something went wrong',
-            body: vm.error!,
-            primaryLabel: 'Retry',
-            onPrimary: vm.loadPlans,
+          return _HubStateCard(
             icon: Icons.error_outline,
+            title: l10n.genericError,
+            body: l10n.workoutCouldNotLoad,
+            actionLabel: l10n.next,
+            onAction: vm.loadPlans,
           );
         }
+
         if (vm.plans.isEmpty) {
-          return AppEmptyState(
-            title: 'No workout plans yet',
-            body: 'Create your first plan to start earning screen time.',
-            primaryLabel: 'Create Plan',
-            onPrimary: () async {
-              final result = await Navigator.pushNamed(context, '/workout-builder');
-              if (result == true) vm.loadPlans();
-            },
-            icon: Icons.fitness_center_outlined,
+          return _HubStateCard(
+            icon: AppNavGlyph.crossedOars,
+            title: l10n.workoutNoPlansTitle,
+            body: Theme.of(context).platform == TargetPlatform.iOS
+                ? l10n.workoutNoPlansScreenTime
+                : l10n.workoutNoPlansTraining,
+            actionLabel: l10n.workoutNewPlan,
+            onAction: onCreate,
           );
         }
+
+        final nextPlan = _recommendedPlan(vm.plans);
         return RefreshIndicator(
-          color: AppColors.ink,
+          color: palette.accent,
           onRefresh: vm.loadPlans,
-          child: ListView.builder(
-            padding: const EdgeInsets.fromLTRB(AppSpacing.base, AppSpacing.base, AppSpacing.base, 100),
-            itemCount: vm.plans.length,
-            itemBuilder: (context, i) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: _PlanCard(
-                plan: vm.plans[i],
-                onEdit: () async {
-                  final result = await Navigator.pushNamed(
-                    context,
-                    '/workout-builder',
-                    arguments: {'planId': vm.plans[i].id},
-                  );
-                  if (result == true) vm.loadPlans();
-                },
-                onStart: () => Navigator.pushNamed(context, '/active-session', arguments: vm.plans[i]),
-                onDelete: () => _confirmDelete(context, vm, vm.plans[i]),
-              ),
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsetsDirectional.fromSTEB(
+              AppSpacing.lg,
+              AppSpacing.sm,
+              AppSpacing.lg,
+              112,
             ),
+            children: [
+              _NextWorkoutCard(
+                plan: nextPlan,
+                onStart: () => _startPlan(context, nextPlan),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              AppText.heading(l10n.workoutYourPlans),
+              const SizedBox(height: AppSpacing.sm),
+              ...vm.plans.map(
+                (plan) => Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                  child: _PlanCard(
+                    plan: plan,
+                    onEdit: () => _editPlan(context, vm, plan),
+                    onStart: () => _startPlan(context, plan),
+                    onDelete: () => _confirmDelete(context, vm, plan),
+                  ),
+                ),
+              ),
+            ],
           ),
         );
       },
     );
   }
 
-  Future<void> _confirmDelete(BuildContext context, WorkoutHubViewModel vm, WorkoutPlanEntity plan) async {
-    final confirmed = await showDialog<bool>(
+  Future<void> _editPlan(
+    BuildContext context,
+    WorkoutHubViewModel vm,
+    WorkoutPlanEntity plan,
+  ) async {
+    final result = await Navigator.pushNamed(
+      context,
+      '/workout-builder',
+      arguments: {'planId': plan.id},
+    );
+    if (result == true) vm.loadPlans();
+  }
+
+  Future<void> _startPlan(BuildContext context, WorkoutPlanEntity plan) async {
+    await Navigator.pushNamed(context, '/active-session', arguments: plan);
+  }
+
+  Future<void> _confirmDelete(
+    BuildContext context,
+    WorkoutHubViewModel vm,
+    WorkoutPlanEntity plan,
+  ) async {
+    final l10n = AppLocalizations.of(context)!;
+    final confirmed = await AppDialog.show<bool>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: Text('Delete Plan', style: AppTypography.heading),
-        content: Text('Delete "${plan.title}"? This cannot be undone.', style: AppTypography.body),
-        actions: [
-          AppButton.ghost('Cancel', onPressed: () => Navigator.pop(context, false)),
-          const SizedBox(width: 8),
-          AppButton.destructive('Delete', onPressed: () => Navigator.pop(context, true)),
+      title: AppText.heading(l10n.delete),
+      content: AppText.body(l10n.workoutDeleteConfirmation(plan.title)),
+      actions: [
+        AppButton.ghost(
+          l10n.cancel,
+          onPressed: () => Navigator.pop(context, false),
+        ),
+        AppButton.destructive(
+          l10n.delete,
+          onPressed: () => Navigator.pop(context, true),
+        ),
+      ],
+    );
+    if (confirmed == true) await vm.deletePlan(plan.id);
+  }
+}
+
+WorkoutPlanEntity _recommendedPlan(List<WorkoutPlanEntity> plans) {
+  final today = DateTime.now().weekday;
+  return plans.firstWhere(
+    (plan) => plan.scheduledDays.contains(today),
+    orElse: () => plans.first,
+  );
+}
+
+class _NextWorkoutCard extends StatelessWidget {
+  final WorkoutPlanEntity plan;
+  final VoidCallback onStart;
+
+  const _NextWorkoutCard({required this.plan, required this.onStart});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final isToday = plan.scheduledDays.contains(DateTime.now().weekday);
+    final estimate = _estimate(plan);
+    return AppCard.standard(
+      padding: const EdgeInsets.all(AppSpacing.base),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              AppNavIcon(
+                glyph: AppNavGlyph.crossedOars,
+                selected: true,
+                size: 34,
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(child: AppText.section(l10n.workoutNextWorkout)),
+              AppStatusPill(
+                label: isToday ? l10n.workoutToday : l10n.workoutRecommended,
+                tone: isToday ? AppStatusTone.accent : AppStatusTone.calm,
+                showDot: true,
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          AppText.title(plan.title),
+          if (estimate.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.xs),
+            AppText.mono(estimate),
+          ],
+          const SizedBox(height: AppSpacing.md),
+          AppButton.primary(
+            l10n.startWorkout,
+            onPressed: onStart,
+            width: double.infinity,
+            icon: Icons.play_arrow,
+          ),
         ],
       ),
     );
-    if (confirmed == true) await vm.deletePlan(plan.id);
   }
 }
 
@@ -177,16 +324,21 @@ class _PlanCard extends StatelessWidget {
   final VoidCallback onStart;
   final VoidCallback onDelete;
 
-  const _PlanCard({required this.plan, required this.onEdit, required this.onStart, required this.onDelete});
+  const _PlanCard({
+    required this.plan,
+    required this.onEdit,
+    required this.onStart,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final estimate = DurationEstimator.formatEstimate(
-      plan.exercises,
-      {for (final e in plan.exercises) e.exerciseId: ExerciseMeasurement.repsWeight},
-    );
+    final l10n = AppLocalizations.of(context)!;
+    final palette = context.nashaatPalette;
+    final estimate = _estimate(plan);
+    final isToday = plan.scheduledDays.contains(DateTime.now().weekday);
 
-    return AppCard(
+    return AppCard.standard(
       onTap: onEdit,
       padding: const EdgeInsets.all(AppSpacing.base),
       child: Column(
@@ -194,66 +346,154 @@ class _PlanCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Expanded(
-                child: Text(plan.title, style: AppTypography.heading.copyWith(fontSize: 15)),
-              ),
+              Expanded(child: AppText.heading(plan.title)),
               if (plan.source == WorkoutSource.aiGenerated) ...[
-                const AppBadge.acid('AI'),
-                const SizedBox(width: 8),
+                AppBadge('AI', tone: AppStatusTone.reward),
+                const SizedBox(width: AppSpacing.sm),
               ],
               PopupMenuButton<String>(
-                onSelected: (v) {
-                  if (v == 'edit') onEdit();
-                  if (v == 'delete') onDelete();
+                tooltip: l10n.workoutPlanMenu,
+                icon: Icon(Icons.more_horiz, color: palette.textMuted),
+                color: palette.card,
+                shape: const RoundedRectangleBorder(
+                  borderRadius: AppRadii.control,
+                ),
+                onSelected: (value) {
+                  if (value == 'edit') onEdit();
+                  if (value == 'delete') onDelete();
                 },
-                color: AppColors.paper,
-                shape: const RoundedRectangleBorder(),
                 itemBuilder: (_) => [
-                  PopupMenuItem(
-                    value: 'edit',
-                    child: Text('Edit', style: AppTypography.body),
-                  ),
+                  PopupMenuItem(value: 'edit', child: AppText.body(l10n.edit)),
                   PopupMenuItem(
                     value: 'delete',
-                    child: Text('Delete', style: AppTypography.body.copyWith(color: AppColors.error)),
+                    child: AppText.body(l10n.delete, color: palette.dangerText),
                   ),
                 ],
-                child: const Icon(Icons.more_vert, size: 20, color: AppColors.inkMuted),
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: AppSpacing.base,
-            runSpacing: 4,
-            children: [
-              _InfoRow(icon: Icons.fitness_center, label: '${plan.exercises.length} exercise${plan.exercises.length == 1 ? '' : 's'}'),
-              if (estimate.isNotEmpty) _InfoRow(icon: Icons.timer_outlined, label: estimate),
-              if (plan.scheduledDays.isNotEmpty)
-                _InfoRow(icon: Icons.calendar_today, label: WeekHelper.formatScheduledDays(plan.scheduledDays)),
-            ],
+          const SizedBox(height: AppSpacing.sm),
+          AppText.mono(
+            _planSummary(l10n, plan, estimate),
+            color: palette.textSecondary,
           ),
-          const SizedBox(height: 12),
-          AppButton.primary('Start', onPressed: onStart, width: double.infinity, icon: Icons.play_arrow),
+          const SizedBox(height: AppSpacing.md),
+          _ScheduleDots(days: plan.scheduledDays),
+          const SizedBox(height: AppSpacing.md),
+          isToday
+              ? AppButton.primary(
+                  l10n.startWorkout,
+                  onPressed: onStart,
+                  width: double.infinity,
+                  icon: Icons.play_arrow,
+                )
+              : AppButton.ghost(
+                  l10n.startWorkout,
+                  onPressed: onStart,
+                  width: double.infinity,
+                  icon: Icons.play_arrow,
+                ),
         ],
       ),
     );
   }
 }
 
-class _InfoRow extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  const _InfoRow({required this.icon, required this.label});
+class _ScheduleDots extends StatelessWidget {
+  final List<int> days;
+
+  const _ScheduleDots({required this.days});
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+    final palette = context.nashaatPalette;
+    final today = DateTime.now().weekday;
+    const sundayFirst = [7, 1, 2, 3, 4, 5, 6];
+    return Semantics(
+      label: 'Scheduled days',
+      value: days.isEmpty ? 'None' : days.join(', '),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final weekday in sundayFirst)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(end: 5),
+              child: Container(
+                width: 16,
+                height: 16,
+                decoration: BoxDecoration(
+                  color: days.contains(weekday)
+                      ? weekday == today
+                            ? palette.accent
+                            : palette.calm
+                      : palette.raised,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: days.contains(weekday)
+                        ? Colors.transparent
+                        : palette.border,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HubStateCard extends StatelessWidget {
+  final Object icon;
+  final String title;
+  final String body;
+  final String actionLabel;
+  final VoidCallback onAction;
+
+  const _HubStateCard({
+    required this.icon,
+    required this.title,
+    required this.body,
+    required this.actionLabel,
+    required this.onAction,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.nashaatPalette;
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsetsDirectional.fromSTEB(
+        AppSpacing.lg,
+        AppSpacing.xl,
+        AppSpacing.lg,
+        AppSpacing.xl,
+      ),
       children: [
-        Icon(icon, size: 13, color: AppColors.inkMuted),
-        const SizedBox(width: 4),
-        Text(label, style: AppTypography.labelMuted),
+        AppCard.flat(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            children: [
+              if (icon is IconData)
+                Icon(icon as IconData, size: 48, color: palette.textMuted)
+              else
+                AppNavIcon(
+                  glyph: icon as AppNavGlyph,
+                  selected: true,
+                  size: 52,
+                ),
+              const SizedBox(height: AppSpacing.md),
+              AppText.heading(title, textAlign: TextAlign.center),
+              const SizedBox(height: AppSpacing.sm),
+              AppText.bodyMuted(body, textAlign: TextAlign.center),
+              const SizedBox(height: AppSpacing.lg),
+              AppButton.primary(
+                actionLabel,
+                onPressed: onAction,
+                width: double.infinity,
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -263,83 +503,137 @@ class _InfoRow extends StatelessWidget {
 
 class _AiGeneratedTab extends StatelessWidget {
   final WorkoutHubViewModel vm;
+
   const _AiGeneratedTab({required this.vm});
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final palette = context.nashaatPalette;
+
     return ListenableBuilder(
       listenable: vm,
       builder: (context, _) {
         if (vm.isLoading) {
-          return const Center(child: CircularProgressIndicator(color: AppColors.ink));
-        }
-
-        if (vm.isVip) {
-          return AppEmptyState(
-            title: 'AI Generated Workouts',
-            body: 'Coming soon. We are training the model on your training history.',
-            secondaryLabel: 'Open Beta Generator',
-            onSecondary: () => appCoordinator.showAiGeneration(),
-            icon: Icons.auto_awesome_outlined,
+          return Center(
+            child: CircularProgressIndicator(color: palette.accent),
           );
         }
 
-        // Free user — upsell
-        return Padding(
-          padding: const EdgeInsets.all(AppSpacing.base),
-          child: Column(
-            children: [
-              Container(
-                decoration: const BoxDecoration(
-                  border: Border(left: BorderSide(color: AppColors.acid, width: 3)),
+        return ListView(
+          padding: const EdgeInsetsDirectional.fromSTEB(
+            AppSpacing.lg,
+            AppSpacing.lg,
+            AppSpacing.lg,
+            AppSpacing.xl,
+          ),
+          children: [
+            if (!vm.isVip)
+              AppCard.reward(
+                padding: const EdgeInsets.all(AppSpacing.base),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.auto_awesome,
+                          size: 28,
+                          color: palette.rewardText,
+                        ),
+                        const SizedBox(width: AppSpacing.md),
+                        Expanded(child: AppText.heading(l10n.workoutAiTitle)),
+                        const AppBadge('VIP', tone: AppStatusTone.reward),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    AppText.body(l10n.workoutAiBody),
+                    const SizedBox(height: AppSpacing.md),
+                    _FeatureRow(l10n.workoutAiPlans),
+                    _FeatureRow(l10n.workoutAiAnalytics),
+                    _FeatureRow(l10n.workoutAiLibrary),
+                    _FeatureRow(l10n.workoutAiSupport),
+                    const SizedBox(height: AppSpacing.md),
+                    AppButton.reward(
+                      l10n.workoutUpgradeVip,
+                      onPressed: () =>
+                          Navigator.pushNamed(context, '/subscription'),
+                      width: double.infinity,
+                    ),
+                  ],
                 ),
-                child: AppEmptyState(
-                  title: 'AI Generated Workouts',
-                  body: 'Personalised plans generated for you based on your history and goals. Available on VIP.',
-                  primaryLabel: 'Buy VIP',
-                  onPrimary: () => Navigator.pushNamed(context, '/subscription'),
-                  icon: Icons.auto_awesome_outlined,
-                  accentBorder: false,
+              )
+            else
+              AppCard.standard(
+                padding: const EdgeInsets.all(AppSpacing.base),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.auto_awesome,
+                          size: 28,
+                          color: palette.accentText,
+                        ),
+                        const SizedBox(width: AppSpacing.md),
+                        Expanded(child: AppText.heading(l10n.workoutAiTitle)),
+                        AppStatusPill(label: 'Beta', tone: AppStatusTone.calm),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    AppText.heading(l10n.workoutComingSoon),
+                    const SizedBox(height: AppSpacing.sm),
+                    AppText.bodyMuted(l10n.workoutAiTrainingBody),
+                    const SizedBox(height: AppSpacing.lg),
+                    AppButton.ghost(
+                      l10n.workoutTryBeta,
+                      onPressed: appCoordinator.showAiGeneration,
+                      width: double.infinity,
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: AppSpacing.base),
-              _VipFeatureList(),
-            ],
-          ),
+          ],
         );
       },
     );
   }
 }
 
-class _VipFeatureList extends StatelessWidget {
+class _FeatureRow extends StatelessWidget {
+  final String label;
+
+  const _FeatureRow(this.label);
+
   @override
   Widget build(BuildContext context) {
-    const features = [
-      'AI-generated workout plans',
-      'Advanced progress analytics',
-      'Expanded exercise library',
-      'Priority support',
-    ];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('VIP INCLUDES', style: AppTypography.sectionHeader),
-        const SizedBox(height: 8),
-        ...features.map(
-          (f) => Padding(
-            padding: const EdgeInsets.symmetric(vertical: 5),
-            child: Row(
-              children: [
-                Container(width: 6, height: 6, color: AppColors.acid),
-                const SizedBox(width: 10),
-                Text(f, style: AppTypography.body),
-              ],
-            ),
-          ),
-        ),
-      ],
+    final palette = context.nashaatPalette;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(Icons.check, size: 16, color: palette.rewardText),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(child: AppText.body(label)),
+        ],
+      ),
     );
   }
+}
+
+String _estimate(WorkoutPlanEntity plan) {
+  return DurationEstimator.formatEstimate(plan.exercises, {
+    for (final exercise in plan.exercises)
+      exercise.exerciseId: ExerciseMeasurement.repsWeight,
+  });
+}
+
+String _planSummary(
+  AppLocalizations l10n,
+  WorkoutPlanEntity plan,
+  String estimate,
+) {
+  if (estimate.isEmpty) return l10n.workoutExerciseCount(plan.exercises.length);
+  return l10n.workoutPlanSummary(plan.exercises.length, estimate);
 }

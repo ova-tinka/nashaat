@@ -232,4 +232,104 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get onboardingSkipForNow => 'Skip for now';
+
+  @override
+  String get workoutMyPlans => 'My plans';
+
+  @override
+  String get workoutLibrary => 'Library';
+
+  @override
+  String get workoutAi => 'AI';
+
+  @override
+  String get workoutNewPlan => 'New plan';
+
+  @override
+  String get workoutNextWorkout => 'Next workout';
+
+  @override
+  String get workoutRecommended => 'Recommended';
+
+  @override
+  String get workoutToday => 'Today';
+
+  @override
+  String get workoutYourPlans => 'Your plans';
+
+  @override
+  String get workoutNoPlansTitle => 'No plans yet';
+
+  @override
+  String get workoutNoPlansScreenTime =>
+      'Create your first plan to start earning screen time.';
+
+  @override
+  String get workoutNoPlansTraining =>
+      'Create your first plan to start training.';
+
+  @override
+  String get workoutCouldNotLoad => 'Could not load your plans.';
+
+  @override
+  String workoutExerciseCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count exercises',
+      one: '1 exercise',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String workoutPlanSummary(int count, String duration) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count exercises',
+      one: '1 exercise',
+    );
+    return '$_temp0 · $duration';
+  }
+
+  @override
+  String get workoutPlanMenu => 'Plan menu';
+
+  @override
+  String workoutDeleteConfirmation(String plan) {
+    return 'Delete $plan? This cannot be undone.';
+  }
+
+  @override
+  String get workoutAiTitle => 'AI workouts';
+
+  @override
+  String get workoutAiBody =>
+      'Plans built for you from your history and goals.';
+
+  @override
+  String get workoutAiPlans => 'AI-generated workout plans';
+
+  @override
+  String get workoutAiAnalytics => 'Advanced progress analytics';
+
+  @override
+  String get workoutAiLibrary => 'Expanded exercise library';
+
+  @override
+  String get workoutAiSupport => 'Priority support';
+
+  @override
+  String get workoutUpgradeVip => 'Upgrade to VIP';
+
+  @override
+  String get workoutComingSoon => 'Coming soon';
+
+  @override
+  String get workoutAiTrainingBody =>
+      'We are training the model on your workout history.';
+
+  @override
+  String get workoutTryBeta => 'Try the beta generator';
 }
