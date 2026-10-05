@@ -437,25 +437,25 @@ abstract class AppLocalizations {
   /// Onboarding reward preview weekly target label
   ///
   /// In en, this message translates to:
-  /// **'Weekly target'**
+  /// **'Screen time a week'**
   String get onboardingWeeklyTarget;
 
   /// Onboarding reward preview free time label
   ///
   /// In en, this message translates to:
-  /// **'Free time per week'**
+  /// **'Free every week (20%)'**
   String get onboardingFreeTime;
 
   /// Onboarding reward preview small session label
   ///
   /// In en, this message translates to:
-  /// **'Per small session'**
+  /// **'Each small workout'**
   String get onboardingSmallSessionReward;
 
   /// Onboarding reward preview big session label
   ///
   /// In en, this message translates to:
-  /// **'Per big session'**
+  /// **'Each big workout'**
   String get onboardingBigSessionReward;
 
   /// Onboarding reward preview session split heading
@@ -476,17 +476,53 @@ abstract class AppLocalizations {
   /// **'Big sessions (2x)'**
   String get onboardingBigSessions;
 
+  /// Short small-session label in reward preview
+  ///
+  /// In en, this message translates to:
+  /// **'Small (1×)'**
+  String get onboardingSmallSessionShort;
+
+  /// Short big-session label in reward preview
+  ///
+  /// In en, this message translates to:
+  /// **'Big (2×)'**
+  String get onboardingBigSessionShort;
+
   /// Onboarding app blocking explanation
   ///
   /// In en, this message translates to:
   /// **'Choose apps to block when your screen time runs out.\nYou can change this later.'**
   String get onboardingBlockingBody;
 
+  /// Onboarding app blocking section label
+  ///
+  /// In en, this message translates to:
+  /// **'APP BLOCKING'**
+  String get onboardingBlockingKicker;
+
+  /// Onboarding app blocking heading
+  ///
+  /// In en, this message translates to:
+  /// **'Choose the apps that lock when your time runs out'**
+  String get onboardingBlockingTitle;
+
+  /// Onboarding app blocking privacy note
+  ///
+  /// In en, this message translates to:
+  /// **'Apple keeps your list private; Nashaat can\'t see inside your apps.'**
+  String get onboardingBlockingHint;
+
   /// Onboarding iOS app picker action
   ///
   /// In en, this message translates to:
   /// **'Select apps via Screen Time'**
   String get onboardingSelectApps;
+
+  /// Onboarding iOS app picker primary action
+  ///
+  /// In en, this message translates to:
+  /// **'Choose via Screen Time'**
+  String get onboardingChooseViaScreenTime;
 
   /// Onboarding iOS app picker completion state
   ///
@@ -535,6 +571,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'New plan'**
   String get workoutNewPlan;
+
+  /// Compact workout plan start action
+  ///
+  /// In en, this message translates to:
+  /// **'Start'**
+  String get workoutStart;
 
   /// Workouts hub recommended workout heading
   ///
@@ -854,6 +896,12 @@ abstract class AppLocalizations {
   /// **'Done'**
   String get activeDone;
 
+  /// Active workout header finish action
+  ///
+  /// In en, this message translates to:
+  /// **'Finish'**
+  String get activeFinish;
+
   /// Active workout exit dialog title
   ///
   /// In en, this message translates to:
@@ -1027,6 +1075,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Back to Workouts'**
   String get activeBackToWorkouts;
+
+  /// Workout completion acknowledgement action
+  ///
+  /// In en, this message translates to:
+  /// **'Thanks!'**
+  String get activeThanks;
 }
 
 class _AppLocalizationsDelegate

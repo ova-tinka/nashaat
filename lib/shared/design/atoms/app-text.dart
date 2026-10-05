@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../tokens/app-colors.dart';
 
 enum _AppTextVariant {
+  hero,
   display,
   title,
   heading,
@@ -31,6 +32,15 @@ class AppText extends StatelessWidget {
     this.overflow,
     this.color,
   }) : _variant = _AppTextVariant.display;
+
+  const AppText.hero(
+    this.text, {
+    super.key,
+    this.textAlign,
+    this.maxLines,
+    this.overflow,
+    this.color,
+  }) : _variant = _AppTextVariant.hero;
 
   const AppText.title(
     this.text, {
@@ -109,6 +119,7 @@ class AppText extends StatelessWidget {
     final palette = context.nashaatPalette;
     final textTheme = Theme.of(context).textTheme;
     final base = switch (_variant) {
+      _AppTextVariant.hero => textTheme.displayLarge,
       _AppTextVariant.display => textTheme.displayMedium,
       _AppTextVariant.title => textTheme.headlineMedium,
       _AppTextVariant.heading => textTheme.titleMedium,

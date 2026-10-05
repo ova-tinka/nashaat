@@ -6,8 +6,8 @@ import 'package:nashaat/features/onboarding/coordinator/onboarding-coordinator.d
 import 'package:nashaat/features/onboarding/view-model/onboarding-view-model.dart';
 import 'package:nashaat/features/onboarding/view/onboarding-screen.dart';
 import 'package:nashaat/l10n/app_localizations.dart';
-import 'package:nashaat/shared/design/atoms/app-sadu-band.dart';
 import 'package:nashaat/shared/design/molecules/app-dotted-slider.dart';
+import 'package:nashaat/shared/design/molecules/app-step-progress.dart';
 import 'package:nashaat/shared/design/organisms/app-step-scaffold.dart';
 import 'package:nashaat/shared/design/theme.dart';
 import 'package:nashaat/shared/design/tokens/app-colors.dart';
@@ -46,7 +46,7 @@ void main() {
         ),
       );
 
-      expect(find.byType(AppSaduBand), findsOneWidget);
+      expect(find.byType(AppStepProgress), findsOneWidget);
       expect(find.text('Step 3 of 6'), findsOneWidget);
       expect(find.text('Continue'), findsOneWidget);
       expect(tester.takeException(), isNull);
@@ -104,15 +104,15 @@ void main() {
 
     tearDown(() => viewModel.dispose());
 
-    testWidgets('uses compact headings and the dotted phone slider', (
+    testWidgets('uses reference headings and the dotted phone slider', (
       tester,
     ) async {
       await tester.binding.setSurfaceSize(const Size(360, 624));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
       await tester.pumpWidget(_onboardingApp(viewModel));
-      expect(find.text('Welcome to Nashaat'), findsOneWidget);
-      expect(find.text('WELCOME TO\nNASHAAT'), findsNothing);
+      expect(find.text('Nashaat'), findsOneWidget);
+      expect(find.text('Welcome to Nashaat'), findsNothing);
 
       await tester.tap(find.text("Let's go"));
       await tester.pump();
@@ -136,7 +136,7 @@ void main() {
       await tester.pumpWidget(
         _onboardingApp(viewModel, locale: const Locale('ar')),
       );
-      expect(find.text('مرحباً بك في نشاط'), findsOneWidget);
+      expect(find.text('Nashaat'), findsOneWidget);
       expect(find.text('لنبدأ'), findsOneWidget);
       expect(tester.takeException(), isNull);
 

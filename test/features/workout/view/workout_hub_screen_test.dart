@@ -28,7 +28,7 @@ void main() {
     profileRepo: profileRepository,
   );
 
-  testWidgets('leads with the next workout and plan hierarchy', (tester) async {
+  testWidgets('leads with the plan stack and inline start actions', (tester) async {
     final today = DateTime.now().weekday;
     when(() => planRepository.getUserPlans(any())).thenAnswer(
       (_) async => [
@@ -48,10 +48,10 @@ void main() {
 
     expect(find.text('Workouts'), findsOneWidget);
     expect(find.byType(AppSegmentedControl<int>), findsOneWidget);
-    expect(find.text('Next workout'), findsOneWidget);
+    expect(find.text('Next workout'), findsNothing);
     expect(find.text('Morning Routine'), findsAtLeastNWidgets(1));
-    expect(find.text('Your plans'), findsOneWidget);
-    expect(find.text('Start Workout'), findsAtLeastNWidgets(1));
+    expect(find.text('Your plans'), findsNothing);
+    expect(find.text('Start'), findsAtLeastNWidgets(1));
     expect(find.text('WORKOUTS'), findsNothing);
     expect(tester.takeException(), isNull);
   });
@@ -73,6 +73,35 @@ void main() {
     expect(find.text('No plans yet'), findsOneWidget);
     expect(find.text('Create new plan'), findsNothing);
     expect(find.text('New plan'), findsAtLeastNWidgets(1));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('keeps the schedule row usable on an iPhone-width viewport', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(360, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    when(() => planRepository.getUserPlans(any())).thenAnswer(
+      (_) async => [
+        TestData.workoutPlan(
+          title: 'Push Day',
+          scheduledDays: const [7, 1, 3],
+        ),
+      ],
+    );
+    when(
+      () => profileRepository.getProfile(any()),
+    ).thenAnswer((_) async => TestData.profile());
+
+    final vm = buildViewModel();
+    addTearDown(vm.dispose);
+
+    await tester.pumpWidget(_app(WorkoutHubScreen(viewModel: vm)));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Push Day'), findsOneWidget);
+    expect(find.text('Start'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

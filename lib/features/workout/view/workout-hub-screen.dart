@@ -86,7 +86,7 @@ class _WorkoutHubScreenState extends State<WorkoutHubScreen>
               ),
               child: Align(
                 alignment: AlignmentDirectional.centerStart,
-                child: AppText.title(l10n.workouts),
+                child: AppText.hero(l10n.workouts),
               ),
             ),
             Padding(
@@ -179,7 +179,6 @@ class _PlansTab extends StatelessWidget {
           );
         }
 
-        final nextPlan = _recommendedPlan(vm.plans);
         return RefreshIndicator(
           color: palette.accent,
           onRefresh: vm.loadPlans,
@@ -187,18 +186,11 @@ class _PlansTab extends StatelessWidget {
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsetsDirectional.fromSTEB(
               AppSpacing.lg,
-              AppSpacing.sm,
+              AppSpacing.md,
               AppSpacing.lg,
               112,
             ),
             children: [
-              _NextWorkoutCard(
-                plan: nextPlan,
-                onStart: () => _startPlan(context, nextPlan),
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              AppText.heading(l10n.workoutYourPlans),
-              const SizedBox(height: AppSpacing.sm),
               ...vm.plans.map(
                 (plan) => Padding(
                   padding: const EdgeInsets.only(bottom: AppSpacing.sm),
@@ -256,65 +248,6 @@ class _PlansTab extends StatelessWidget {
       ],
     );
     if (confirmed == true) await vm.deletePlan(plan.id);
-  }
-}
-
-WorkoutPlanEntity _recommendedPlan(List<WorkoutPlanEntity> plans) {
-  final today = DateTime.now().weekday;
-  return plans.firstWhere(
-    (plan) => plan.scheduledDays.contains(today),
-    orElse: () => plans.first,
-  );
-}
-
-class _NextWorkoutCard extends StatelessWidget {
-  final WorkoutPlanEntity plan;
-  final VoidCallback onStart;
-
-  const _NextWorkoutCard({required this.plan, required this.onStart});
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    final isToday = plan.scheduledDays.contains(DateTime.now().weekday);
-    final estimate = _estimate(plan);
-    return AppCard.standard(
-      padding: const EdgeInsets.all(AppSpacing.base),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              AppNavIcon(
-                glyph: AppNavGlyph.crossedOars,
-                selected: true,
-                size: 34,
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(child: AppText.section(l10n.workoutNextWorkout)),
-              AppStatusPill(
-                label: isToday ? l10n.workoutToday : l10n.workoutRecommended,
-                tone: isToday ? AppStatusTone.accent : AppStatusTone.calm,
-                showDot: true,
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-          AppText.title(plan.title),
-          if (estimate.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.xs),
-            AppText.mono(estimate),
-          ],
-          const SizedBox(height: AppSpacing.md),
-          AppButton.primary(
-            l10n.startWorkout,
-            onPressed: onStart,
-            width: double.infinity,
-            icon: Icons.play_arrow,
-          ),
-        ],
-      ),
-    );
   }
 }
 
@@ -377,22 +310,27 @@ class _PlanCard extends StatelessWidget {
             _planSummary(l10n, plan, estimate),
             color: palette.textSecondary,
           ),
-          const SizedBox(height: AppSpacing.md),
-          _ScheduleDots(days: plan.scheduledDays),
-          const SizedBox(height: AppSpacing.md),
-          isToday
-              ? AppButton.primary(
-                  l10n.startWorkout,
-                  onPressed: onStart,
-                  width: double.infinity,
-                  icon: Icons.play_arrow,
-                )
-              : AppButton.ghost(
-                  l10n.startWorkout,
-                  onPressed: onStart,
-                  width: double.infinity,
-                  icon: Icons.play_arrow,
-                ),
+          const SizedBox(height: AppSpacing.lg),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(child: _ScheduleDots(days: plan.scheduledDays)),
+              const SizedBox(width: AppSpacing.md),
+              isToday
+                  ? AppButton.primary(
+                      l10n.workoutStart,
+                      onPressed: onStart,
+                      width: 104,
+                      icon: Icons.play_arrow,
+                    )
+                  : AppButton.ghost(
+                      l10n.workoutStart,
+                      onPressed: onStart,
+                      width: 104,
+                      icon: Icons.play_arrow,
+                    ),
+            ],
+          ),
         ],
       ),
     );
@@ -407,31 +345,43 @@ class _ScheduleDots extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.nashaatPalette;
-    final today = DateTime.now().weekday;
     const sundayFirst = [7, 1, 2, 3, 4, 5, 6];
+    const dayLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
     return Semantics(
       label: 'Scheduled days',
       value: days.isEmpty ? 'None' : days.join(', '),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: MainAxisSize.max,
         children: [
-          for (final weekday in sundayFirst)
-            Padding(
-              padding: const EdgeInsetsDirectional.only(end: 5),
-              child: Container(
-                width: 16,
-                height: 16,
-                decoration: BoxDecoration(
-                  color: days.contains(weekday)
-                      ? weekday == today
-                            ? palette.accent
-                            : palette.calm
-                      : palette.raised,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: days.contains(weekday)
-                        ? Colors.transparent
-                        : palette.border,
+          for (var index = 0; index < sundayFirst.length; index++)
+            Expanded(
+              child: Padding(
+                padding: EdgeInsetsDirectional.only(
+                  end: index == sundayFirst.length - 1 ? 0 : 4,
+                ),
+                child: Container(
+                  height: 34,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: days.contains(sundayFirst[index])
+                        ? palette.calm
+                        : Colors.transparent,
+                    border: Border.all(
+                      color: days.contains(sundayFirst[index])
+                          ? palette.calm
+                          : palette.border,
+                      width: days.contains(sundayFirst[index]) ? 1.5 : 1,
+                    ),
+                    borderRadius: AppRadii.control,
+                  ),
+                  child: Text(
+                    dayLabels[index],
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: days.contains(sundayFirst[index])
+                          ? palette.calmInk
+                          : palette.textMuted,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ),

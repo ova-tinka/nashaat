@@ -8,7 +8,6 @@ import '../../../core/entities/enums.dart';
 import '../../../core/entities/exercise-entity.dart';
 import '../../../infra/repository-locator.dart';
 import '../../../l10n/app_localizations.dart';
-import '../../../shared/design/atoms/app-badge.dart';
 import '../../../shared/design/atoms/app-button.dart';
 import '../../../shared/design/atoms/app-chip.dart';
 import '../../../shared/design/atoms/app-status-pill.dart';
@@ -114,6 +113,9 @@ class _WorkoutBuilderScreenState extends State<WorkoutBuilderScreen> {
                       : l10n.builderNewPlan,
                   estimate: _vm.durationEstimate,
                   onClose: () => Navigator.of(context).maybePop(),
+                  onSave: _handleSave,
+                  isSaving: _vm.isSaving,
+                  saveLabel: l10n.save,
                 ),
                 Expanded(
                   child: Form(
@@ -272,11 +274,17 @@ class _BuilderHeader extends StatelessWidget {
   final String title;
   final String estimate;
   final VoidCallback onClose;
+  final VoidCallback onSave;
+  final bool isSaving;
+  final String saveLabel;
 
   const _BuilderHeader({
     required this.title,
     required this.estimate,
     required this.onClose,
+    required this.onSave,
+    required this.isSaving,
+    required this.saveLabel,
   });
 
   @override
@@ -288,11 +296,6 @@ class _BuilderHeader extends StatelessWidget {
         AppSpacing.lg,
         AppSpacing.sm,
       ),
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: context.nashaatPalette.border),
-        ),
-      ),
       child: Row(
         children: [
           IconButton(
@@ -300,9 +303,32 @@ class _BuilderHeader extends StatelessWidget {
             onPressed: onClose,
             icon: const Icon(Icons.close),
           ),
-          const SizedBox(width: AppSpacing.xs),
-          Expanded(child: AppText.heading(title)),
-          if (estimate.isNotEmpty) AppBadge(estimate, tone: AppStatusTone.calm),
+          SizedBox(width: 64, child: const SizedBox.shrink()),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AppText.heading(title, textAlign: TextAlign.center),
+                if (estimate.isNotEmpty) AppText.bodyMuted(estimate),
+              ],
+            ),
+          ),
+          SizedBox(
+            width: 64,
+            child: TextButton(
+              onPressed: isSaving ? null : onSave,
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.zero,
+                minimumSize: const Size(64, 44),
+              ),
+              child: Text(
+                saveLabel,
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: context.nashaatPalette.accentText,
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );

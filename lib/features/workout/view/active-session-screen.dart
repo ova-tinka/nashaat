@@ -2,11 +2,11 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/entities/enums.dart';
 import '../../../core/entities/workout-plan-entity.dart';
 import '../../../infra/repository-locator.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/design/atoms/app-button.dart';
-import '../../../shared/design/atoms/app-sadu-band.dart';
 import '../../../shared/design/atoms/app-status-pill.dart';
 import '../../../shared/design/atoms/app-text.dart';
 import '../../../shared/design/molecules/app-card.dart';
@@ -86,14 +86,11 @@ class _ActiveSessionScreenState extends State<ActiveSessionScreen> {
                 children: [
                   _SessionHeader(
                     title: widget.plan.title,
-                    mode: widget.mode,
-                    status: _vm.status,
                     onClose: () async {
                       if (await _confirmExit() && context.mounted) {
                         Navigator.pop(context);
                       }
                     },
-                    onPauseOrResume: _vm.pauseOrResume,
                     onDone: _vm.isStartingServerSession
                         ? null
                         : _vm.markAllComplete,
@@ -136,71 +133,56 @@ class _ActiveSessionScreenState extends State<ActiveSessionScreen> {
 
 class _SessionHeader extends StatelessWidget {
   final String title;
-  final SessionMode mode;
-  final ActiveSessionStatus status;
   final VoidCallback onClose;
-  final VoidCallback onPauseOrResume;
   final VoidCallback? onDone;
 
   const _SessionHeader({
     required this.title,
-    required this.mode,
-    required this.status,
     required this.onClose,
-    required this.onPauseOrResume,
     required this.onDone,
   });
 
   @override
   Widget build(BuildContext context) {
-    final palette = context.nashaatPalette;
     final l10n = AppLocalizations.of(context)!;
-    final isPaused = status == ActiveSessionStatus.paused;
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: palette.border)),
-      ),
-      child: Padding(
-        padding: const EdgeInsetsDirectional.fromSTEB(8, 6, 12, 8),
-        child: Row(
-          children: [
-            IconButton(
+    return Padding(
+      padding: const EdgeInsetsDirectional.fromSTEB(20, 10, 20, 10),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 48,
+            child: IconButton(
               tooltip: l10n.back,
               onPressed: onClose,
-              icon: Icon(Icons.close, color: palette.textPrimary),
+              icon: const Icon(Icons.close),
+              padding: EdgeInsets.zero,
             ),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  AppText.heading(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  AppStatusPill(
-                    label: isPaused ? l10n.activePaused : l10n.activeRunning,
-                    tone: isPaused ? AppStatusTone.calm : AppStatusTone.accent,
-                    showDot: true,
-                  ),
-                ],
+          ),
+          Expanded(
+            child: AppText.heading(
+              title,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          SizedBox(
+            width: 64,
+            child: TextButton(
+              onPressed: onDone,
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.zero,
+                minimumSize: const Size(64, 44),
               ),
-            ),
-            if (mode == SessionMode.guided)
-              IconButton(
-                tooltip: isPaused ? l10n.activeResume : l10n.activePause,
-                onPressed: onPauseOrResume,
-                icon: Icon(
-                  isPaused ? Icons.play_arrow_rounded : Icons.pause_rounded,
-                  color: palette.textPrimary,
+              child: Text(
+                l10n.activeFinish,
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: context.nashaatPalette.accentText,
                 ),
               ),
-            const SizedBox(width: 2),
-            AppButton.ghost(l10n.activeDone, onPressed: onDone, width: 104),
-          ],
-        ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -226,66 +208,71 @@ class _GuidedBody extends StatelessWidget {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-          child: AppProgressBar(value: vm.overallProgress),
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
+          child: _SessionProgress(vm: vm),
         ),
         if (vm.status == ActiveSessionStatus.resting)
           _RestOverlay(vm: vm)
         else
           Expanded(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  AppStatusPill(
-                    label: l10n.activeSetProgress(
-                      vm.setIndex + 1,
-                      vm.totalSetsForCurrent,
-                    ),
-                    tone: AppStatusTone.accent,
-                    showDot: true,
+                  AppText.section(
+                    'EXERCISE ${vm.exerciseIndex + 1} OF ${vm.totalExercises}',
                   ),
-                  const SizedBox(height: AppSpacing.md),
-                  AppText.title(
+                  const SizedBox(height: AppSpacing.lg),
+                  AppText.hero(
                     ex.exerciseName,
-                    textAlign: TextAlign.center,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: AppSpacing.sm),
-                  _SetInfo(exercise: ex),
-                  const SizedBox(height: AppSpacing.lg),
-                  AppTimerRing(
-                    progress: vm.overallProgress,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          _formatTime(vm.elapsedSeconds),
-                          style: Theme.of(context).textTheme.displaySmall
-                              ?.copyWith(
-                                color: palette.textPrimary,
-                                fontSize: 40,
-                                fontWeight: FontWeight.w600,
-                                fontFamily: 'JetBrains Mono',
-                              ),
-                        ),
-                        const SizedBox(height: 2),
-                        AppText.label(l10n.activeElapsed),
-                      ],
+                  const SizedBox(height: AppSpacing.md),
+                  _SessionMetricPills(vm: vm, exercise: ex),
+                  const SizedBox(height: AppSpacing.xl),
+                  Center(
+                    child: AppTimerRing(
+                      progress: vm.overallProgress,
+                      size: 224,
+                      strokeWidth: 14,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _formatTime(vm.elapsedSeconds),
+                            style: Theme.of(context).textTheme.displaySmall
+                                ?.copyWith(
+                                  color: palette.textPrimary,
+                                  fontSize: 42,
+                                  fontWeight: FontWeight.w600,
+                                  fontFamily: 'JetBrains Mono',
+                                ),
+                          ),
+                          const SizedBox(height: 2),
+                          AppText.bodyMuted(l10n.activeElapsed),
+                        ],
+                      ),
                     ),
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  AppText.body(
+                    '${vm.plan.sessionSize == SessionSize.big ? 'Big' : 'Small'} workout · earns screen time when you finish',
+                    textAlign: TextAlign.center,
+                    color: palette.textBody,
                   ),
                   const SizedBox(height: AppSpacing.lg),
                   AppButton.primary(
                     l10n.activeCompleteSet,
                     onPressed: vm.completeCurrentSet,
-                    width: 270,
+                    width: double.infinity,
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   AppButton.ghost(
                     l10n.activeSkip,
                     onPressed: vm.skipCurrentSet,
-                    width: 250,
+                    width: double.infinity,
                   ),
                 ],
               ),
@@ -386,10 +373,60 @@ class _RestOverlay extends StatelessWidget {
   }
 }
 
-class _SetInfo extends StatelessWidget {
+class _SessionProgress extends StatelessWidget {
+  final ActiveSessionViewModel vm;
+
+  const _SessionProgress({required this.vm});
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.nashaatPalette;
+    return Row(
+      children: List.generate(vm.totalExercises, (index) {
+        final completed = index < vm.exerciseIndex;
+        final current = index == vm.exerciseIndex;
+        final currentProgress = vm.totalSetsForCurrent == 0
+            ? 0.0
+            : (vm.setIndex / vm.totalSetsForCurrent).clamp(0.0, 1.0);
+        return Expanded(
+          child: Padding(
+            padding: EdgeInsetsDirectional.only(
+              end: index == vm.totalExercises - 1 ? 0 : AppSpacing.sm,
+            ),
+            child: ClipRRect(
+              borderRadius: AppRadii.sm,
+              child: Stack(
+                children: [
+                  ColoredBox(
+                    color: palette.raised,
+                    child: const SizedBox(height: 8, width: double.infinity),
+                  ),
+                  FractionallySizedBox(
+                    widthFactor: completed
+                        ? 1
+                        : current
+                        ? currentProgress.clamp(0.08, 1.0)
+                        : 0,
+                    child: ColoredBox(
+                      color: palette.accent,
+                      child: const SizedBox(height: 8),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }),
+    );
+  }
+}
+
+class _SessionMetricPills extends StatelessWidget {
+  final ActiveSessionViewModel vm;
   final WorkoutPlanExercise exercise;
 
-  const _SetInfo({required this.exercise});
+  const _SessionMetricPills({required this.vm, required this.exercise});
 
   @override
   Widget build(BuildContext context) {
@@ -401,16 +438,44 @@ class _SetInfo extends StatelessWidget {
     if (exercise.weightKg != null) parts.add('${exercise.weightKg} kg');
     if (exercise.distanceKm != null) parts.add('${exercise.distanceKm} km');
 
-    if (parts.isEmpty) return const SizedBox.shrink();
+    final setLabel = 'Set ${vm.setIndex + 1} of ${vm.totalSetsForCurrent}';
+    final repsLabel = parts.isEmpty ? '—' : parts.first;
+    return Wrap(
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.sm,
+      children: [
+        _SessionMetricPill(label: setLabel, tone: AppStatusTone.calm),
+        _SessionMetricPill(label: repsLabel, tone: AppStatusTone.reward),
+      ],
+    );
+  }
+}
 
-    return AppCard.flat(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.base,
-        vertical: AppSpacing.md,
-      ),
-      child: AppText.monoStrong(
-        parts.join('  ·  '),
-        textAlign: TextAlign.center,
+class _SessionMetricPill extends StatelessWidget {
+  final String label;
+  final AppStatusTone tone;
+
+  const _SessionMetricPill({required this.label, required this.tone});
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.nashaatPalette;
+    final color = switch (tone) {
+      AppStatusTone.calm => palette.calmText,
+      AppStatusTone.reward => palette.rewardText,
+      _ => palette.textPrimary,
+    };
+    final background = switch (tone) {
+      AppStatusTone.calm => palette.calm.withValues(alpha: 0.16),
+      AppStatusTone.reward => palette.reward.withValues(alpha: 0.12),
+      _ => palette.raised,
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(color: background, borderRadius: AppRadii.pill),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.titleSmall?.copyWith(color: color),
       ),
     );
   }
@@ -609,8 +674,8 @@ class _CompletedViewState extends State<_CompletedView> {
   }
 
   Future<void> _continueReveal() async {
-    for (var step = 2; step <= 5; step++) {
-      await Future<void>.delayed(const Duration(milliseconds: 300));
+    for (var step = 2; step <= 4; step++) {
+      await Future<void>.delayed(const Duration(milliseconds: 260));
       if (!mounted) return;
       setState(() => _revealStep = step);
     }
@@ -620,57 +685,22 @@ class _CompletedViewState extends State<_CompletedView> {
   Widget build(BuildContext context) {
     final vm = widget.vm;
     final l10n = AppLocalizations.of(context)!;
-    final palette = context.nashaatPalette;
-    final bandProgress = _saved ? (_revealStep / 5).clamp(0.0, 1.0) : 0.12;
+    final displayName =
+        vm.profile?.username ?? vm.profile?.firstName ?? 'there';
 
     return AppScaffold(
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+          padding: const EdgeInsets.fromLTRB(20, 36, 20, 32),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              AppSaduBand(
-                motif: AppSaduMotif.diamonds,
-                progress: bandProgress,
-                height: 10,
-              ),
-              const SizedBox(height: AppSpacing.xl),
-              AppCard.reward(
-                shadow: true,
-                child: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.lg),
-                  child: Column(
-                    children: [
-                      DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: palette.reward,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Icon(
-                            Icons.emoji_events_rounded,
-                            size: 42,
-                            color: palette.rewardInk,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                      AppText.title(
-                        l10n.activeWorkoutComplete,
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: AppSpacing.xs),
-                      AppText.bodyMuted(
-                        widget.planTitle,
-                        textAlign: TextAlign.center,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
+              AppText.section('${widget.planTitle.toUpperCase()} · COMPLETE'),
+              const SizedBox(height: AppSpacing.lg),
+              AppText.hero(
+                'Strong work, $displayName',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: AppSpacing.lg),
               if (!_saved && vm.error == null)
@@ -686,78 +716,45 @@ class _CompletedViewState extends State<_CompletedView> {
                   1,
                   _StatRow(
                     icon: Icons.timer_outlined,
-                    label: l10n.activeDuration,
-                    value: _formatMinutes(
-                      (vm.elapsedSeconds / 60).ceil().clamp(1, 9999),
-                    ),
+                    label: 'DURATION',
+                    value: _formatClock(vm.elapsedSeconds),
                   ),
                 ),
                 _reveal(
                   2,
                   _StatRow(
-                    icon: Icons.stars_outlined,
-                    label: l10n.activeRewardPoints,
-                    value: vm.pointsEarned > 0
-                        ? '+${vm.pointsEarned}'
-                        : l10n.activeNoRewardPoints,
+                    icon: Icons.phone_android_rounded,
+                    label: 'SCREEN TIME',
+                    value: 'Added to your balance',
+                    trailing: _earnedValue(vm, l10n),
+                    trailingColor: context.nashaatPalette.accentText,
                   ),
                 ),
                 _reveal(
                   3,
                   _StatRow(
-                    icon: Icons.workspace_premium_outlined,
-                    label: l10n.activePointBalance,
-                    value: l10n.activeTotalPoints(vm.pointsTotal),
+                    icon: Icons.circle,
+                    label: 'REWARD POINTS',
+                    value: 'Total ${_formatPoints(vm.pointsTotal)}',
+                    trailing: vm.pointsEarned > 0
+                        ? '+${vm.pointsEarned}'
+                        : l10n.activeNoRewardPoints,
+                    trailingColor: context.nashaatPalette.rewardText,
                   ),
                 ),
                 _reveal(
                   4,
                   _StatRow(
-                    icon: Icons.local_fire_department_rounded,
-                    label: l10n.activeWorkoutStreak,
-                    value: l10n.activeStreakValue(
-                      vm.currentStreak,
-                      vm.longestStreak,
-                    ),
+                    icon: Icons.card_membership_outlined,
+                    label: 'WORKOUT STREAK',
+                    value:
+                        '${vm.currentStreak} days · longest ${vm.longestStreak}',
                   ),
                 ),
-                _reveal(
-                  4,
-                  _StatRow(
-                    icon: Icons.phone_android_rounded,
-                    label: l10n.activeEarned,
-                    value: _earnedValue(vm, l10n),
-                  ),
-                ),
-                if (vm.newlyUnlockedAchievements.isNotEmpty)
-                  _reveal(
-                    5,
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const SizedBox(height: AppSpacing.sm),
-                        AppText.heading(l10n.activeNewAchievements),
-                        const SizedBox(height: AppSpacing.sm),
-                        ...vm.newlyUnlockedAchievements.map(
-                          (achievement) => Padding(
-                            padding: const EdgeInsets.only(
-                              bottom: AppSpacing.sm,
-                            ),
-                            child: _StatRow(
-                              icon: Icons.workspace_premium_rounded,
-                              label: achievement.name,
-                              value:
-                                  '+${achievement.rewardAmount} ${achievement.rewardType.name}',
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                if (_revealStep >= 5) ...[
-                  const SizedBox(height: AppSpacing.lg),
+                if (_revealStep >= 4) ...[
+                  const SizedBox(height: AppSpacing.md),
                   AppButton.primary(
-                    l10n.activeBackToWorkouts,
+                    l10n.activeThanks,
                     onPressed: () => Navigator.pop(context),
                     width: double.infinity,
                   ),
@@ -786,16 +783,32 @@ class _CompletedViewState extends State<_CompletedView> {
 
   String _earnedValue(ActiveSessionViewModel vm, AppLocalizations l10n) {
     if (vm.earnedMinutes > 0) {
-      return l10n.activeEarnedScreenTime(_formatMinutes(vm.earnedMinutes));
+      return '+${_formatMinutes(vm.earnedMinutes)}';
     }
     return Platform.isIOS
         ? l10n.activeConfigureSettings
         : l10n.activeWorkoutLogged;
   }
 
+  static String _formatClock(int seconds) {
+    final minutes = seconds ~/ 60;
+    final remainder = seconds % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${remainder.toString().padLeft(2, '0')}';
+  }
+
   static String _formatMinutes(int minutes) {
     if (minutes < 60) return '$minutes min';
     return '${minutes ~/ 60}h ${minutes % 60}m';
+  }
+
+  static String _formatPoints(int points) {
+    final value = points.toString();
+    final buffer = StringBuffer();
+    for (var i = 0; i < value.length; i++) {
+      if (i > 0 && (value.length - i) % 3 == 0) buffer.write(',');
+      buffer.write(value[i]);
+    }
+    return buffer.toString();
   }
 }
 
@@ -859,11 +872,15 @@ class _StatRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
+  final String? trailing;
+  final Color? trailingColor;
 
   const _StatRow({
     required this.icon,
     required this.label,
     required this.value,
+    this.trailing,
+    this.trailingColor,
   });
 
   @override
@@ -878,12 +895,18 @@ class _StatRow extends StatelessWidget {
           children: [
             DecoratedBox(
               decoration: BoxDecoration(
-                color: palette.accent.withValues(alpha: 0.12),
-                borderRadius: AppRadii.sm,
+                color: palette.raised,
+                borderRadius: AppRadii.card,
               ),
               child: Padding(
-                padding: const EdgeInsets.all(9),
-                child: Icon(icon, color: palette.accentText, size: 20),
+                padding: const EdgeInsets.all(12),
+                child: Icon(
+                  icon,
+                  color: icon == Icons.circle
+                      ? palette.textPrimary
+                      : palette.textSecondary,
+                  size: 22,
+                ),
               ),
             ),
             const SizedBox(width: AppSpacing.md),
@@ -891,16 +914,33 @@ class _StatRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  AppText.label(label),
+                  AppText.section(label),
                   const SizedBox(height: 2),
-                  AppText.body(
+                  Text(
                     value,
                     maxLines: 3,
                     overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: palette.textPrimary,
+                    ),
                   ),
                 ],
               ),
             ),
+            if (trailing != null) ...[
+              const SizedBox(width: AppSpacing.sm),
+              Flexible(
+                child: Text(
+                  trailing!,
+                  textAlign: TextAlign.end,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: trailingColor ?? palette.textPrimary,
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),

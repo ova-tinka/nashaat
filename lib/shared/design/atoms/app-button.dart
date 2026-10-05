@@ -125,6 +125,18 @@ class AppButton extends StatelessWidget {
 
     final effectiveBackground = enabled ? background : palette.raised;
     final effectiveForeground = enabled ? foreground : palette.textMuted;
+    final labelChild = Text(
+      label,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      textAlign: TextAlign.center,
+      style: textTheme.titleSmall?.copyWith(
+        color: effectiveForeground,
+        fontSize: 16,
+        fontWeight: FontWeight.w600,
+      ),
+    );
+
     final child = isLoading
         ? SizedBox(
             width: 18,
@@ -136,19 +148,13 @@ class AppButton extends StatelessWidget {
           )
         : Row(
             mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (icon != null) ...[
                 Icon(icon, size: 18, color: effectiveForeground),
                 const SizedBox(width: 8),
               ],
-              Text(
-                label,
-                style: textTheme.titleSmall?.copyWith(
-                  color: effectiveForeground,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+              if (width != null) Flexible(child: labelChild) else labelChild,
             ],
           );
 

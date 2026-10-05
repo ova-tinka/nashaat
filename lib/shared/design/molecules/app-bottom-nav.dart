@@ -44,7 +44,7 @@ class AppBottomNav extends StatelessWidget {
       child: SafeArea(
         top: false,
         child: SizedBox(
-          height: 74,
+          height: 82,
           child: Row(
             children: List.generate(items.length, (index) {
               final item = items[index];
@@ -64,28 +64,12 @@ class AppBottomNav extends StatelessWidget {
                       splashColor: Colors.transparent,
                       highlightColor: palette.selection,
                       child: Padding(
-                        padding: const EdgeInsetsDirectional.fromSTEB(
-                          AppSpacing.xs,
-                          0,
-                          AppSpacing.xs,
-                          AppSpacing.xs,
+                        padding: const EdgeInsetsDirectional.symmetric(
+                          horizontal: AppSpacing.xs,
                         ),
                         child: Column(
-                          mainAxisAlignment: MainAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            SizedBox(
-                              height: 5,
-                              width: double.infinity,
-                              child: selected
-                                  ? ExcludeSemantics(
-                                      child: AppSaduBand(
-                                        motif: item.motif,
-                                        height: 4,
-                                      ),
-                                    )
-                                  : const SizedBox.shrink(),
-                            ),
-                            const Spacer(),
                             ExcludeSemantics(
                               child: AppNavIcon(
                                 glyph: item.glyph,
@@ -110,7 +94,34 @@ class AppBottomNav extends StatelessWidget {
                                         : FontWeight.w500,
                                   ),
                             ),
-                            const Spacer(),
+                            const SizedBox(height: 7),
+                            SizedBox(
+                              height: 5,
+                              child: selected
+                                  ? ExcludeSemantics(
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: List.generate(
+                                          3,
+                                          (_) => Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 2,
+                                            ),
+                                            child: DecoratedBox(
+                                              decoration: BoxDecoration(
+                                                color: palette.reward,
+                                                shape: BoxShape.circle,
+                                              ),
+                                              child: const SizedBox.square(
+                                                dimension: 4,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    )
+                                  : null,
+                            ),
                           ],
                         ),
                       ),

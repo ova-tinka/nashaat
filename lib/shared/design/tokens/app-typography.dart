@@ -142,7 +142,7 @@ class AppTypography {
     );
 
     return TextTheme(
-      displayLarge: display.copyWith(fontSize: arabic ? 36 : 40),
+      displayLarge: display.copyWith(fontSize: arabic ? 38 : 48),
       displayMedium: display,
       displaySmall: display.copyWith(fontSize: arabic ? 23 : 24),
       headlineLarge: title.copyWith(fontSize: arabic ? 24 : 26),

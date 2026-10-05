@@ -15,7 +15,7 @@ import '../../../helpers/test_data.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('Home leads with balance, workout action, goal, and loom', (
+  testWidgets('Home leads with points, streak loom, and recent points', (
     tester,
   ) async {
     final fixture = _dashboardFixture();
@@ -35,15 +35,17 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 250));
 
-    expect(find.text('Home'), findsOneWidget);
+    expect(find.text('WELCOME BACK,'), findsOneWidget);
     expect(find.text('PROGRESS'), findsNothing);
+    expect(find.text('TOTAL POINTS'), findsOneWidget);
+    expect(find.text('1,035'), findsOneWidget);
     expect(find.byKey(const ValueKey('home-balance-card')), findsOneWidget);
     expect(find.text('2h 12m'), findsOneWidget);
     expect(find.byKey(const ValueKey('home-start-workout')), findsOneWidget);
     expect(find.text('Weekly goal'), findsOneWidget);
-    expect(find.text('Your loom'), findsOneWidget);
+    expect(find.text('YOUR LOOM'), findsOneWidget);
     expect(find.byType(AppStreakLoom), findsOneWidget);
-    expect(find.text('Total points'), findsOneWidget);
+    expect(find.text('Recent points'), findsOneWidget);
 
     dashboardVm.dispose();
     achievementsVm.dispose();

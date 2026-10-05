@@ -137,15 +137,15 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.text('Workout complete'), findsOneWidget);
-    expect(find.text('Duration'), findsOneWidget);
-    expect(find.text('Reward points'), findsNothing);
-    expect(find.text('Back to Workouts'), findsNothing);
+    expect(find.textContaining('Strong work'), findsOneWidget);
+    expect(find.text('DURATION'), findsOneWidget);
+    expect(find.text('REWARD POINTS'), findsNothing);
+    expect(find.text('Thanks!'), findsNothing);
 
-    await tester.pump(const Duration(milliseconds: 350));
-    expect(find.text('Reward points'), findsOneWidget);
-    await tester.pump(const Duration(milliseconds: 1300));
-    expect(find.text('Back to Workouts'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(find.text('REWARD POINTS'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 700));
+    expect(find.text('Thanks!'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

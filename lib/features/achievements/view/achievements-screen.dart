@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/app-router.dart';
+import '../../../shared/design/atoms/app-status-pill.dart';
+import '../../../shared/design/atoms/app-text.dart';
 import '../../../shared/design/molecules/app-card.dart';
+import '../../../shared/design/molecules/app-progress-bar.dart';
 import '../../../shared/design/tokens/app-colors.dart';
+import '../../../shared/design/tokens/app-radii.dart';
 import '../../../shared/design/tokens/app-spacing.dart';
-import '../../../shared/design/tokens/app-typography.dart';
 import '../model/achievement-progress-model.dart';
 import '../view-model/achievements-view-model.dart';
 import 'achievement-detail-screen.dart';
@@ -16,24 +19,23 @@ class AchievementsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.nashaatPalette;
+
     if (viewModel.isLoading && viewModel.achievements.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.all(AppSpacing.xxl),
-        child: Center(child: CircularProgressIndicator(color: AppColors.ink)),
+      return Padding(
+        padding: const EdgeInsets.all(AppSpacing.xxl),
+        child: Center(child: CircularProgressIndicator(color: palette.accent)),
       );
     }
 
     if (viewModel.error != null && viewModel.achievements.isEmpty) {
-      return AppCard(
+      return AppCard.attention(
+        padding: const EdgeInsets.all(AppSpacing.lg),
         child: Column(
           children: [
-            const Icon(Icons.error_outline, color: AppColors.error),
+            Icon(Icons.error_outline, color: palette.dangerText),
             const SizedBox(height: AppSpacing.sm),
-            Text(
-              viewModel.error!,
-              style: AppTypography.body,
-              textAlign: TextAlign.center,
-            ),
+            AppText.body(viewModel.error!, textAlign: TextAlign.center),
             const SizedBox(height: AppSpacing.sm),
             TextButton(onPressed: viewModel.load, child: const Text('Retry')),
           ],
@@ -42,23 +44,18 @@ class AchievementsScreen extends StatelessWidget {
     }
 
     if (viewModel.achievements.isEmpty) {
-      return AppCard(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
-          child: Column(
-            children: [
-              const Icon(
-                Icons.workspace_premium_outlined,
-                size: 36,
-                color: AppColors.inkMuted,
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                'No active achievements yet.',
-                style: AppTypography.bodyMuted,
-              ),
-            ],
-          ),
+      return AppCard.standard(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
+        child: Column(
+          children: [
+            Icon(
+              Icons.workspace_premium_outlined,
+              size: 36,
+              color: palette.textMuted,
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            AppText.bodyMuted('No active achievements yet.'),
+          ],
         ),
       );
     }
@@ -66,6 +63,9 @@ class AchievementsScreen extends StatelessWidget {
     final unlockedCount = viewModel.achievements
         .where((item) => item.status == AchievementDisplayStatus.unlocked)
         .length;
+    final progress = viewModel.achievements.isEmpty
+        ? 0.0
+        : unlockedCount / viewModel.achievements.length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -73,33 +73,23 @@ class AchievementsScreen extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('Achievement Collection', style: AppTypography.heading),
-            Text(
-              '$unlockedCount / ${viewModel.achievements.length} unlocked',
-              style: AppTypography.mono,
-            ),
+            AppText.title('Achievement collection'),
+            AppText.mono('$unlockedCount / ${viewModel.achievements.length}'),
           ],
         ),
         const SizedBox(height: AppSpacing.md),
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            crossAxisSpacing: AppSpacing.sm,
-            mainAxisSpacing: AppSpacing.sm,
-            mainAxisExtent: 286,
-          ),
-          itemCount: viewModel.achievements.length,
-          itemBuilder: (context, index) {
-            final achievement = viewModel.achievements[index];
-            return _AchievementCard(
+        AppProgressBar(value: progress, activeColor: palette.reward),
+        const SizedBox(height: AppSpacing.xl),
+        ...viewModel.achievements.map(
+          (achievement) => Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.md),
+            child: _AchievementCard(
               achievement: achievement,
               onTap: () => Navigator.of(
                 context,
               ).pushNamed(AppRouter.achievementDetail, arguments: achievement),
-            );
-          },
+            ),
+          ),
         ),
       ],
     );
@@ -114,76 +104,82 @@ class _AchievementCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.nashaatPalette;
     final definition = achievement.definition;
     final unlocked = achievement.status == AchievementDisplayStatus.unlocked;
+    final progress = definition.targetValue == 0
+        ? 0.0
+        : (achievement.progress / definition.targetValue).clamp(0.0, 1.0);
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          decoration: BoxDecoration(
-            color: unlocked ? AppColors.acidMuted : AppColors.paper,
-            border: Border.all(
-              color: unlocked ? AppColors.ink : AppColors.paperBorder,
-              width: unlocked ? 1.5 : 1,
+    return AppCard.standard(
+      onTap: onTap,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      backgroundColor: unlocked
+          ? palette.card
+          : palette.card.withValues(alpha: 0.82),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: unlocked
+                  ? palette.reward.withValues(alpha: 0.18)
+                  : palette.raised,
+              borderRadius: AppRadii.card,
+              border: Border.all(
+                color: unlocked ? palette.reward : palette.border,
+              ),
+            ),
+            child: Icon(
+              achievementIcon(definition),
+              color: unlocked ? palette.rewardText : palette.textMuted,
+              size: 28,
             ),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Container(
-                    width: 42,
-                    height: 42,
-                    color: unlocked ? AppColors.acid : AppColors.paperAlt,
-                    alignment: Alignment.center,
-                    child: Icon(
-                      achievementIcon(definition),
-                      size: 22,
-                      color: unlocked ? AppColors.ink : AppColors.inkMuted,
-                    ),
-                  ),
-                  _StatusBadge(status: achievement.status),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.md),
-              Text(
-                definition.name,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: AppTypography.heading.copyWith(fontSize: 15),
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                definition.description,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: AppTypography.labelMuted,
-              ),
-              const Spacer(),
-              Text(achievement.rewardLabel, style: AppTypography.label),
-              const SizedBox(height: AppSpacing.sm),
-              LinearProgressIndicator(
-                value: definition.targetValue == 0
-                    ? 0
-                    : (achievement.progress / definition.targetValue).clamp(
-                        0.0,
-                        1.0,
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: AppText.heading(
+                        definition.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                minHeight: 6,
-                color: AppColors.ink,
-                backgroundColor: AppColors.paperBorder,
-                borderRadius: BorderRadius.zero,
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              Text(achievement.progressLabel, style: AppTypography.monoStrong),
-            ],
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    _StatusBadge(status: achievement.status),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                AppText.bodyMuted(
+                  definition.description,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                Row(
+                  children: [
+                    Expanded(
+                      child: AppProgressBar(
+                        value: progress,
+                        activeColor: unlocked ? palette.reward : palette.accent,
+                        height: 6,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    AppText.mono(achievement.progressLabel),
+                  ],
+                ),
+              ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -196,28 +192,14 @@ class _StatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final label = switch (status) {
-      AchievementDisplayStatus.locked => 'LOCKED',
-      AchievementDisplayStatus.inProgress => 'IN PROGRESS',
-      AchievementDisplayStatus.unlocked => 'UNLOCKED',
-    };
-    final background = switch (status) {
-      AchievementDisplayStatus.locked => AppColors.paperAlt,
-      AchievementDisplayStatus.inProgress => AppColors.signalMuted,
-      AchievementDisplayStatus.unlocked => AppColors.acid,
-    };
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-      color: background,
-      child: Text(
-        label,
-        style: AppTypography.sectionHeader.copyWith(
-          fontSize: 8,
-          color: AppColors.ink,
-          letterSpacing: 0.5,
-        ),
+    final (label, tone) = switch (status) {
+      AchievementDisplayStatus.locked => ('Locked', AppStatusTone.locked),
+      AchievementDisplayStatus.inProgress => (
+        'In progress',
+        AppStatusTone.calm,
       ),
-    );
+      AchievementDisplayStatus.unlocked => ('Unlocked', AppStatusTone.reward),
+    };
+    return AppStatusPill(label: label, tone: tone);
   }
 }

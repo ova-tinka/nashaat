@@ -194,16 +194,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get onboardingRewardTitle => 'Your reward preview';
 
   @override
-  String get onboardingWeeklyTarget => 'Weekly target';
+  String get onboardingWeeklyTarget => 'Screen time a week';
 
   @override
-  String get onboardingFreeTime => 'Free time per week';
+  String get onboardingFreeTime => 'Free every week (20%)';
 
   @override
-  String get onboardingSmallSessionReward => 'Per small session';
+  String get onboardingSmallSessionReward => 'Each small workout';
 
   @override
-  String get onboardingBigSessionReward => 'Per big session';
+  String get onboardingBigSessionReward => 'Each big workout';
 
   @override
   String get onboardingWeeklySessionSplit => 'Weekly session split';
@@ -215,11 +215,31 @@ class AppLocalizationsEn extends AppLocalizations {
   String get onboardingBigSessions => 'Big sessions (2x)';
 
   @override
+  String get onboardingSmallSessionShort => 'Small (1×)';
+
+  @override
+  String get onboardingBigSessionShort => 'Big (2×)';
+
+  @override
   String get onboardingBlockingBody =>
       'Choose apps to block when your screen time runs out.\nYou can change this later.';
 
   @override
+  String get onboardingBlockingKicker => 'APP BLOCKING';
+
+  @override
+  String get onboardingBlockingTitle =>
+      'Choose the apps that lock when your time runs out';
+
+  @override
+  String get onboardingBlockingHint =>
+      'Apple keeps your list private; Nashaat can\'t see inside your apps.';
+
+  @override
   String get onboardingSelectApps => 'Select apps via Screen Time';
+
+  @override
+  String get onboardingChooseViaScreenTime => 'Choose via Screen Time';
 
   @override
   String get onboardingAppsSelected => 'Apps selected via Screen Time';
@@ -244,6 +264,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get workoutNewPlan => 'New plan';
+
+  @override
+  String get workoutStart => 'Start';
 
   @override
   String get workoutNextWorkout => 'Next workout';
@@ -437,6 +460,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get activeDone => 'Done';
 
   @override
+  String get activeFinish => 'Finish';
+
+  @override
   String get activeQuitTitle => 'Quit workout?';
 
   @override
@@ -530,4 +556,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get activeBackToWorkouts => 'Back to Workouts';
+
+  @override
+  String get activeThanks => 'Thanks!';
 }

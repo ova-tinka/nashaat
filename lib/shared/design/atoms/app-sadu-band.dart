@@ -59,7 +59,7 @@ class _AppSaduBandPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
 
-    final base = Paint()..color = palette.saduDark;
+    final base = Paint()..color = ghost ? palette.raised : palette.saduDark;
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         Offset.zero & size,
@@ -69,7 +69,9 @@ class _AppSaduBandPainter extends CustomPainter {
     );
 
     canvas.save();
-    canvas.clipRect(Rect.fromLTWH(0, 0, size.width * progress, size.height));
+    if (!ghost) {
+      canvas.clipRect(Rect.fromLTWH(0, 0, size.width * progress, size.height));
+    }
     final opacity = ghost ? 0.2 : 1.0;
     final colors = [
       palette.saduRed.withValues(alpha: opacity),

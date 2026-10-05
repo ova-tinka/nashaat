@@ -200,13 +200,13 @@ class AppLocalizationsAr extends AppLocalizations {
   String get onboardingWeeklyTarget => 'الهدف الأسبوعي';
 
   @override
-  String get onboardingFreeTime => 'وقت الفراغ أسبوعياً';
+  String get onboardingFreeTime => 'المتاح كل أسبوع (20٪)';
 
   @override
-  String get onboardingSmallSessionReward => 'لكل جلسة صغيرة';
+  String get onboardingSmallSessionReward => 'كل تمرين صغير';
 
   @override
-  String get onboardingBigSessionReward => 'لكل جلسة كبيرة';
+  String get onboardingBigSessionReward => 'كل تمرين كبير';
 
   @override
   String get onboardingWeeklySessionSplit => 'توزيع الجلسات الأسبوعية';
@@ -218,11 +218,31 @@ class AppLocalizationsAr extends AppLocalizations {
   String get onboardingBigSessions => 'جلسات كبيرة (2×)';
 
   @override
+  String get onboardingSmallSessionShort => 'صغيرة (1×)';
+
+  @override
+  String get onboardingBigSessionShort => 'كبيرة (2×)';
+
+  @override
   String get onboardingBlockingBody =>
       'اختر التطبيقات التي تريد حظرها عند انتهاء وقت الشاشة.\nيمكنك تغيير ذلك لاحقاً.';
 
   @override
+  String get onboardingBlockingKicker => 'حظر التطبيقات';
+
+  @override
+  String get onboardingBlockingTitle =>
+      'اختر التطبيقات التي تُقفل عند انتهاء وقتك';
+
+  @override
+  String get onboardingBlockingHint =>
+      'تحافظ Apple على قائمتك بشكل خاص؛ لا يستطيع نشاط رؤية ما بداخل تطبيقاتك.';
+
+  @override
   String get onboardingSelectApps => 'اختيار التطبيقات عبر وقت الشاشة';
+
+  @override
+  String get onboardingChooseViaScreenTime => 'اختيار عبر وقت الشاشة';
 
   @override
   String get onboardingAppsSelected => 'تم اختيار التطبيقات عبر وقت الشاشة';
@@ -247,6 +267,9 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get workoutNewPlan => 'خطة جديدة';
+
+  @override
+  String get workoutStart => 'ابدأ';
 
   @override
   String get workoutNextWorkout => 'التمرين التالي';
@@ -446,6 +469,9 @@ class AppLocalizationsAr extends AppLocalizations {
   String get activeDone => 'تم';
 
   @override
+  String get activeFinish => 'إنهاء';
+
+  @override
   String get activeQuitTitle => 'تطلع من التمرين؟';
 
   @override
@@ -539,4 +565,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get activeBackToWorkouts => 'العودة إلى التمارين';
+
+  @override
+  String get activeThanks => 'شكراً!';
 }

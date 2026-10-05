@@ -22,6 +22,11 @@ import '../../../shared/design/tokens/app-spacing.dart';
 import '../../../shared/utils/week-helper.dart';
 import '../view-model/dashboard-view-model.dart';
 
+const _homeTabs = <AppSegmentOption<int>>[
+  AppSegmentOption(value: 0, label: 'Dashboard'),
+  AppSegmentOption(value: 1, label: 'Achievements'),
+];
+
 class DashboardScreen extends StatefulWidget {
   final bool isActive;
   final DashboardViewModel? viewModel;
@@ -102,82 +107,65 @@ class _DashboardScreenState extends State<DashboardScreen> {
           );
         }
 
-        return RefreshIndicator(
-          color: palette.accent,
-          backgroundColor: palette.card,
-          onRefresh: _refresh,
-          child: CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            slivers: [
-              SliverAppBar(
-                title: Text(
-                  'Home',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                centerTitle: false,
-                pinned: true,
-                backgroundColor: palette.background,
-                surfaceTintColor: Colors.transparent,
-                scrolledUnderElevation: 0,
-                bottom: PreferredSize(
-                  preferredSize: const Size.fromHeight(1),
-                  child: Divider(height: 1, color: palette.border),
-                ),
-              ),
-              SliverPadding(
-                padding: const EdgeInsetsDirectional.fromSTEB(
-                  AppSpacing.base,
-                  AppSpacing.md,
-                  AppSpacing.base,
-                  AppSpacing.xl,
-                ),
-                sliver: SliverList(
-                  delegate: SliverChildListDelegate([
-                    if (_vm.error != null) ...[
-                      AppBanner(
-                        message: _vm.error!,
-                        tone: AppStatusTone.attention,
-                        icon: Icons.error_outline,
-                        action: IconButton(
-                          tooltip: 'Dismiss',
-                          onPressed: _vm.clearError,
-                          icon: Icon(
-                            Icons.close,
-                            size: 18,
-                            color: palette.dangerText,
+        return SafeArea(
+          bottom: false,
+          child: RefreshIndicator(
+            color: palette.accent,
+            backgroundColor: palette.card,
+            onRefresh: _refresh,
+            child: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                SliverPadding(
+                  padding: const EdgeInsetsDirectional.fromSTEB(
+                    AppSpacing.lg,
+                    AppSpacing.lg,
+                    AppSpacing.lg,
+                    AppSpacing.xl,
+                  ),
+                  sliver: SliverList(
+                    delegate: SliverChildListDelegate([
+                      if (_vm.error != null) ...[
+                        AppBanner(
+                          message: _vm.error!,
+                          tone: AppStatusTone.attention,
+                          icon: Icons.error_outline,
+                          action: IconButton(
+                            tooltip: 'Dismiss',
+                            onPressed: _vm.clearError,
+                            icon: Icon(
+                              Icons.close,
+                              size: 18,
+                              color: palette.dangerText,
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                    ],
-                    _HomeHeader(vm: _vm),
-                    const SizedBox(height: AppSpacing.lg),
-                    AppSegmentedControl<int>(
-                      options: const [
-                        AppSegmentOption(
-                          value: 0,
-                          label: 'Dashboard',
-                          icon: Icons.dashboard_outlined,
-                        ),
-                        AppSegmentOption(
-                          value: 1,
-                          label: 'Achievements',
-                          icon: Icons.workspace_premium_outlined,
-                        ),
+                        const SizedBox(height: AppSpacing.md),
                       ],
-                      selected: _selectedTab,
-                      onChanged: (value) =>
-                          setState(() => _selectedTab = value),
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-                    if (_selectedTab == 0)
-                      _HomeDashboard(vm: _vm)
-                    else
-                      AchievementsScreen(viewModel: _achievementsVm),
-                  ]),
+                      _HomeHeader(vm: _vm),
+                      const SizedBox(height: AppSpacing.lg),
+                      if (_selectedTab == 0)
+                        _HomeDashboard(
+                          vm: _vm,
+                          tabs: _homeTabs,
+                          selectedTab: _selectedTab,
+                          onTabChanged: (value) =>
+                              setState(() => _selectedTab = value),
+                        )
+                      else ...[
+                        _HomeTabs(
+                          selected: _selectedTab,
+                          onChanged: (value) =>
+                              setState(() => _selectedTab = value),
+                        ),
+                        const SizedBox(height: AppSpacing.lg),
+                        AchievementsScreen(viewModel: _achievementsVm),
+                      ],
+                    ]),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },
@@ -196,7 +184,6 @@ class _HomeHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final streak = vm.streakCount;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -206,7 +193,7 @@ class _HomeHeader extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              AppText.bodyMuted('Welcome back,'),
+              AppText.section('WELCOME BACK,'),
               Text(
                 vm.displayName,
                 maxLines: 1,
@@ -216,14 +203,33 @@ class _HomeHeader extends StatelessWidget {
             ],
           ),
         ),
-        if (streak > 0) ...[
-          const SizedBox(width: AppSpacing.sm),
-          AppStatusPill(
-            label: '$streak days',
-            tone: AppStatusTone.reward,
-            showDot: true,
+        const SizedBox(width: AppSpacing.sm),
+        DecoratedBox(
+          decoration: BoxDecoration(
+            color: context.nashaatPalette.reward.withValues(alpha: 0.16),
+            borderRadius: BorderRadius.circular(999),
           ),
-        ],
+          child: Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(10, 8, 12, 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.card_membership_outlined,
+                  size: 19,
+                  color: context.nashaatPalette.rewardText,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  '${vm.streakCount}',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: context.nashaatPalette.rewardText,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -231,23 +237,39 @@ class _HomeHeader extends StatelessWidget {
 
 class _HomeDashboard extends StatelessWidget {
   final DashboardViewModel vm;
+  final List<AppSegmentOption<int>> tabs;
+  final int selectedTab;
+  final ValueChanged<int> onTabChanged;
 
-  const _HomeDashboard({required this.vm});
+  const _HomeDashboard({
+    required this.vm,
+    required this.tabs,
+    required this.selectedTab,
+    required this.onTabChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        _PointsSummary(vm: vm),
+        const SizedBox(height: AppSpacing.md),
+        _StreakCard(vm: vm),
+        const SizedBox(height: AppSpacing.lg),
+        AppSegmentedControl<int>(
+          options: tabs,
+          selected: selectedTab,
+          onChanged: onTabChanged,
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        AppText.title('Recent points'),
+        const SizedBox(height: AppSpacing.md),
+        _RecentPointsCard(vm: vm),
+        const SizedBox(height: AppSpacing.lg),
         _BalanceHero(vm: vm),
         const SizedBox(height: AppSpacing.md),
         _WeeklyProgressCard(vm: vm),
-        const SizedBox(height: AppSpacing.md),
-        _StreakCard(vm: vm),
-        const SizedBox(height: AppSpacing.md),
-        _PointsSummary(vm: vm),
-        AppSectionHeader('Recent points'),
-        _RecentPointsCard(vm: vm),
         AppSectionHeader('This week'),
         _WeeklyMetrics(vm: vm),
         const SizedBox(height: AppSpacing.md),
@@ -387,14 +409,14 @@ class _StreakCard extends StatelessWidget {
             children: [
               Expanded(
                 child: _StreakMetric(
-                  label: 'Current streak',
+                  label: 'CURRENT STREAK',
                   value: '$streak days',
                   accent: true,
                 ),
               ),
               Expanded(
                 child: _StreakMetric(
-                  label: 'Longest streak',
+                  label: 'LONGEST STREAK',
                   value: '${vm.longestStreak} days',
                 ),
               ),
@@ -404,7 +426,7 @@ class _StreakCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Your loom', style: Theme.of(context).textTheme.titleSmall),
+              AppText.section('YOUR LOOM'),
               AppText.bodyMuted('8 milestones'),
             ],
           ),
@@ -412,7 +434,28 @@ class _StreakCard extends StatelessWidget {
           AppStreakLoom(
             completedBands: completedBands,
             currentProgress: progress,
-            bandHeight: 14,
+            bandHeight: 28,
+            gap: 7,
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Row(
+            children: _streakMilestones
+                .map(
+                  (milestone) => Expanded(
+                    child: Text(
+                      '$milestone',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: streak >= milestone
+                            ? context.nashaatPalette.rewardText
+                            : context.nashaatPalette.textMuted,
+                        fontWeight: FontWeight.w700,
+                        fontFamily: 'JetBrains Mono',
+                      ),
+                    ),
+                  ),
+                )
+                .toList(),
           ),
           const SizedBox(height: AppSpacing.sm),
           AppText.bodyMuted(_nextBandLabel(streak, completedBands)),
@@ -460,42 +503,64 @@ class _PointsSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.nashaatPalette;
-    return AppCard.reward(
-      padding: const EdgeInsets.all(AppSpacing.base),
+    return AppCard.standard(
+      padding: const EdgeInsetsDirectional.fromSTEB(24, 24, 24, 24),
       child: Row(
         children: [
-          DecoratedBox(
+          Container(
+            width: 60,
+            height: 60,
             decoration: BoxDecoration(
-              color: palette.reward.withValues(alpha: 0.18),
               shape: BoxShape.circle,
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(AppSpacing.sm),
-              child: Icon(
-                Icons.stars_rounded,
-                color: palette.rewardText,
-                size: 24,
+              gradient: RadialGradient(
+                colors: [palette.textPrimary, palette.textSecondary],
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: palette.textPrimary.withValues(alpha: 0.12),
+                  blurRadius: 14,
+                  spreadRadius: 2,
+                ),
+              ],
             ),
+            child: const SizedBox.shrink(),
           ),
-          const SizedBox(width: AppSpacing.md),
+          const SizedBox(width: AppSpacing.lg),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                AppText.bodyMuted('Total points'),
+                AppText.section('TOTAL POINTS'),
+                const SizedBox(height: AppSpacing.xs),
                 Text(
-                  '${vm.totalPoints}',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: palette.rewardText,
+                  _formatPoints(vm.totalPoints),
+                  style: Theme.of(context).textTheme.displayLarge?.copyWith(
+                    color: palette.textPrimary,
+                    fontSize: 48,
+                    height: 0.95,
                   ),
                 ),
               ],
             ),
           ),
-          AppText.bodyMuted('earned'),
         ],
       ),
+    );
+  }
+}
+
+class _HomeTabs extends StatelessWidget {
+  final int selected;
+  final ValueChanged<int> onChanged;
+
+  const _HomeTabs({required this.selected, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return AppSegmentedControl<int>(
+      options: _homeTabs,
+      selected: selected,
+      onChanged: onChanged,
     );
   }
 }
@@ -790,6 +855,16 @@ String _formatMinutes(int minutes) {
   final hours = minutes ~/ 60;
   final remainder = minutes % 60;
   return remainder == 0 ? '${hours}h' : '${hours}h ${remainder}m';
+}
+
+String _formatPoints(int points) {
+  final value = points.toString();
+  final buffer = StringBuffer();
+  for (var i = 0; i < value.length; i++) {
+    if (i > 0 && (value.length - i) % 3 == 0) buffer.write(',');
+    buffer.write(value[i]);
+  }
+  return buffer.toString();
 }
 
 String _initial(String value) {

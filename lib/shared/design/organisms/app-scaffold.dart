@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'app-backdrop.dart';
 import '../tokens/app-colors.dart';
 
 class AppScaffold extends StatelessWidget {
@@ -22,7 +23,13 @@ class AppScaffold extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: context.nashaatPalette.background,
-      body: body,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          const Positioned.fill(child: IgnorePointer(child: AppBackdrop())),
+          body,
+        ],
+      ),
       bottomNavigationBar: bottomNavigationBar,
       floatingActionButton: floatingActionButton,
       extendBody: extendBody,
