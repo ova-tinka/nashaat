@@ -3,13 +3,18 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../l10n/app_localizations.dart';
 import '../../../infra/blocking/blocking-platform-service.dart';
+import '../../../shared/design/atoms/app-button.dart';
 import '../../../shared/design/atoms/app-chip.dart';
+import '../../../shared/design/atoms/app-status-pill.dart';
+import '../../../shared/design/atoms/app-text.dart';
+import '../../../shared/design/molecules/app-card.dart';
 import '../../../shared/design/molecules/app-counter.dart';
+import '../../../shared/design/molecules/app-dotted-slider.dart';
 import '../../../shared/design/organisms/app-step-scaffold.dart';
 import '../../../shared/design/tokens/app-colors.dart';
 import '../../../shared/design/tokens/app-spacing.dart';
-import '../../../shared/design/tokens/app-typography.dart';
 import '../../../shared/utils/screen-time-economy.dart';
 import '../coordinator/onboarding-coordinator.dart';
 import '../view-model/onboarding-view-model.dart';
@@ -71,12 +76,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   Widget _buildStep(BuildContext context) {
     final vm = widget.vm;
+    final l10n = AppLocalizations.of(context)!;
     switch (vm.step) {
       case 0:
         return AppStepScaffold(
           totalSteps: vm.totalSteps,
           currentStep: 0,
-          nextLabel: "Let's Go",
+          nextLabel: l10n.onboardingLetsGo,
+          progressLabel: l10n.onboardingStep(1, vm.totalSteps),
+          onBack: null,
           onNext: vm.goNext,
           body: _WelcomeStep(
             initial: vm.username,
@@ -88,6 +96,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         return AppStepScaffold(
           totalSteps: vm.totalSteps,
           currentStep: 1,
+          progressLabel: l10n.onboardingStep(2, vm.totalSteps),
+          backLabel: l10n.back,
+          onBack: vm.goBack,
           onNext: vm.goNext,
           body: _DaysPerWeekStep(
             value: vm.daysPerWeek,
@@ -98,7 +109,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         return AppStepScaffold(
           totalSteps: vm.totalSteps,
           currentStep: 2,
-          nextLabel: vm.supportsScreenTime ? 'Continue' : 'Finish Setup',
+          nextLabel: vm.supportsScreenTime
+              ? l10n.next
+              : l10n.onboardingFinishSetup,
+          progressLabel: l10n.onboardingStep(3, vm.totalSteps),
+          backLabel: l10n.back,
+          onBack: vm.goBack,
           onNext: vm.supportsScreenTime ? vm.goNext : () => vm.finish(),
           body: _WorkoutDurationStep(
             value: vm.workoutDurationMinutes,
@@ -109,6 +125,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         return AppStepScaffold(
           totalSteps: vm.totalSteps,
           currentStep: 3,
+          progressLabel: l10n.onboardingStep(4, vm.totalSteps),
+          backLabel: l10n.back,
+          onBack: vm.goBack,
           onNext: vm.goNext,
           body: _DailyPhoneHoursStep(
             value: vm.dailyPhoneHours,
@@ -119,6 +138,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         return AppStepScaffold(
           totalSteps: vm.totalSteps,
           currentStep: 4,
+          progressLabel: l10n.onboardingStep(5, vm.totalSteps),
+          backLabel: l10n.back,
+          onBack: vm.goBack,
           onNext: vm.goNext,
           body: _RewardPreviewStep(
             daysPerWeek: vm.daysPerWeek,
@@ -132,6 +154,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         );
       case 5:
         return _BlockingStep(
+          totalSteps: vm.totalSteps,
+          onBack: vm.goBack,
           isSaving: vm.isSaving,
           onContinue: (packages) => vm.finish(packages: packages),
           onSkip: vm.finish,
@@ -176,35 +200,32 @@ class _WelcomeStepState extends State<_WelcomeStep> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        AppSpacing.xl,
-        AppSpacing.xl,
+      padding: const EdgeInsetsDirectional.fromSTEB(
+        AppSpacing.lg,
+        AppSpacing.md,
+        AppSpacing.lg,
         AppSpacing.base,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('WELCOME TO\nNASHAAT', style: AppTypography.display),
+          AppText.title(l10n.onboardingWelcomeTitle),
           const SizedBox(height: AppSpacing.md),
-          Text(
+          AppText.bodyMuted(
             widget.supportsScreenTime
-                ? 'Earn screen time by working out.\nBuild discipline. Build consistency.'
-                : 'Track your workouts and build consistency.',
-            style: AppTypography.bodyMuted,
+                ? l10n.onboardingWelcomeBodyScreenTime
+                : l10n.onboardingWelcomeBodyWorkout,
           ),
           const SizedBox(height: AppSpacing.xl),
-          Text(
-            'What should we call you?',
-            style: AppTypography.heading.copyWith(fontSize: 15),
-          ),
+          AppText.heading(l10n.onboardingNamePrompt),
           const SizedBox(height: AppSpacing.sm),
           TextField(
             controller: _ctrl,
-            decoration: const InputDecoration(
-              labelText: 'Username (optional)',
-              hintText: 'e.g. fitnessathlete',
+            decoration: InputDecoration(
+              labelText: l10n.onboardingUsernameOptional,
+              hintText: l10n.onboardingUsernameHint,
             ),
             inputFormatters: [
               FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9_]')),
@@ -227,36 +248,38 @@ class _DaysPerWeekStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        AppSpacing.xl,
-        AppSpacing.xl,
+      padding: const EdgeInsetsDirectional.fromSTEB(
+        AppSpacing.lg,
+        AppSpacing.md,
+        AppSpacing.lg,
         AppSpacing.base,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'HOW MANY DAYS\nPER WEEK?',
-            style: AppTypography.display.copyWith(fontSize: 28),
+          AppText.title(l10n.onboardingDaysTitle),
+          const SizedBox(height: AppSpacing.xl),
+          Center(
+            child: AppText.display(
+              '$value',
+              color: context.nashaatPalette.calmText,
+            ),
           ),
+          const SizedBox(height: AppSpacing.sm),
+          Center(child: AppText.bodyMuted(l10n.onboardingDaysPerWeek(value))),
           const SizedBox(height: AppSpacing.lg),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: List.generate(7, (i) {
-              final day = i + 1;
-              return AppDayChip(
-                label: '$day',
-                selected: day <= value,
-                onTap: () => onChanged(day),
-              );
-            }),
+          AppDottedSlider(
+            values: List<int>.generate(7, (index) => index + 1),
+            value: value,
+            onChanged: onChanged,
+            semanticLabel: l10n.onboardingDaysTitle,
           ),
           const SizedBox(height: AppSpacing.md),
-          Text(
-            '$value day${value == 1 ? '' : 's'} per week',
-            style: AppTypography.mono.copyWith(color: AppColors.inkMuted),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [AppText.mono('1'), AppText.mono('7')],
           ),
         ],
       ),
@@ -275,29 +298,28 @@ class _WorkoutDurationStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        AppSpacing.xl,
-        AppSpacing.xl,
+      padding: const EdgeInsetsDirectional.fromSTEB(
+        AppSpacing.lg,
+        AppSpacing.md,
+        AppSpacing.lg,
         AppSpacing.base,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'HOW LONG PER\nWORKOUT?',
-            style: AppTypography.display.copyWith(fontSize: 28),
-          ),
-          const SizedBox(height: AppSpacing.lg),
+          AppText.title(l10n.onboardingDurationTitle),
+          const SizedBox(height: AppSpacing.xl),
           Wrap(
             spacing: AppSpacing.sm,
             runSpacing: AppSpacing.sm,
             children: _durations.map((d) {
               return AppSelectChip(
-                label: '${d}m',
+                label: l10n.onboardingDurationOption(d),
                 selected: d == value,
                 onTap: () => onChanged(d),
+                tone: AppStatusTone.calm,
               );
             }).toList(),
           ),
@@ -316,46 +338,40 @@ class _DailyPhoneHoursStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        AppSpacing.xl,
-        AppSpacing.xl,
+      padding: const EdgeInsetsDirectional.fromSTEB(
+        AppSpacing.lg,
+        AppSpacing.md,
+        AppSpacing.lg,
         AppSpacing.base,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'DAILY PHONE\nUSAGE?',
-            style: AppTypography.display.copyWith(fontSize: 28),
-          ),
+          AppText.title(l10n.onboardingPhoneTitle),
           const SizedBox(height: AppSpacing.sm),
-          Text(
-            'We use this to calibrate your screen time economy.',
-            style: AppTypography.bodyMuted,
-          ),
+          AppText.bodyMuted(l10n.onboardingPhoneBody),
           const SizedBox(height: AppSpacing.xl),
           Center(
-            child: Text(
-              '${value}h',
-              style: AppTypography.display.copyWith(fontSize: 64),
+            child: AppText.display(
+              l10n.onboardingPhoneHours(value),
+              color: context.nashaatPalette.accentText,
             ),
           ),
           const SizedBox(height: AppSpacing.base),
-          Slider(
-            value: value.toDouble(),
-            min: 1,
-            max: 16,
-            divisions: 15,
-            label: '${value}h',
-            onChanged: (v) => onChanged(v.round()),
+          AppDottedSlider(
+            values: List<int>.generate(16, (index) => index + 1),
+            value: value,
+            onChanged: onChanged,
+            useAccent: true,
+            semanticLabel: l10n.onboardingPhoneTitle,
           ),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('1h', style: AppTypography.labelMuted),
-              Text('16h', style: AppTypography.labelMuted),
+              AppText.mono(l10n.onboardingPhoneMinimum),
+              AppText.mono(l10n.onboardingPhoneMaximum),
             ],
           ),
         ],
@@ -393,6 +409,7 @@ class _RewardPreviewStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final rewards = ScreenTimeEconomy.calculateRaw(
       dailyPhoneHours: dailyPhoneHours,
       weeklySmallSessions: weeklySmallSessions,
@@ -401,55 +418,53 @@ class _RewardPreviewStep extends StatelessWidget {
     final weeklyTargetMinutes = daysPerWeek * workoutDurationMinutes;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        AppSpacing.xl,
-        AppSpacing.xl,
+      padding: const EdgeInsetsDirectional.fromSTEB(
+        AppSpacing.lg,
+        AppSpacing.md,
+        AppSpacing.lg,
         AppSpacing.base,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'YOUR REWARD\nPREVIEW',
-            style: AppTypography.display.copyWith(fontSize: 28),
-          ),
+          AppText.title(l10n.onboardingRewardTitle),
           const SizedBox(height: AppSpacing.lg),
-
-          Container(
+          AppCard.reward(
             padding: const EdgeInsets.all(AppSpacing.base),
-            color: AppColors.paperAlt,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _RewardRow('Weekly target', _fmt(weeklyTargetMinutes)),
+                _RewardRow(
+                  l10n.onboardingWeeklyTarget,
+                  _fmt(weeklyTargetMinutes),
+                ),
                 const SizedBox(height: 8),
-                _RewardRow('Free time / week', _fmt(rewards.freeMinutes)),
+                _RewardRow(l10n.onboardingFreeTime, _fmt(rewards.freeMinutes)),
                 const SizedBox(height: 8),
                 _RewardRow(
-                  'Per small session',
+                  l10n.onboardingSmallSessionReward,
                   _fmt(rewards.smallRewardMinutes),
                 ),
                 const SizedBox(height: 8),
-                _RewardRow('Per big session', _fmt(rewards.bigRewardMinutes)),
+                _RewardRow(
+                  l10n.onboardingBigSessionReward,
+                  _fmt(rewards.bigRewardMinutes),
+                ),
               ],
             ),
           ),
 
           const SizedBox(height: AppSpacing.lg),
-          Text(
-            'Weekly session split',
-            style: AppTypography.heading.copyWith(fontSize: 15),
-          ),
+          AppText.heading(l10n.onboardingWeeklySessionSplit),
           const SizedBox(height: AppSpacing.sm),
           AppCounter(
-            label: 'Small sessions (1x)',
+            label: l10n.onboardingSmallSessions,
             value: weeklySmallSessions,
             onChanged: onSmallChanged,
           ),
           const SizedBox(height: 8),
           AppCounter(
-            label: 'Big sessions (2x)',
+            label: l10n.onboardingBigSessions,
             value: weeklyBigSessions,
             onChanged: onBigChanged,
           ),
@@ -468,8 +483,8 @@ class _RewardRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Expanded(child: Text(label, style: AppTypography.body)),
-        Text(value, style: AppTypography.monoStrong),
+        Expanded(child: AppText.body(label)),
+        AppText.monoStrong(value),
       ],
     );
   }
@@ -478,11 +493,15 @@ class _RewardRow extends StatelessWidget {
 // ── Step 5 — Blocking preferences ────────────────────────────────────────────
 
 class _BlockingStep extends StatefulWidget {
+  final int totalSteps;
+  final VoidCallback onBack;
   final bool isSaving;
   final Future<void> Function(List<String>) onContinue;
   final Future<void> Function() onSkip;
 
   const _BlockingStep({
+    required this.totalSteps,
+    required this.onBack,
     required this.isSaving,
     required this.onContinue,
     required this.onSkip,
@@ -509,80 +528,85 @@ class _BlockingStepState extends State<_BlockingStep> {
     setState(() => _loadingApps = true);
     try {
       final apps = await _platform.getInstalledApps();
-      setState(() => _installedApps = apps);
+      if (mounted) setState(() => _installedApps = apps);
     } catch (_) {
     } finally {
-      setState(() => _loadingApps = false);
+      if (mounted) setState(() => _loadingApps = false);
     }
   }
 
   Future<void> _openIosPicker() async {
     try {
       final count = await _platform.presentIosPicker();
-      if (count > 0) setState(() => _iosPickerDone = true);
+      if (count > 0 && mounted) setState(() => _iosPickerDone = true);
     } catch (_) {}
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return AppStepScaffold(
-      totalSteps: 6,
+      totalSteps: widget.totalSteps,
       currentStep: 5,
-      nextLabel: 'Finish Setup',
+      nextLabel: l10n.onboardingFinishSetup,
+      progressLabel: l10n.onboardingStep(6, widget.totalSteps),
+      backLabel: l10n.back,
       isLoading: widget.isSaving,
+      onBack: widget.onBack,
       onNext: () => widget.onContinue(_selected.toList()),
-      skipLabel: 'Skip for Now',
+      skipLabel: l10n.onboardingSkipForNow,
       onSkip: widget.isSaving ? null : widget.onSkip,
       body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.xl,
-          AppSpacing.xl,
-          AppSpacing.xl,
+        padding: const EdgeInsetsDirectional.fromSTEB(
+          AppSpacing.lg,
+          AppSpacing.md,
+          AppSpacing.lg,
           AppSpacing.base,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'SET UP APP\nBLOCKING',
-              style: AppTypography.display.copyWith(fontSize: 28),
-            ),
+            AppText.title(l10n.setupBlocking),
             const SizedBox(height: AppSpacing.sm),
-            Text(
-              'Choose apps to block when your screen time runs out.\nYou can change this later.',
-              style: AppTypography.bodyMuted,
-            ),
+            AppText.bodyMuted(l10n.onboardingBlockingBody),
             const SizedBox(height: AppSpacing.xl),
             if (Platform.isIOS) ...[
               _IosPickerSection(iosDone: _iosPickerDone, onTap: _openIosPicker),
             ] else ...[
               if (_loadingApps)
-                const Center(
-                  child: CircularProgressIndicator(color: AppColors.ink),
+                Center(
+                  child: CircularProgressIndicator(
+                    color: context.nashaatPalette.accent,
+                  ),
                 )
               else if (_installedApps.isEmpty)
-                Text('No apps found.', style: AppTypography.bodyMuted)
+                AppText.bodyMuted(l10n.onboardingNoApps)
               else
                 ..._installedApps.map((app) {
                   final checked = _selected.contains(app.packageId);
-                  return CheckboxListTile(
-                    value: checked,
-                    onChanged: (v) {
-                      setState(() {
-                        if (v == true) {
-                          _selected.add(app.packageId);
-                        } else {
-                          _selected.remove(app.packageId);
-                        }
-                      });
-                    },
-                    title: Text(app.name, style: AppTypography.body),
-                    subtitle: Text(
-                      app.packageId,
-                      style: AppTypography.labelMuted,
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                    child: AppCard(
+                      padding: EdgeInsets.zero,
+                      child: CheckboxListTile(
+                        value: checked,
+                        onChanged: (v) {
+                          setState(() {
+                            if (v == true) {
+                              _selected.add(app.packageId);
+                            } else {
+                              _selected.remove(app.packageId);
+                            }
+                          });
+                        },
+                        title: AppText.body(app.name),
+                        subtitle: AppText.mono(app.packageId),
+                        controlAffinity: ListTileControlAffinity.leading,
+                        contentPadding: const EdgeInsetsDirectional.symmetric(
+                          horizontal: AppSpacing.md,
+                        ),
+                      ),
                     ),
-                    controlAffinity: ListTileControlAffinity.leading,
-                    contentPadding: EdgeInsets.zero,
                   );
                 }),
             ],
@@ -600,32 +624,22 @@ class _IosPickerSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        InkWell(
-          onTap: onTap,
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(AppSpacing.base),
-            decoration: BoxDecoration(
-              border: Border.all(color: AppColors.ink, width: 1),
-            ),
-            child: Text(
-              'Select Apps via Screen Time',
-              style: AppTypography.label.copyWith(fontSize: 14),
-              textAlign: TextAlign.center,
-            ),
-          ),
+        AppButton.secondary(
+          l10n.onboardingSelectApps,
+          onPressed: onTap,
+          width: double.infinity,
+          icon: Icons.apps_outlined,
         ),
         if (iosDone) ...[
           const SizedBox(height: AppSpacing.md),
-          Row(
-            children: [
-              Container(width: 8, height: 8, color: AppColors.acid),
-              const SizedBox(width: 8),
-              Text('Apps selected via Screen Time', style: AppTypography.body),
-            ],
+          AppStatusPill(
+            label: l10n.onboardingAppsSelected,
+            tone: AppStatusTone.accent,
+            showDot: true,
           ),
         ],
       ],

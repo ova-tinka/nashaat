@@ -325,6 +325,192 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Set Up Blocking'**
   String get setupBlocking;
+
+  /// Onboarding welcome heading
+  ///
+  /// In en, this message translates to:
+  /// **'Welcome to Nashaat'**
+  String get onboardingWelcomeTitle;
+
+  /// Onboarding first step action
+  ///
+  /// In en, this message translates to:
+  /// **'Let\'s go'**
+  String get onboardingLetsGo;
+
+  /// Onboarding progress label
+  ///
+  /// In en, this message translates to:
+  /// **'Step {current} of {total}'**
+  String onboardingStep(int current, int total);
+
+  /// Onboarding welcome copy when screen time is supported
+  ///
+  /// In en, this message translates to:
+  /// **'Earn screen time by working out.\nBuild discipline. Build consistency.'**
+  String get onboardingWelcomeBodyScreenTime;
+
+  /// Onboarding welcome copy when screen time is unavailable
+  ///
+  /// In en, this message translates to:
+  /// **'Track your workouts and build consistency.'**
+  String get onboardingWelcomeBodyWorkout;
+
+  /// Onboarding username prompt
+  ///
+  /// In en, this message translates to:
+  /// **'What should we call you?'**
+  String get onboardingNamePrompt;
+
+  /// Optional username field label
+  ///
+  /// In en, this message translates to:
+  /// **'Username (optional)'**
+  String get onboardingUsernameOptional;
+
+  /// Optional username field hint
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. fitnessathlete'**
+  String get onboardingUsernameHint;
+
+  /// Onboarding weekly training days heading
+  ///
+  /// In en, this message translates to:
+  /// **'How many days will you train each week?'**
+  String get onboardingDaysTitle;
+
+  /// Onboarding weekly training days summary
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1 {1 day per week} other {{count} days per week}}'**
+  String onboardingDaysPerWeek(int count);
+
+  /// Onboarding workout duration heading
+  ///
+  /// In en, this message translates to:
+  /// **'How long will each workout take?'**
+  String get onboardingDurationTitle;
+
+  /// Onboarding workout duration option
+  ///
+  /// In en, this message translates to:
+  /// **'{minutes} min'**
+  String onboardingDurationOption(int minutes);
+
+  /// Onboarding daily phone usage heading
+  ///
+  /// In en, this message translates to:
+  /// **'What is your daily phone usage?'**
+  String get onboardingPhoneTitle;
+
+  /// Onboarding daily phone usage explanation
+  ///
+  /// In en, this message translates to:
+  /// **'We use this to calibrate your screen-time economy.'**
+  String get onboardingPhoneBody;
+
+  /// Onboarding daily phone usage value
+  ///
+  /// In en, this message translates to:
+  /// **'{hours}h'**
+  String onboardingPhoneHours(int hours);
+
+  /// Minimum daily phone usage label
+  ///
+  /// In en, this message translates to:
+  /// **'1h'**
+  String get onboardingPhoneMinimum;
+
+  /// Maximum daily phone usage label
+  ///
+  /// In en, this message translates to:
+  /// **'16h'**
+  String get onboardingPhoneMaximum;
+
+  /// Onboarding reward preview heading
+  ///
+  /// In en, this message translates to:
+  /// **'Your reward preview'**
+  String get onboardingRewardTitle;
+
+  /// Onboarding reward preview weekly target label
+  ///
+  /// In en, this message translates to:
+  /// **'Weekly target'**
+  String get onboardingWeeklyTarget;
+
+  /// Onboarding reward preview free time label
+  ///
+  /// In en, this message translates to:
+  /// **'Free time per week'**
+  String get onboardingFreeTime;
+
+  /// Onboarding reward preview small session label
+  ///
+  /// In en, this message translates to:
+  /// **'Per small session'**
+  String get onboardingSmallSessionReward;
+
+  /// Onboarding reward preview big session label
+  ///
+  /// In en, this message translates to:
+  /// **'Per big session'**
+  String get onboardingBigSessionReward;
+
+  /// Onboarding reward preview session split heading
+  ///
+  /// In en, this message translates to:
+  /// **'Weekly session split'**
+  String get onboardingWeeklySessionSplit;
+
+  /// Onboarding small sessions counter label
+  ///
+  /// In en, this message translates to:
+  /// **'Small sessions (1x)'**
+  String get onboardingSmallSessions;
+
+  /// Onboarding big sessions counter label
+  ///
+  /// In en, this message translates to:
+  /// **'Big sessions (2x)'**
+  String get onboardingBigSessions;
+
+  /// Onboarding app blocking explanation
+  ///
+  /// In en, this message translates to:
+  /// **'Choose apps to block when your screen time runs out.\nYou can change this later.'**
+  String get onboardingBlockingBody;
+
+  /// Onboarding iOS app picker action
+  ///
+  /// In en, this message translates to:
+  /// **'Select apps via Screen Time'**
+  String get onboardingSelectApps;
+
+  /// Onboarding iOS app picker completion state
+  ///
+  /// In en, this message translates to:
+  /// **'Apps selected via Screen Time'**
+  String get onboardingAppsSelected;
+
+  /// Onboarding Android empty app list state
+  ///
+  /// In en, this message translates to:
+  /// **'No apps found.'**
+  String get onboardingNoApps;
+
+  /// Onboarding finish action
+  ///
+  /// In en, this message translates to:
+  /// **'Finish setup'**
+  String get onboardingFinishSetup;
+
+  /// Onboarding skip action
+  ///
+  /// In en, this message translates to:
+  /// **'Skip for now'**
+  String get onboardingSkipForNow;
 }
 
 class _AppLocalizationsDelegate

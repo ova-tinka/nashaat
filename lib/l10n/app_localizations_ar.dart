@@ -121,4 +121,118 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get setupBlocking => 'إعداد الحظر';
+
+  @override
+  String get onboardingWelcomeTitle => 'مرحباً بك في نشاط';
+
+  @override
+  String get onboardingLetsGo => 'لنبدأ';
+
+  @override
+  String onboardingStep(int current, int total) {
+    return 'الخطوة $current من $total';
+  }
+
+  @override
+  String get onboardingWelcomeBodyScreenTime =>
+      'اكسب وقت الشاشة من خلال التمرين.\nابنِ انضباطك واستمراريتك.';
+
+  @override
+  String get onboardingWelcomeBodyWorkout => 'تتبّع تمارينك وابنِ استمراريتك.';
+
+  @override
+  String get onboardingNamePrompt => 'كيف نناديك؟';
+
+  @override
+  String get onboardingUsernameOptional => 'اسم المستخدم (اختياري)';
+
+  @override
+  String get onboardingUsernameHint => 'مثال: fitnessathlete';
+
+  @override
+  String get onboardingDaysTitle => 'كم يوماً ستتمرن كل أسبوع؟';
+
+  @override
+  String onboardingDaysPerWeek(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count يوم في الأسبوع',
+      many: '$count يوماً في الأسبوع',
+      few: '$count أيام في الأسبوع',
+      two: 'يومان في الأسبوع',
+      one: 'يوم واحد في الأسبوع',
+      zero: 'لا أيام هذا الأسبوع',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get onboardingDurationTitle => 'كم ستستغرق كل جلسة؟';
+
+  @override
+  String onboardingDurationOption(int minutes) {
+    return '$minutes دقيقة';
+  }
+
+  @override
+  String get onboardingPhoneTitle => 'ما معدل استخدامك للهاتف يومياً؟';
+
+  @override
+  String get onboardingPhoneBody =>
+      'نستخدم هذا الرقم لمعايرة اقتصاد وقت الشاشة.';
+
+  @override
+  String onboardingPhoneHours(int hours) {
+    return '$hoursس';
+  }
+
+  @override
+  String get onboardingPhoneMinimum => 'ساعة';
+
+  @override
+  String get onboardingPhoneMaximum => '16 ساعة';
+
+  @override
+  String get onboardingRewardTitle => 'معاينة مكافآتك';
+
+  @override
+  String get onboardingWeeklyTarget => 'الهدف الأسبوعي';
+
+  @override
+  String get onboardingFreeTime => 'وقت الفراغ أسبوعياً';
+
+  @override
+  String get onboardingSmallSessionReward => 'لكل جلسة صغيرة';
+
+  @override
+  String get onboardingBigSessionReward => 'لكل جلسة كبيرة';
+
+  @override
+  String get onboardingWeeklySessionSplit => 'توزيع الجلسات الأسبوعية';
+
+  @override
+  String get onboardingSmallSessions => 'جلسات صغيرة (1×)';
+
+  @override
+  String get onboardingBigSessions => 'جلسات كبيرة (2×)';
+
+  @override
+  String get onboardingBlockingBody =>
+      'اختر التطبيقات التي تريد حظرها عند انتهاء وقت الشاشة.\nيمكنك تغيير ذلك لاحقاً.';
+
+  @override
+  String get onboardingSelectApps => 'اختيار التطبيقات عبر وقت الشاشة';
+
+  @override
+  String get onboardingAppsSelected => 'تم اختيار التطبيقات عبر وقت الشاشة';
+
+  @override
+  String get onboardingNoApps => 'لم يتم العثور على تطبيقات.';
+
+  @override
+  String get onboardingFinishSetup => 'إنهاء الإعداد';
+
+  @override
+  String get onboardingSkipForNow => 'تخطي الآن';
 }

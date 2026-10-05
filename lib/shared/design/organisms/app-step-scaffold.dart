@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../atoms/app-button.dart';
-import '../molecules/app-progress-bar.dart';
+import '../atoms/app-sadu-band.dart';
 import '../tokens/app-colors.dart';
 
 class AppStepScaffold extends StatelessWidget {
@@ -13,6 +13,9 @@ class AppStepScaffold extends StatelessWidget {
   final bool isLoading;
   final String? skipLabel;
   final VoidCallback? onSkip;
+  final VoidCallback? onBack;
+  final String? progressLabel;
+  final String backLabel;
 
   const AppStepScaffold({
     super.key,
@@ -24,6 +27,9 @@ class AppStepScaffold extends StatelessWidget {
     this.isLoading = false,
     this.skipLabel,
     this.onSkip,
+    this.onBack,
+    this.progressLabel,
+    this.backLabel = 'Back',
   });
 
   @override
@@ -34,27 +40,28 @@ class AppStepScaffold extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
-            // Progress header
             Padding(
               padding: const EdgeInsetsDirectional.fromSTEB(24, 20, 24, 16),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
                       if (currentStep > 0)
-                        GestureDetector(
-                          onTap: () => Navigator.of(context).maybePop(),
-                          child: Icon(
-                            Icons.arrow_back,
+                        IconButton(
+                          tooltip: backLabel,
+                          onPressed:
+                              onBack ?? () => Navigator.of(context).maybePop(),
+                          icon: Icon(
+                            Directionality.of(context) == TextDirection.rtl
+                                ? Icons.arrow_forward
+                                : Icons.arrow_back,
                             size: 20,
-                            color: palette.textPrimary,
                           ),
                         ),
-                      if (currentStep > 0) const SizedBox(width: 12),
+                      if (currentStep > 0) const SizedBox(width: 4),
                       Expanded(
                         child: Text(
-                          '${currentStep + 1} / $totalSteps',
+                          progressLabel ?? '${currentStep + 1} / $totalSteps',
                           style: GoogleFonts.jetBrainsMono(
                             color: palette.textMuted,
                             fontSize: 12,
@@ -64,26 +71,39 @@ class AppStepScaffold extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 10),
-                  AppStepProgressBar(
-                    totalSteps: totalSteps,
-                    currentStep: currentStep,
+                  const SizedBox(height: 8),
+                  Semantics(
+                    label: 'Onboarding progress',
+                    value: '${currentStep + 1} of $totalSteps',
+                    child: AppSaduBand(
+                      motif: AppSaduMotif.chevrons,
+                      progress: ((currentStep + 1) / totalSteps).clamp(
+                        0.0,
+                        1.0,
+                      ),
+                      height: 14,
+                    ),
                   ),
                 ],
               ),
             ),
 
-            // Content
             Expanded(child: body),
 
-            // Footer
             Container(
               decoration: BoxDecoration(
                 border: Border(
                   top: BorderSide(color: palette.border, width: 1),
                 ),
               ),
-              padding: const EdgeInsetsDirectional.fromSTEB(24, 16, 24, 24),
+              padding: EdgeInsetsDirectional.fromSTEB(
+                24,
+                16,
+                24,
+                MediaQuery.viewInsetsOf(context).bottom > 0
+                    ? MediaQuery.viewInsetsOf(context).bottom + 12
+                    : 24,
+              ),
               child: Column(
                 children: [
                   AppButton.primary(

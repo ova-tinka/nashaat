@@ -121,4 +121,115 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get setupBlocking => 'Set Up Blocking';
+
+  @override
+  String get onboardingWelcomeTitle => 'Welcome to Nashaat';
+
+  @override
+  String get onboardingLetsGo => 'Let\'s go';
+
+  @override
+  String onboardingStep(int current, int total) {
+    return 'Step $current of $total';
+  }
+
+  @override
+  String get onboardingWelcomeBodyScreenTime =>
+      'Earn screen time by working out.\nBuild discipline. Build consistency.';
+
+  @override
+  String get onboardingWelcomeBodyWorkout =>
+      'Track your workouts and build consistency.';
+
+  @override
+  String get onboardingNamePrompt => 'What should we call you?';
+
+  @override
+  String get onboardingUsernameOptional => 'Username (optional)';
+
+  @override
+  String get onboardingUsernameHint => 'e.g. fitnessathlete';
+
+  @override
+  String get onboardingDaysTitle => 'How many days will you train each week?';
+
+  @override
+  String onboardingDaysPerWeek(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count days per week',
+      one: '1 day per week',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get onboardingDurationTitle => 'How long will each workout take?';
+
+  @override
+  String onboardingDurationOption(int minutes) {
+    return '$minutes min';
+  }
+
+  @override
+  String get onboardingPhoneTitle => 'What is your daily phone usage?';
+
+  @override
+  String get onboardingPhoneBody =>
+      'We use this to calibrate your screen-time economy.';
+
+  @override
+  String onboardingPhoneHours(int hours) {
+    return '${hours}h';
+  }
+
+  @override
+  String get onboardingPhoneMinimum => '1h';
+
+  @override
+  String get onboardingPhoneMaximum => '16h';
+
+  @override
+  String get onboardingRewardTitle => 'Your reward preview';
+
+  @override
+  String get onboardingWeeklyTarget => 'Weekly target';
+
+  @override
+  String get onboardingFreeTime => 'Free time per week';
+
+  @override
+  String get onboardingSmallSessionReward => 'Per small session';
+
+  @override
+  String get onboardingBigSessionReward => 'Per big session';
+
+  @override
+  String get onboardingWeeklySessionSplit => 'Weekly session split';
+
+  @override
+  String get onboardingSmallSessions => 'Small sessions (1x)';
+
+  @override
+  String get onboardingBigSessions => 'Big sessions (2x)';
+
+  @override
+  String get onboardingBlockingBody =>
+      'Choose apps to block when your screen time runs out.\nYou can change this later.';
+
+  @override
+  String get onboardingSelectApps => 'Select apps via Screen Time';
+
+  @override
+  String get onboardingAppsSelected => 'Apps selected via Screen Time';
+
+  @override
+  String get onboardingNoApps => 'No apps found.';
+
+  @override
+  String get onboardingFinishSetup => 'Finish setup';
+
+  @override
+  String get onboardingSkipForNow => 'Skip for now';
 }
