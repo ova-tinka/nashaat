@@ -133,6 +133,29 @@ void main() {
         expect(vm.myRank, 3);
       },
     );
+
+    test('assigns the same rank to tied scores', () async {
+      final lb = TestData.leaderboard();
+      when(
+        () => mockLeaderboardRepo.getUserLeaderboards(any()),
+      ).thenAnswer((_) async => [lb]);
+      when(() => mockLeaderboardRepo.getMembers(lb.id)).thenAnswer(
+        (_) async => [
+          TestData.leaderboardMember(userId: 'u3', weeklyScore: 50),
+          TestData.leaderboardMember(userId: 'u2', weeklyScore: 90),
+          TestData.leaderboardMember(userId: 'u1', weeklyScore: 90),
+        ],
+      );
+      when(
+        () => mockProfileRepo.getPublicProfile(any()),
+      ).thenAnswer((_) async => TestData.publicProfile());
+
+      await vm.load();
+
+      expect(vm.rankings.map((entry) => entry.userId), ['u1', 'u2', 'u3']);
+      expect(vm.rankings.map((entry) => entry.rank), [1, 1, 3]);
+      expect(vm.myRank, 1);
+    });
   });
 
   // ── selectLeaderboard ──────────────────────────────────────────────────────

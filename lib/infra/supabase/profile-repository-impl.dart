@@ -85,20 +85,6 @@ class SupabaseProfileRepository implements ProfileRepository {
   }
 
   @override
-  Future<void> updateScreenTimeBalance(
-    String userId,
-    int balanceMinutes,
-  ) async {
-    await _db
-        .from('profiles')
-        .update({
-          'screen_time_balance_minutes': balanceMinutes,
-          'updated_at': DateTime.now().toIso8601String(),
-        })
-        .eq('id', userId);
-  }
-
-  @override
   Future<void> updateScreenTimeSetup(
     String userId, {
     required int dailyPhoneHours,
@@ -119,19 +105,6 @@ class SupabaseProfileRepository implements ProfileRepository {
       '${dailyPhoneHours}h/day, '
       '${weeklySmallSessions}S+${weeklyBigSessions}B',
     );
-  }
-
-  @override
-  Future<void> updateLastWeeklyReset(String userId, DateTime resetAt) async {
-    await _db
-        .from('profiles')
-        .update({
-          'last_weekly_reset_at': resetAt.toIso8601String(),
-          'screen_time_balance_minutes': 0,
-          'updated_at': DateTime.now().toIso8601String(),
-        })
-        .eq('id', userId);
-    Log.db('weekly reset recorded ✓');
   }
 
   @override

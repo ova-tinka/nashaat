@@ -1,4 +1,7 @@
 import '../../core/entities/workout-log-entity.dart';
+import '../../core/entities/achievement-entity.dart';
+import '../../core/entities/enums.dart';
+import '../../core/entities/workout-completion-result.dart';
 import '../../core/repositories/workout-log-repository.dart';
 import '../../shared/logger.dart';
 import 'supabase-client.dart';
@@ -12,10 +15,7 @@ class SupabaseWorkoutLogRepository implements WorkoutLogRepository {
     int? limit,
     DateTime? from,
   }) async {
-    var filterQuery = _db
-        .from('workout_logs')
-        .select()
-        .eq('user_id', userId);
+    var filterQuery = _db.from('workout_logs').select().eq('user_id', userId);
 
     if (from != null) {
       filterQuery = filterQuery.gte('logged_at', from.toIso8601String());
@@ -46,24 +46,56 @@ class SupabaseWorkoutLogRepository implements WorkoutLogRepository {
   }
 
   @override
-  Future<WorkoutLogEntity> createLog(WorkoutLogEntity log) async {
-    Log.db('logging workout: ${log.durationMinutes} min, earned ${log.earnedScreenTimeMinutes} min');
-    final data = await _db
-        .from('workout_logs')
-        .insert({
-          'user_id': log.userId,
-          if (log.workoutPlanId != null) 'workout_plan_id': log.workoutPlanId,
-          'duration_minutes': log.durationMinutes,
-          'earned_screen_time_minutes': log.earnedScreenTimeMinutes,
-          'completed_exercises':
-              log.completedExercises.map(_completedToMap).toList(),
-          if (log.notes != null) 'notes': log.notes,
-          'logged_at': log.loggedAt.toIso8601String(),
-        })
-        .select()
-        .single();
-    Log.db('workout log created ✓');
-    return _fromMap(data);
+  Future<WorkoutSessionEntity> startSession(String? workoutPlanId) async {
+    final data = await _db.rpc(
+      'start_workout_session',
+      params: {'p_workout_plan_id': workoutPlanId},
+    );
+    final row = _firstRow(data);
+    return WorkoutSessionEntity(
+      id: row['session_id'] as String,
+      startedAt: DateTime.parse(row['started_at'] as String),
+    );
+  }
+
+  @override
+  Future<WorkoutCompletionResult> completeSession({
+    required String sessionId,
+    required List<CompletedExercise> completedExercises,
+    String? notes,
+  }) async {
+    final data = await _db.rpc(
+      'complete_workout_session',
+      params: {
+        'p_session_id': sessionId,
+        'p_completed_exercises': completedExercises
+            .map(_completedToMap)
+            .toList(),
+        'p_notes': notes,
+      },
+    );
+    final row = _firstRow(data);
+    final unlockedRaw = row['newly_unlocked_achievements'];
+    final unlocked = unlockedRaw is List
+        ? unlockedRaw
+              .map(
+                (item) =>
+                    _unlockedAchievementFromMap(item as Map<String, dynamic>),
+              )
+              .toList()
+        : const <UnlockedAchievementEntity>[];
+
+    return WorkoutCompletionResult(
+      workoutLogId: row['workout_log_id'] as String,
+      earnedScreenTimeMinutes:
+          (row['earned_screen_time_minutes'] as num?)?.toInt() ?? 0,
+      pointsEarned: (row['points_earned'] as num?)?.toInt() ?? 0,
+      pointsTotal: (row['points_total'] as num?)?.toInt() ?? 0,
+      currentStreak: (row['current_streak'] as num?)?.toInt() ?? 0,
+      longestStreak: (row['longest_streak'] as num?)?.toInt() ?? 0,
+      weeklyScore: (row['weekly_score'] as num?)?.toInt() ?? 0,
+      newlyUnlockedAchievements: unlocked,
+    );
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -95,13 +127,37 @@ class SupabaseWorkoutLogRepository implements WorkoutLogRepository {
         distanceKm: (map['distance_km'] as num?)?.toDouble(),
       );
 
+  UnlockedAchievementEntity _unlockedAchievementFromMap(
+    Map<String, dynamic> map,
+  ) => UnlockedAchievementEntity(
+    id: map['id'] as String,
+    code: map['code'] as String,
+    name: map['name'] as String,
+    rewardType: _parseRewardType(map['reward_type'] as String),
+    rewardAmount: (map['reward_amount'] as num?)?.toInt() ?? 0,
+  );
+
+  RewardType _parseRewardType(String value) => switch (value) {
+    'points' => RewardType.points,
+    'screen_time' => RewardType.screenTime,
+    _ => RewardType.recognition,
+  };
+
+  Map<String, dynamic> _firstRow(dynamic data) {
+    if (data is List && data.isNotEmpty && data.first is Map<String, dynamic>) {
+      return data.first as Map<String, dynamic>;
+    }
+    if (data is Map<String, dynamic>) return data;
+    throw StateError('Workout RPC returned no result.');
+  }
+
   Map<String, dynamic> _completedToMap(CompletedExercise e) => {
-        'exercise_id': e.exerciseId,
-        'exercise_name': e.exerciseName,
-        'sets_completed': e.setsCompleted,
-        if (e.repsCompleted != null) 'reps_completed': e.repsCompleted,
-        if (e.durationSeconds != null) 'duration_seconds': e.durationSeconds,
-        if (e.weightKg != null) 'weight_kg': e.weightKg,
-        if (e.distanceKm != null) 'distance_km': e.distanceKm,
-      };
+    'exercise_id': e.exerciseId,
+    'exercise_name': e.exerciseName,
+    'sets_completed': e.setsCompleted,
+    if (e.repsCompleted != null) 'reps_completed': e.repsCompleted,
+    if (e.durationSeconds != null) 'duration_seconds': e.durationSeconds,
+    if (e.weightKg != null) 'weight_kg': e.weightKg,
+    if (e.distanceKm != null) 'distance_km': e.distanceKm,
+  };
 }

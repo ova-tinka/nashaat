@@ -4,9 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../core/entities/enums.dart';
 import '../../../core/entities/profile-entity.dart';
-import '../../../core/entities/screen-time-transaction-entity.dart';
 import '../../../core/repositories/profile-repository.dart';
 import '../../../core/repositories/screen-time-transaction-repository.dart';
 import '../../../core/repositories/blocking-repository.dart';
@@ -30,16 +28,16 @@ class FocusViewModel extends ChangeNotifier {
     required BlockingRepository blockingRepo,
     required EmergencyBreakRepository emergencyBreakRepo,
     required String userId,
-  })  : _profileRepo = profileRepo,
-        _txnRepo = txnRepo,
-        _platform = platform,
-        blockingVm = BlockingViewModel(
-          userId: userId,
-          blockingRepo: blockingRepo,
-          platform: platform,
-          permissionService: PermissionService(platform),
-          emergencyBreakRepo: emergencyBreakRepo,
-        );
+  }) : _profileRepo = profileRepo,
+       _txnRepo = txnRepo,
+       _platform = platform,
+       blockingVm = BlockingViewModel(
+         userId: userId,
+         blockingRepo: blockingRepo,
+         platform: platform,
+         permissionService: PermissionService(platform),
+         emergencyBreakRepo: emergencyBreakRepo,
+       );
 
   // ── State ─────────────────────────────────────────────────────────────────
 
@@ -73,10 +71,7 @@ class FocusViewModel extends ChangeNotifier {
 
     try {
       final userId = Supabase.instance.client.auth.currentUser!.id;
-      await Future.wait([
-        _loadProfile(userId),
-        blockingVm.initialize(),
-      ]);
+      await Future.wait([_loadProfile(userId), blockingVm.initialize()]);
       await _creditWeeklyFreeIfNeeded();
       await _syncBlockingState();
       _startDrainTimer();
@@ -101,30 +96,18 @@ class FocusViewModel extends ChangeNotifier {
   Future<void> _creditWeeklyFreeIfNeeded() async {
     final profile = _profile;
     if (profile == null || !profile.isScreenTimeConfigured) return;
-    if (!ScreenTimeEconomy.isNewWeek(DateTime.now(), profile.lastWeeklyResetAt)) {
-      return;
-    }
 
     final userId = Supabase.instance.client.auth.currentUser!.id;
-    final freeMinutes = _rewards.freeMinutes;
-
-    await _profileRepo.updateLastWeeklyReset(userId, DateTime.now());
-    await _profileRepo.updateScreenTimeBalance(userId, freeMinutes);
-
-    if (freeMinutes > 0) {
-      await _txnRepo.recordTransaction(ScreenTimeTransactionEntity(
-        id: '',
-        userId: userId,
-        amountMinutes: freeMinutes,
-        transactionType: TransactionType.earned,
-        description: 'Weekly free screen time (20% baseline)',
-        createdAt: DateTime.now(),
-      ));
-    }
+    final result = await _txnRepo.creditWeeklyFreeMinutes();
 
     _profile = await _profileRepo.getProfile(userId);
-    _rewards = ScreenTimeEconomy.calculate(_profile!);
-    Log.db('weekly reset ✓ credited $freeMinutes free min');
+    if (_profile != null) {
+      _rewards = ScreenTimeEconomy.calculate(_profile!);
+    }
+    Log.db(
+      'weekly reset ✓ changed ${result.minutesChanged} min; '
+      'balance=${result.balanceMinutes} min',
+    );
   }
 
   // ── Automatic blocking state management ──────────────────────────────────
@@ -185,17 +168,8 @@ class FocusViewModel extends ChangeNotifier {
       return;
     }
 
-    final newBalance = current - 1;
-
-    await _txnRepo.recordTransaction(ScreenTimeTransactionEntity(
-      id: '',
-      userId: userId,
-      amountMinutes: -1,
-      transactionType: TransactionType.spent,
-      description: 'Screen time used',
-      createdAt: DateTime.now(),
-    ));
-    await _profileRepo.updateScreenTimeBalance(userId, newBalance);
+    final result = await _txnRepo.consumeMinute();
+    final newBalance = result.balanceMinutes;
     _profile = _profile?.copyWith(screenTimeBalanceMinutes: newBalance);
 
     Log.blocking('drained 1 min — remaining: $newBalance min');
@@ -229,8 +203,9 @@ class FocusViewModel extends ChangeNotifier {
     final foreground = await _platform.getForegroundAppId();
     if (foreground == null) return false;
 
-    final blockedIds =
-        blockingVm.activeRules.map((r) => r.itemIdentifier).toSet();
+    final blockedIds = blockingVm.activeRules
+        .map((r) => r.itemIdentifier)
+        .toSet();
     return blockedIds.contains(foreground);
   }
 

@@ -1,4 +1,5 @@
 import '../entities/workout-log-entity.dart';
+import '../entities/workout-completion-result.dart';
 
 abstract class WorkoutLogRepository {
   Future<List<WorkoutLogEntity>> getUserLogs(
@@ -9,5 +10,11 @@ abstract class WorkoutLogRepository {
 
   Future<WorkoutLogEntity?> getLog(String id);
 
-  Future<WorkoutLogEntity> createLog(WorkoutLogEntity log);
+  Future<WorkoutSessionEntity> startSession(String? workoutPlanId);
+
+  Future<WorkoutCompletionResult> completeSession({
+    required String sessionId,
+    required List<CompletedExercise> completedExercises,
+    String? notes,
+  });
 }

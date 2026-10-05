@@ -20,16 +20,12 @@ abstract class ProfileRepository {
 
   Future<void> updateStatus(String userId, UserStatus status);
 
-  Future<void> updateScreenTimeBalance(String userId, int balanceMinutes);
-
   Future<void> updateScreenTimeSetup(
     String userId, {
     required int dailyPhoneHours,
     required int weeklySmallSessions,
     required int weeklyBigSessions,
   });
-
-  Future<void> updateLastWeeklyReset(String userId, DateTime resetAt);
 
   Future<void> updateStrictBlockingOnly(String userId, bool value);
 }

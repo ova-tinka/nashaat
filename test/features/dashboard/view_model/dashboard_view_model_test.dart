@@ -282,7 +282,7 @@ void main() {
 
   group('weeklyEarnedMinutes', () {
     test('sums earned transactions from this week', () async {
-      final thisWeek = DateTime.now().subtract(const Duration(days: 1));
+      final thisWeek = now.subtract(const Duration(days: 1));
       when(
         () => mockProfileRepo.getProfile(any()),
       ).thenAnswer((_) async => TestData.profile());
@@ -314,7 +314,7 @@ void main() {
     });
 
     test('ignores spent and penalty transactions', () async {
-      final thisWeek = DateTime.now().subtract(const Duration(days: 1));
+      final thisWeek = now.subtract(const Duration(days: 1));
       when(
         () => mockProfileRepo.getProfile(any()),
       ).thenAnswer((_) async => TestData.profile());
@@ -348,7 +348,7 @@ void main() {
 
   group('weeklySpentMinutes', () {
     test('sums spent and penalty transactions', () async {
-      final thisWeek = DateTime.now().subtract(const Duration(days: 1));
+      final thisWeek = now.subtract(const Duration(days: 1));
       when(
         () => mockProfileRepo.getProfile(any()),
       ).thenAnswer((_) async => TestData.profile());

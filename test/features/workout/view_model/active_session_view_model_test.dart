@@ -2,7 +2,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nashaat/core/entities/enums.dart';
 import 'package:nashaat/core/entities/achievement-entity.dart';
-import 'package:nashaat/core/entities/point-award-entity.dart';
+import 'package:nashaat/core/entities/workout-completion-result.dart';
+import 'package:nashaat/core/entities/workout-log-entity.dart';
 import 'package:nashaat/core/entities/workout-plan-entity.dart';
 import 'package:nashaat/features/workout/model/workout-models.dart';
 import 'package:nashaat/features/workout/view-model/active-session-view-model.dart';
@@ -44,9 +45,6 @@ ActiveSessionViewModel _makeVm({
   MockWorkoutLogRepository? logRepo,
   MockProfileRepository? profileRepo,
   MockAchievementRepository? achievementRepo,
-  MockPointAwardRepository? pointAwardRepo,
-  MockLeaderboardRepository? leaderboardRepo,
-  MockScreenTimeTransactionRepository? txnRepo,
   WorkoutPlanEntity? plan,
 }) {
   return ActiveSessionViewModel(
@@ -55,17 +53,13 @@ ActiveSessionViewModel _makeVm({
     logRepo: logRepo ?? MockWorkoutLogRepository(),
     profileRepo: profileRepo ?? MockProfileRepository(),
     achievementRepo: achievementRepo ?? MockAchievementRepository(),
-    pointAwardRepo: pointAwardRepo ?? MockPointAwardRepository(),
-    leaderboardRepo: leaderboardRepo ?? MockLeaderboardRepository(),
-    txnRepo: txnRepo ?? MockScreenTimeTransactionRepository(),
     getUserId: () => 'u1',
   );
 }
 
 void main() {
   setUpAll(() {
-    registerFallbackValue(TestData.workoutLog());
-    registerFallbackValue(TestData.transaction());
+    registerFallbackValue(<CompletedExercise>[]);
   });
 
   // ── Initial state ──────────────────────────────────────────────────────────
@@ -224,147 +218,146 @@ void main() {
     late MockWorkoutLogRepository mockLogRepo;
     late MockProfileRepository mockProfileRepo;
     late MockAchievementRepository mockAchievementRepo;
-    late MockPointAwardRepository mockPointAwardRepo;
-    late MockLeaderboardRepository mockLeaderboardRepo;
-    late MockScreenTimeTransactionRepository mockTxnRepo;
 
     setUp(() {
       mockLogRepo = MockWorkoutLogRepository();
       mockProfileRepo = MockProfileRepository();
       mockAchievementRepo = MockAchievementRepository();
-      mockPointAwardRepo = MockPointAwardRepository();
-      mockLeaderboardRepo = MockLeaderboardRepository();
+    });
+
+    WorkoutCompletionResult result({
+      int earned = 336,
+      int pointsEarned = 150,
+      int pointsTotal = 350,
+      int currentStreak = 4,
+      int longestStreak = 7,
+      List<UnlockedAchievementEntity> achievements = const [],
+    }) {
+      return WorkoutCompletionResult(
+        workoutLogId: 'saved-log',
+        earnedScreenTimeMinutes: earned,
+        pointsEarned: pointsEarned,
+        pointsTotal: pointsTotal,
+        currentStreak: currentStreak,
+        longestStreak: longestStreak,
+        weeklyScore: 42,
+        newlyUnlockedAchievements: achievements,
+      );
+    }
+
+    void stubSessionStart() {
+      when(() => mockLogRepo.startSession('plan1')).thenAnswer(
+        (_) async => WorkoutSessionEntity(
+          id: 'session1',
+          startedAt: DateTime(2026, 4, 18),
+        ),
+      );
+    }
+
+    test('success uses the atomic server completion result', () async {
+      stubSessionStart();
+      final unlocked = const [
+        UnlockedAchievementEntity(
+          id: 'achievement-1',
+          code: 'first_workout',
+          name: 'First Step',
+          rewardType: RewardType.points,
+          rewardAmount: 50,
+        ),
+      ];
       when(
-        () => mockLeaderboardRepo.recalculateMyWeeklyScore(),
-      ).thenAnswer((_) async {});
-      mockTxnRepo = MockScreenTimeTransactionRepository();
+        () => mockLogRepo.completeSession(
+          sessionId: 'session1',
+          completedExercises: any(named: 'completedExercises'),
+        ),
+      ).thenAnswer((_) async => result(achievements: unlocked));
+      when(() => mockProfileRepo.getProfile('u1')).thenAnswer(
+        (_) async => TestData.configuredProfile(
+          pointsTotal: 350,
+          streakCount: 4,
+          longestStreak: 7,
+        ),
+      );
+      when(
+        () => mockAchievementRepo.getUserAchievements('u1'),
+      ).thenAnswer((_) async => []);
+
+      final vm = _makeVm(
+        logRepo: mockLogRepo,
+        profileRepo: mockProfileRepo,
+        achievementRepo: mockAchievementRepo,
+      );
+      await vm.initialize();
+      vm.markAllComplete();
+      await vm.saveSession();
+
+      verify(
+        () => mockLogRepo.completeSession(
+          sessionId: 'session1',
+          completedExercises: any(named: 'completedExercises'),
+        ),
+      ).called(1);
+      expect(vm.earnedMinutes, 336);
+      expect(vm.pointsEarned, 150);
+      expect(vm.pointsTotal, 350);
+      expect(vm.currentStreak, 4);
+      expect(vm.longestStreak, 7);
+      expect(vm.newlyUnlockedAchievements.single.code, 'first_workout');
+      expect(vm.error, isNull);
+      vm.dispose();
     });
 
     test(
-      'success with configured profile: createLog called, recordTransaction called',
+      'server result controls rewards even when local profile is unconfigured',
       () async {
-        final savedLog = TestData.workoutLog(
-          id: 'saved-log',
-          earnedScreenTimeMinutes: 336,
-        );
-        when(() => mockProfileRepo.getProfile(any())).thenAnswer(
-          (_) async => TestData.configuredProfile(
-            pointsTotal: 350,
-            streakCount: 4,
-            longestStreak: 7,
-          ),
-        );
+        stubSessionStart();
         when(
-          () => mockLogRepo.createLog(any()),
-        ).thenAnswer((_) async => savedLog);
-        when(
-          () => mockPointAwardRepo.awardWorkoutPoints('saved-log'),
-        ).thenAnswer(
-          (_) async => const WorkoutPointsResult(
-            pointsEarned: 100,
-            pointsTotal: 300,
-            currentStreak: 4,
-            longestStreak: 7,
+          () => mockLogRepo.completeSession(
+            sessionId: 'session1',
+            completedExercises: any(named: 'completedExercises'),
           ),
-        );
+        ).thenAnswer((_) async => result(earned: 0, pointsEarned: 100));
         when(
-          () => mockPointAwardRepo.awardStreakMilestonePoints('saved-log'),
-        ).thenAnswer(
-          (_) async => const StreakMilestoneResult(
-            streakDays: 4,
-            bonusPoints: 0,
-            pointsTotal: 300,
-          ),
-        );
-        when(() => mockAchievementRepo.evaluateUserAchievements()).thenAnswer(
-          (_) async => const [
-            UnlockedAchievementEntity(
-              id: 'achievement-1',
-              code: 'first_workout',
-              name: 'First Step',
-              rewardType: RewardType.points,
-              rewardAmount: 50,
-            ),
-          ],
-        );
+          () => mockProfileRepo.getProfile('u1'),
+        ).thenAnswer((_) async => TestData.profile(pointsTotal: 200));
         when(
           () => mockAchievementRepo.getUserAchievements('u1'),
         ).thenAnswer((_) async => []);
-        when(
-          () => mockTxnRepo.recordTransaction(any()),
-        ).thenAnswer((_) async => TestData.transaction());
-        when(
-          () => mockProfileRepo.updateScreenTimeBalance(any(), any()),
-        ).thenAnswer((_) async {});
 
         final vm = _makeVm(
           logRepo: mockLogRepo,
           profileRepo: mockProfileRepo,
           achievementRepo: mockAchievementRepo,
-          pointAwardRepo: mockPointAwardRepo,
-          leaderboardRepo: mockLeaderboardRepo,
-          txnRepo: mockTxnRepo,
         );
+        await vm.initialize();
         vm.markAllComplete();
         await vm.saveSession();
 
-        verify(() => mockLogRepo.createLog(any())).called(1);
-        verifyInOrder([
-          () => mockPointAwardRepo.awardWorkoutPoints('saved-log'),
-          () => mockPointAwardRepo.awardStreakMilestonePoints('saved-log'),
-          () => mockLeaderboardRepo.recalculateMyWeeklyScore(),
-          () => mockAchievementRepo.evaluateUserAchievements(),
-        ]);
-        verify(() => mockTxnRepo.recordTransaction(any())).called(1);
+        expect(vm.earnedMinutes, 0);
         expect(vm.pointsEarned, 100);
-        expect(vm.pointsTotal, 350);
-        expect(vm.currentStreak, 4);
-        expect(vm.longestStreak, 7);
-        expect(vm.newlyUnlockedAchievements.single.code, 'first_workout');
         expect(vm.error, isNull);
         vm.dispose();
       },
     );
 
     test(
-      'success with unconfigured profile (dailyPhoneHours=0): earned=0, no transaction',
+      'failed completion remains retryable and never reports success',
       () async {
-        final savedLog = TestData.workoutLog(
-          id: 'saved-log',
-          earnedScreenTimeMinutes: 0,
-        );
-        when(() => mockProfileRepo.getProfile(any())).thenAnswer(
-          (_) async => TestData.profile(
-            pointsTotal: 200,
-            streakCount: 2,
-            longestStreak: 5,
+        stubSessionStart();
+        var attempts = 0;
+        when(
+          () => mockLogRepo.completeSession(
+            sessionId: 'session1',
+            completedExercises: any(named: 'completedExercises'),
           ),
-        );
+        ).thenAnswer((_) async {
+          attempts++;
+          if (attempts == 1) throw Exception('network error');
+          return result();
+        });
         when(
-          () => mockLogRepo.createLog(any()),
-        ).thenAnswer((_) async => savedLog);
-        when(
-          () => mockPointAwardRepo.awardWorkoutPoints('saved-log'),
-        ).thenAnswer(
-          (_) async => const WorkoutPointsResult(
-            pointsEarned: 0,
-            pointsTotal: 200,
-            currentStreak: 2,
-            longestStreak: 5,
-          ),
-        );
-        when(
-          () => mockPointAwardRepo.awardStreakMilestonePoints('saved-log'),
-        ).thenAnswer(
-          (_) async => const StreakMilestoneResult(
-            streakDays: 2,
-            bonusPoints: 0,
-            pointsTotal: 200,
-          ),
-        );
-        when(
-          () => mockAchievementRepo.evaluateUserAchievements(),
-        ).thenAnswer((_) async => []);
+          () => mockProfileRepo.getProfile('u1'),
+        ).thenAnswer((_) async => TestData.profile());
         when(
           () => mockAchievementRepo.getUserAchievements('u1'),
         ).thenAnswer((_) async => []);
@@ -373,145 +366,24 @@ void main() {
           logRepo: mockLogRepo,
           profileRepo: mockProfileRepo,
           achievementRepo: mockAchievementRepo,
-          pointAwardRepo: mockPointAwardRepo,
-          leaderboardRepo: mockLeaderboardRepo,
-          txnRepo: mockTxnRepo,
         );
+        await vm.initialize();
         vm.markAllComplete();
         await vm.saveSession();
+        expect(vm.error, isNotNull);
+        expect(vm.isSaving, isFalse);
 
-        verifyNever(() => mockTxnRepo.recordTransaction(any()));
-        verify(() => mockLeaderboardRepo.recalculateMyWeeklyScore()).called(1);
-        expect(vm.pointsEarned, 0);
-        expect(vm.pointsTotal, 200);
-        expect(vm.currentStreak, 2);
-        expect(vm.longestStreak, 5);
+        await vm.saveSession();
         expect(vm.error, isNull);
+        expect(vm.earnedMinutes, 336);
+        verify(
+          () => mockLogRepo.completeSession(
+            sessionId: 'session1',
+            completedExercises: any(named: 'completedExercises'),
+          ),
+        ).called(2);
         vm.dispose();
       },
     );
-
-    test('failure: error set, isSaving=false', () async {
-      when(
-        () => mockProfileRepo.getProfile(any()),
-      ).thenAnswer((_) async => TestData.profile());
-      when(
-        () => mockLogRepo.createLog(any()),
-      ).thenThrow(Exception('network error'));
-
-      final vm = _makeVm(
-        logRepo: mockLogRepo,
-        profileRepo: mockProfileRepo,
-        achievementRepo: mockAchievementRepo,
-        pointAwardRepo: mockPointAwardRepo,
-        leaderboardRepo: mockLeaderboardRepo,
-        txnRepo: mockTxnRepo,
-      );
-      vm.markAllComplete();
-      await vm.saveSession();
-
-      expect(vm.error, isNotNull);
-      expect(vm.isSaving, isFalse);
-      verifyNever(() => mockLeaderboardRepo.recalculateMyWeeklyScore());
-      vm.dispose();
-    });
-
-    test('one-minute workouts recalculate after points update', () async {
-      when(
-        () => mockProfileRepo.getProfile(any()),
-      ).thenAnswer((_) async => TestData.profile());
-      when(() => mockLogRepo.createLog(any())).thenAnswer(
-        (_) async => TestData.workoutLog(id: 'short-log', durationMinutes: 1),
-      );
-      when(() => mockPointAwardRepo.awardWorkoutPoints('short-log')).thenAnswer(
-        (_) async => const WorkoutPointsResult(
-          pointsEarned: 0,
-          pointsTotal: 0,
-          currentStreak: 0,
-          longestStreak: 0,
-        ),
-      );
-      when(
-        () => mockPointAwardRepo.awardStreakMilestonePoints('short-log'),
-      ).thenAnswer(
-        (_) async => const StreakMilestoneResult(
-          streakDays: 0,
-          bonusPoints: 0,
-          pointsTotal: 0,
-        ),
-      );
-      when(
-        () => mockAchievementRepo.evaluateUserAchievements(),
-      ).thenAnswer((_) async => []);
-      when(
-        () => mockAchievementRepo.getUserAchievements('u1'),
-      ).thenAnswer((_) async => []);
-
-      final vm = _makeVm(
-        logRepo: mockLogRepo,
-        profileRepo: mockProfileRepo,
-        achievementRepo: mockAchievementRepo,
-        pointAwardRepo: mockPointAwardRepo,
-        leaderboardRepo: mockLeaderboardRepo,
-        txnRepo: mockTxnRepo,
-      );
-      vm.markAllComplete();
-      await vm.saveSession();
-
-      expect(vm.error, isNull);
-      verifyInOrder([
-        () => mockPointAwardRepo.awardWorkoutPoints('short-log'),
-        () => mockPointAwardRepo.awardStreakMilestonePoints('short-log'),
-        () => mockLeaderboardRepo.recalculateMyWeeklyScore(),
-      ]);
-      vm.dispose();
-    });
-
-    test('milestone failure does not fail the saved workout', () async {
-      when(
-        () => mockProfileRepo.getProfile(any()),
-      ).thenAnswer((_) async => TestData.profile(pointsTotal: 100));
-      when(() => mockLogRepo.createLog(any())).thenAnswer(
-        (_) async => TestData.workoutLog(id: 'saved-log'),
-      );
-      when(() => mockPointAwardRepo.awardWorkoutPoints('saved-log')).thenAnswer(
-        (_) async => const WorkoutPointsResult(
-          pointsEarned: 100,
-          pointsTotal: 100,
-          currentStreak: 3,
-          longestStreak: 3,
-        ),
-      );
-      when(
-        () => mockPointAwardRepo.awardStreakMilestonePoints('saved-log'),
-      ).thenThrow(Exception('milestone RPC unavailable'));
-      when(
-        () => mockAchievementRepo.evaluateUserAchievements(),
-      ).thenAnswer((_) async => []);
-      when(
-        () => mockAchievementRepo.getUserAchievements('u1'),
-      ).thenAnswer((_) async => []);
-
-      final vm = _makeVm(
-        logRepo: mockLogRepo,
-        profileRepo: mockProfileRepo,
-        achievementRepo: mockAchievementRepo,
-        pointAwardRepo: mockPointAwardRepo,
-        leaderboardRepo: mockLeaderboardRepo,
-        txnRepo: mockTxnRepo,
-      );
-      vm.markAllComplete();
-      await vm.saveSession();
-
-      expect(vm.error, isNull);
-      expect(vm.pointsEarned, 100);
-      verifyInOrder([
-        () => mockPointAwardRepo.awardWorkoutPoints('saved-log'),
-        () => mockPointAwardRepo.awardStreakMilestonePoints('saved-log'),
-        () => mockLeaderboardRepo.recalculateMyWeeklyScore(),
-        () => mockProfileRepo.getProfile('u1'),
-      ]);
-      vm.dispose();
-    });
   });
 }

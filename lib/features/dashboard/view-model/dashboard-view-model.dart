@@ -81,7 +81,7 @@ class DashboardViewModel extends ChangeNotifier {
   int get screenTimeBalanceMinutes => _profile?.screenTimeBalanceMinutes ?? 0;
 
   int get weeklyEarnedMinutes {
-    final start = WeekHelper.weekStart(DateTime.now());
+    final start = WeekHelper.weekStart(_now());
     return _recentTransactions
         .where(
           (t) =>
@@ -92,7 +92,7 @@ class DashboardViewModel extends ChangeNotifier {
   }
 
   int get weeklySpentMinutes {
-    final start = WeekHelper.weekStart(DateTime.now());
+    final start = WeekHelper.weekStart(_now());
     return _recentTransactions
         .where(
           (t) =>
@@ -124,7 +124,7 @@ class DashboardViewModel extends ChangeNotifier {
 
   /// Returns sessions-per-day for the current week as a list of 7 doubles.
   List<double> get weeklyActivitySpots {
-    final days = WeekHelper.currentWeekDays();
+    final days = WeekHelper.currentWeekDays(_now());
     return days.map((day) {
       return _weeklyLogs
           .where(
@@ -146,7 +146,7 @@ class DashboardViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final weekStart = WeekHelper.weekStart(DateTime.now());
+      final weekStart = WeekHelper.weekStart(_now());
 
       final results = await Future.wait([
         _profileRepo.getProfile(userId),

@@ -72,7 +72,7 @@ class LeaderboardViewModel extends ChangeNotifier {
 
   int get myRank {
     final idx = _rankings.indexWhere((r) => r.userId == currentUserId);
-    return idx == -1 ? 0 : idx + 1;
+    return idx == -1 ? 0 : _rankings[idx].rank;
   }
 
   Future<void> load() async {
@@ -125,15 +125,21 @@ class LeaderboardViewModel extends ChangeNotifier {
       );
 
       _rankings = [];
+      int? previousScore;
+      var currentRank = 0;
       for (int i = 0; i < sortedMembers.length; i++) {
         final member = sortedMembers[i];
         final profile = profiles[i];
+        if (previousScore != member.weeklyScore) {
+          currentRank = i + 1;
+          previousScore = member.weeklyScore;
+        }
         _rankings.add(
           LeaderboardEntry(
             userId: member.userId,
             displayName: _displayName(profile),
             weeklyScore: member.weeklyScore,
-            rank: i + 1,
+            rank: currentRank,
             streakCount: profile?.streakCount ?? 0,
           ),
         );

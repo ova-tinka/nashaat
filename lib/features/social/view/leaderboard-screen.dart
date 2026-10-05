@@ -297,7 +297,10 @@ class _ScoreExplanation extends StatelessWidget {
         children: [
           Text('HOW WEEKLY SCORES WORK', style: AppTypography.sectionHeader),
           const SizedBox(height: AppSpacing.xs),
-          Text('10 points per workout (at least 1 minute)', style: AppTypography.labelMuted),
+          Text(
+            '10 points per workout (at least 5 minutes)',
+            style: AppTypography.labelMuted,
+          ),
           Text(
             '1 point per 10 total qualifying workout minutes',
             style: AppTypography.labelMuted,

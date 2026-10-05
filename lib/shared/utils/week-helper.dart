@@ -15,34 +15,29 @@ abstract final class WeekHelper {
   static bool isThisWeek(DateTime date) {
     final now = DateTime.now();
     final start = weekStart(now);
-    final end = weekEnd(now).add(const Duration(days: 1)); // exclusive upper bound
+    final end = weekEnd(
+      now,
+    ).add(const Duration(days: 1)); // exclusive upper bound
     return !date.isBefore(start) && date.isBefore(end);
   }
 
   /// Returns a list of 7 DateTimes representing Mon-Sun for the current week.
-  static List<DateTime> currentWeekDays() {
-    final start = weekStart(DateTime.now());
+  static List<DateTime> currentWeekDays([DateTime? date]) {
+    final start = weekStart(date ?? DateTime.now());
     return List.generate(7, (i) => start.add(Duration(days: i)));
   }
 
   /// Converts a weekday int (1=Mon, 7=Sun) to a short label.
-  static String shortDayLabel(int weekday) => const [
-        'Mon',
-        'Tue',
-        'Wed',
-        'Thu',
-        'Fri',
-        'Sat',
-        'Sun',
-      ][weekday - 1];
+  static String shortDayLabel(int weekday) =>
+      const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][weekday - 1];
 
   /// Produces a concise summary of scheduled days.
   static String formatScheduledDays(List<int> days) {
     if (days.isEmpty) return 'No days set';
     final sorted = [...days]..sort();
     if (sorted.length == 7) return 'Every day';
-    if (sorted.length == 5 &&
-        sorted.every((d) => d >= 1 && d <= 5)) return 'Weekdays';
+    if (sorted.length == 5 && sorted.every((d) => d >= 1 && d <= 5))
+      return 'Weekdays';
     if (sorted.length == 2 && sorted.contains(6) && sorted.contains(7)) {
       return 'Weekends';
     }
@@ -51,12 +46,12 @@ abstract final class WeekHelper {
 
   /// Maps a workday integer to a full name.
   static String fullDayName(int weekday) => const [
-        'Monday',
-        'Tuesday',
-        'Wednesday',
-        'Thursday',
-        'Friday',
-        'Saturday',
-        'Sunday',
-      ][weekday - 1];
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+    'Sunday',
+  ][weekday - 1];
 }

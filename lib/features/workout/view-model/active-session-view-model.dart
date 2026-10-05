@@ -3,20 +3,15 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../core/entities/enums.dart';
 import '../../../core/entities/achievement-entity.dart';
 import '../../../core/entities/profile-entity.dart';
+import '../../../core/entities/workout-completion-result.dart';
 import '../../../core/entities/workout-log-entity.dart';
 import '../../../core/entities/workout-plan-entity.dart';
-import '../../../core/repositories/profile-repository.dart';
 import '../../../core/repositories/achievement-repository.dart';
-import '../../../core/repositories/point-award-repository.dart';
-import '../../../core/repositories/leaderboard-repository.dart';
-import '../../../core/repositories/screen-time-transaction-repository.dart';
+import '../../../core/repositories/profile-repository.dart';
 import '../../../core/repositories/workout-log-repository.dart';
-import '../../../core/entities/screen-time-transaction-entity.dart';
 import '../../../shared/logger.dart';
-import '../../../shared/utils/screen-time-economy.dart';
 import '../model/workout-models.dart';
 
 class ActiveSessionViewModel extends ChangeNotifier {
@@ -24,9 +19,6 @@ class ActiveSessionViewModel extends ChangeNotifier {
   final WorkoutLogRepository _logRepo;
   final ProfileRepository _profileRepo;
   final AchievementRepository _achievementRepo;
-  final PointAwardRepository _pointAwardRepo;
-  final LeaderboardRepository _leaderboardRepo;
-  final ScreenTimeTransactionRepository _txnRepo;
   final SessionMode mode;
   final String Function() _getUserId;
 
@@ -36,22 +28,14 @@ class ActiveSessionViewModel extends ChangeNotifier {
     required WorkoutLogRepository logRepo,
     required ProfileRepository profileRepo,
     required AchievementRepository achievementRepo,
-    required PointAwardRepository pointAwardRepo,
-    required LeaderboardRepository leaderboardRepo,
-    required ScreenTimeTransactionRepository txnRepo,
     String Function()? getUserId,
   }) : _logRepo = logRepo,
        _profileRepo = profileRepo,
        _achievementRepo = achievementRepo,
-       _pointAwardRepo = pointAwardRepo,
-       _leaderboardRepo = leaderboardRepo,
-       _txnRepo = txnRepo,
        _getUserId =
            getUserId ?? (() => Supabase.instance.client.auth.currentUser!.id) {
     _initSets();
   }
-
-  // ── State ─────────────────────────────────────────────────────────────────
 
   int _exerciseIndex = 0;
   int _setIndex = 0;
@@ -63,6 +47,9 @@ class ActiveSessionViewModel extends ChangeNotifier {
 
   final List<List<bool>> _setCompletions = [];
   bool _isSaving = false;
+  bool _isStartingServerSession = false;
+  Future<void>? _initialization;
+  String? _serverSessionId;
   String? _error;
   int _earnedMinutes = 0;
   int _pointsEarned = 0;
@@ -73,14 +60,14 @@ class ActiveSessionViewModel extends ChangeNotifier {
   List<UserAchievementEntity> _userAchievements = [];
   List<UnlockedAchievementEntity> _newlyUnlockedAchievements = [];
 
-  // ── Getters ───────────────────────────────────────────────────────────────
-
   ActiveSessionStatus get status => _status;
   int get exerciseIndex => _exerciseIndex;
   int get setIndex => _setIndex;
   int get elapsedSeconds => _elapsedSeconds;
   int get restCountdown => _restCountdown;
   bool get isSaving => _isSaving;
+  bool get isStartingServerSession => _isStartingServerSession;
+  bool get isServerSessionReady => _serverSessionId != null;
   String? get error => _error;
   int get earnedMinutes => _earnedMinutes;
   int get pointsEarned => _pointsEarned;
@@ -123,8 +110,6 @@ class ActiveSessionViewModel extends ChangeNotifier {
 
   bool get isSessionComplete => _status == ActiveSessionStatus.completed;
 
-  // ── Init ──────────────────────────────────────────────────────────────────
-
   void _initSets() {
     for (final e in plan.exercises) {
       _setCompletions.add(List.filled(e.sets, false));
@@ -132,7 +117,31 @@ class ActiveSessionViewModel extends ChangeNotifier {
     _startSessionTimer();
   }
 
-  // ── Actions ───────────────────────────────────────────────────────────────
+  Future<void> initialize() {
+    if (_serverSessionId != null) return Future<void>.value();
+    if (_initialization != null) return _initialization!;
+    _initialization = _startServerSession();
+    return _initialization!;
+  }
+
+  Future<void> _startServerSession() async {
+    _isStartingServerSession = true;
+    _error = null;
+    notifyListeners();
+    try {
+      final session = await _logRepo.startSession(
+        plan.id.isEmpty ? null : plan.id,
+      );
+      _serverSessionId = session.id;
+    } catch (e) {
+      Log.error('ActiveSessionViewModel.startSession', e);
+      _error = 'Could not start the workout. Please try again.';
+    } finally {
+      _isStartingServerSession = false;
+      if (_serverSessionId == null) _initialization = null;
+      notifyListeners();
+    }
+  }
 
   void completeCurrentSet() {
     if (_exerciseIndex >= _setCompletions.length) return;
@@ -147,14 +156,14 @@ class ActiveSessionViewModel extends ChangeNotifier {
       _setIndex++;
       if (mode == SessionMode.guided && restSeconds > 0) {
         _startRestCountdown(restSeconds);
-        return; // _startRestCountdown calls notifyListeners
+        return;
       }
     } else {
       _setIndex = 0;
       _exerciseIndex++;
       if (_exerciseIndex >= plan.exercises.length) {
         _finishSession();
-        return; // _finishSession calls notifyListeners
+        return;
       } else if (mode == SessionMode.guided && restSeconds > 0) {
         _startRestCountdown(restSeconds);
         return;
@@ -189,7 +198,7 @@ class ActiveSessionViewModel extends ChangeNotifier {
     _exerciseIndex = exerciseIdx + 1;
     _setIndex = 0;
     if (_exerciseIndex >= plan.exercises.length) {
-      _finishSession(); // calls notifyListeners
+      _finishSession();
     } else {
       notifyListeners();
     }
@@ -201,7 +210,7 @@ class ActiveSessionViewModel extends ChangeNotifier {
         sets[i] = true;
       }
     }
-    _finishSession(); // calls notifyListeners
+    _finishSession();
   }
 
   void _finishSession() {
@@ -210,8 +219,6 @@ class ActiveSessionViewModel extends ChangeNotifier {
     _status = ActiveSessionStatus.completed;
     notifyListeners();
   }
-
-  // ── Timer logic ───────────────────────────────────────────────────────────
 
   void _startSessionTimer() {
     _status = ActiveSessionStatus.running;
@@ -245,23 +252,19 @@ class ActiveSessionViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ── Persist completed session ─────────────────────────────────────────────
-
   Future<void> saveSession() async {
+    if (_isSaving) return;
+
     _isSaving = true;
     _error = null;
     notifyListeners();
 
     try {
-      final userId = _getUserId();
-      final durationMinutes = (_elapsedSeconds / 60).ceil().clamp(1, 9999);
-
-      // Reward is fixed per session size — no partial rewards.
-      // Profile supplies the calculated reward based on user's phone-time setup.
-      final profile = await _profileRepo.getProfile(userId);
-      final earned = profile != null && profile.isScreenTimeConfigured
-          ? ScreenTimeEconomy.rewardMinutes(profile, plan.sessionSize)
-          : 0;
+      await initialize();
+      final sessionId = _serverSessionId;
+      if (sessionId == null) {
+        throw StateError('Workout server session has not started');
+      }
 
       final completedExercises = <CompletedExercise>[];
       for (int i = 0; i < plan.exercises.length; i++) {
@@ -283,101 +286,43 @@ class ActiveSessionViewModel extends ChangeNotifier {
         );
       }
 
-      final log = WorkoutLogEntity(
-        id: '',
-        userId: userId,
-        workoutPlanId: plan.id.isNotEmpty ? plan.id : null,
-        durationMinutes: durationMinutes,
-        earnedScreenTimeMinutes: earned,
+      final result = await _logRepo.completeSession(
+        sessionId: sessionId,
         completedExercises: completedExercises,
-        loggedAt: DateTime.now(),
       );
-      final savedLog = await _logRepo.createLog(log);
+      _applyCompletionResult(result);
 
-      final pointsResult = await _pointAwardRepo.awardWorkoutPoints(
-        savedLog.id,
-      );
-      _pointsEarned = pointsResult.pointsEarned;
-
-      // Base points and the workout log are already persisted at this point.
-      // A milestone failure must not make the completed workout look unsaved;
-      // the server-side operation is idempotent and can be retried safely.
+      // These are display refreshes only. The completion RPC already committed
+      // the workout, rewards, balance, and achievement unlocks atomically.
       try {
-        final milestoneResult = await _pointAwardRepo
-            .awardStreakMilestonePoints(savedLog.id);
-        Log.db(
-          'streak milestone RPC result: '
-          'streak_days=${milestoneResult.streakDays}, '
-          'bonus_points=${milestoneResult.bonusPoints}, '
-          'points_total=${milestoneResult.pointsTotal}',
-        );
-      } on PostgrestException catch (e, stackTrace) {
-        Log.error(
-          'ActiveSessionViewModel.streakMilestone',
-          'PostgrestException\n'
-              'code: ${e.code}\n'
-              'message: ${e.message}\n'
-              'details: ${e.details}\n'
-              'hint: ${e.hint}\n'
-              'stackTrace:\n$stackTrace',
-        );
-      } catch (e, stackTrace) {
-        Log.error(
-          'ActiveSessionViewModel.streakMilestone',
-          '$e\nstackTrace:\n$stackTrace',
-        );
+        final userId = _getUserId();
+        final refreshedData = await Future.wait([
+          _profileRepo.getProfile(userId),
+          _achievementRepo.getUserAchievements(userId),
+        ]);
+        _profile = refreshedData[0] as ProfileEntity?;
+        _userAchievements = refreshedData[1] as List<UserAchievementEntity>;
+      } catch (e) {
+        Log.error('ActiveSessionViewModel.refreshAfterCompletion', e);
       }
 
-      // Supabase decides which saved workouts qualify for the weekly score.
-      await _leaderboardRepo.recalculateMyWeeklyScore();
-
-      _newlyUnlockedAchievements = await _achievementRepo
-          .evaluateUserAchievements();
-      final refreshedData = await Future.wait([
-        _profileRepo.getProfile(userId),
-        _achievementRepo.getUserAchievements(userId),
-      ]);
-      _profile = refreshedData[0] as ProfileEntity?;
-      _userAchievements = refreshedData[1] as List<UserAchievementEntity>;
-
-      _pointsTotal = _profile?.pointsTotal ?? pointsResult.pointsTotal;
-      _currentStreak = _profile?.streakCount ?? pointsResult.currentStreak;
-      _longestStreak = _profile?.longestStreak ?? pointsResult.longestStreak;
-
-      // Record screen time transaction (only when reward > 0)
-      if (earned > 0) {
-        await _txnRepo.recordTransaction(
-          ScreenTimeTransactionEntity(
-            id: '',
-            userId: userId,
-            amountMinutes: earned,
-            transactionType: TransactionType.earned,
-            description: 'Completed: ${plan.title}',
-            referenceId: savedLog.id,
-            createdAt: DateTime.now(),
-          ),
-        );
-      }
-
-      // Update balance on profile
-      final balanceProfile = _profile ?? profile;
-      if (balanceProfile != null && earned > 0) {
-        await _profileRepo.updateScreenTimeBalance(
-          userId,
-          balanceProfile.screenTimeBalanceMinutes + earned,
-        );
-        _profile = await _profileRepo.getProfile(userId);
-      }
-
-      _earnedMinutes = earned;
-      Log.db('session saved ✓ earned $earned min');
+      Log.db('session saved ✓ earned ${result.earnedScreenTimeMinutes} min');
     } catch (e) {
-      Log.error('ActiveSessionViewModel', e);
+      Log.error('ActiveSessionViewModel.completeSession', e);
       _error = 'Could not save session. Please try again.';
     } finally {
       _isSaving = false;
       notifyListeners();
     }
+  }
+
+  void _applyCompletionResult(WorkoutCompletionResult result) {
+    _earnedMinutes = result.earnedScreenTimeMinutes;
+    _pointsEarned = result.pointsEarned;
+    _pointsTotal = result.pointsTotal;
+    _currentStreak = result.currentStreak;
+    _longestStreak = result.longestStreak;
+    _newlyUnlockedAchievements = result.newlyUnlockedAchievements;
   }
 
   @override
