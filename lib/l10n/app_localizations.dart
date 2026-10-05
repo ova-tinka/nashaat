@@ -823,6 +823,210 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Check this value'**
   String get builderInvalidValue;
+
+  /// Active workout pause action
+  ///
+  /// In en, this message translates to:
+  /// **'Pause'**
+  String get activePause;
+
+  /// Active workout resume action
+  ///
+  /// In en, this message translates to:
+  /// **'Resume'**
+  String get activeResume;
+
+  /// Active workout paused status
+  ///
+  /// In en, this message translates to:
+  /// **'Paused'**
+  String get activePaused;
+
+  /// Active workout running status
+  ///
+  /// In en, this message translates to:
+  /// **'Live'**
+  String get activeRunning;
+
+  /// Active workout completion action
+  ///
+  /// In en, this message translates to:
+  /// **'Done'**
+  String get activeDone;
+
+  /// Active workout exit dialog title
+  ///
+  /// In en, this message translates to:
+  /// **'Quit workout?'**
+  String get activeQuitTitle;
+
+  /// Active workout exit dialog body
+  ///
+  /// In en, this message translates to:
+  /// **'Your progress will be lost. Are you sure?'**
+  String get activeQuitBody;
+
+  /// Active workout exit dialog cancel action
+  ///
+  /// In en, this message translates to:
+  /// **'Keep going'**
+  String get activeKeepGoing;
+
+  /// Active workout exit dialog destructive action
+  ///
+  /// In en, this message translates to:
+  /// **'Quit'**
+  String get activeQuit;
+
+  /// Guided workout complete set action
+  ///
+  /// In en, this message translates to:
+  /// **'Complete set'**
+  String get activeCompleteSet;
+
+  /// Guided workout skip set action
+  ///
+  /// In en, this message translates to:
+  /// **'Skip'**
+  String get activeSkip;
+
+  /// Guided workout elapsed timer label
+  ///
+  /// In en, this message translates to:
+  /// **'Elapsed'**
+  String get activeElapsed;
+
+  /// Guided workout rest state label
+  ///
+  /// In en, this message translates to:
+  /// **'Rest'**
+  String get activeRest;
+
+  /// Guided workout skip rest action
+  ///
+  /// In en, this message translates to:
+  /// **'Skip rest'**
+  String get activeSkipRest;
+
+  /// Guided workout next exercise label
+  ///
+  /// In en, this message translates to:
+  /// **'Up next'**
+  String get activeUpNext;
+
+  /// Manual workout finish action
+  ///
+  /// In en, this message translates to:
+  /// **'Finish session'**
+  String get activeFinishSession;
+
+  /// Guided workout set progress
+  ///
+  /// In en, this message translates to:
+  /// **'Set {current} of {total}'**
+  String activeSetProgress(int current, int total);
+
+  /// Workout completion heading
+  ///
+  /// In en, this message translates to:
+  /// **'Workout complete'**
+  String get activeWorkoutComplete;
+
+  /// Workout completion saving state
+  ///
+  /// In en, this message translates to:
+  /// **'Saving session...'**
+  String get activeSaving;
+
+  /// Workout completion session start state
+  ///
+  /// In en, this message translates to:
+  /// **'Starting session...'**
+  String get activeStarting;
+
+  /// Workout completion retry action
+  ///
+  /// In en, this message translates to:
+  /// **'Retry save'**
+  String get activeRetrySave;
+
+  /// Workout completion duration label
+  ///
+  /// In en, this message translates to:
+  /// **'Duration'**
+  String get activeDuration;
+
+  /// Workout completion reward points label
+  ///
+  /// In en, this message translates to:
+  /// **'Reward points'**
+  String get activeRewardPoints;
+
+  /// Workout completion no points state
+  ///
+  /// In en, this message translates to:
+  /// **'No reward points earned for this workout'**
+  String get activeNoRewardPoints;
+
+  /// Workout completion point balance label
+  ///
+  /// In en, this message translates to:
+  /// **'Point balance'**
+  String get activePointBalance;
+
+  /// Workout completion total points value
+  ///
+  /// In en, this message translates to:
+  /// **'Total points: {points}'**
+  String activeTotalPoints(int points);
+
+  /// Workout completion streak label
+  ///
+  /// In en, this message translates to:
+  /// **'Workout streak'**
+  String get activeWorkoutStreak;
+
+  /// Workout completion streak value
+  ///
+  /// In en, this message translates to:
+  /// **'{current} days · Longest: {longest}'**
+  String activeStreakValue(int current, int longest);
+
+  /// Workout completion screen time label
+  ///
+  /// In en, this message translates to:
+  /// **'Earned'**
+  String get activeEarned;
+
+  /// Workout completion earned screen time value
+  ///
+  /// In en, this message translates to:
+  /// **'+{minutes} screen time'**
+  String activeEarnedScreenTime(String minutes);
+
+  /// Workout completion unconfigured screen time state
+  ///
+  /// In en, this message translates to:
+  /// **'Configure in Settings'**
+  String get activeConfigureSettings;
+
+  /// Workout completion Android earned state
+  ///
+  /// In en, this message translates to:
+  /// **'Workout logged'**
+  String get activeWorkoutLogged;
+
+  /// Workout completion achievement heading
+  ///
+  /// In en, this message translates to:
+  /// **'New achievements'**
+  String get activeNewAchievements;
+
+  /// Workout completion return action
+  ///
+  /// In en, this message translates to:
+  /// **'Back to Workouts'**
+  String get activeBackToWorkouts;
 }
 
 class _AppLocalizationsDelegate

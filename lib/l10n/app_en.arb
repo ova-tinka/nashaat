@@ -311,5 +311,92 @@
     "placeholders": { "count": { "type": "int" } }
   },
   "builderInvalidValue": "Check this value",
-  "@builderInvalidValue": { "description": "Workout builder invalid field message" }
+  "@builderInvalidValue": { "description": "Workout builder invalid field message" },
+
+  "activePause": "Pause",
+  "@activePause": { "description": "Active workout pause action" },
+  "activeResume": "Resume",
+  "@activeResume": { "description": "Active workout resume action" },
+  "activePaused": "Paused",
+  "@activePaused": { "description": "Active workout paused status" },
+  "activeRunning": "Live",
+  "@activeRunning": { "description": "Active workout running status" },
+  "activeDone": "Done",
+  "@activeDone": { "description": "Active workout completion action" },
+  "activeQuitTitle": "Quit workout?",
+  "@activeQuitTitle": { "description": "Active workout exit dialog title" },
+  "activeQuitBody": "Your progress will be lost. Are you sure?",
+  "@activeQuitBody": { "description": "Active workout exit dialog body" },
+  "activeKeepGoing": "Keep going",
+  "@activeKeepGoing": { "description": "Active workout exit dialog cancel action" },
+  "activeQuit": "Quit",
+  "@activeQuit": { "description": "Active workout exit dialog destructive action" },
+  "activeCompleteSet": "Complete set",
+  "@activeCompleteSet": { "description": "Guided workout complete set action" },
+  "activeSkip": "Skip",
+  "@activeSkip": { "description": "Guided workout skip set action" },
+  "activeElapsed": "Elapsed",
+  "@activeElapsed": { "description": "Guided workout elapsed timer label" },
+  "activeRest": "Rest",
+  "@activeRest": { "description": "Guided workout rest state label" },
+  "activeSkipRest": "Skip rest",
+  "@activeSkipRest": { "description": "Guided workout skip rest action" },
+  "activeUpNext": "Up next",
+  "@activeUpNext": { "description": "Guided workout next exercise label" },
+  "activeFinishSession": "Finish session",
+  "@activeFinishSession": { "description": "Manual workout finish action" },
+  "activeSetProgress": "Set {current} of {total}",
+  "@activeSetProgress": {
+    "description": "Guided workout set progress",
+    "placeholders": {
+      "current": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+  "activeWorkoutComplete": "Workout complete",
+  "@activeWorkoutComplete": { "description": "Workout completion heading" },
+  "activeSaving": "Saving session...",
+  "@activeSaving": { "description": "Workout completion saving state" },
+  "activeStarting": "Starting session...",
+  "@activeStarting": { "description": "Workout completion session start state" },
+  "activeRetrySave": "Retry save",
+  "@activeRetrySave": { "description": "Workout completion retry action" },
+  "activeDuration": "Duration",
+  "@activeDuration": { "description": "Workout completion duration label" },
+  "activeRewardPoints": "Reward points",
+  "@activeRewardPoints": { "description": "Workout completion reward points label" },
+  "activeNoRewardPoints": "No reward points earned for this workout",
+  "@activeNoRewardPoints": { "description": "Workout completion no points state" },
+  "activePointBalance": "Point balance",
+  "@activePointBalance": { "description": "Workout completion point balance label" },
+  "activeTotalPoints": "Total points: {points}",
+  "@activeTotalPoints": {
+    "description": "Workout completion total points value",
+    "placeholders": { "points": { "type": "int" } }
+  },
+  "activeWorkoutStreak": "Workout streak",
+  "@activeWorkoutStreak": { "description": "Workout completion streak label" },
+  "activeStreakValue": "{current} days · Longest: {longest}",
+  "@activeStreakValue": {
+    "description": "Workout completion streak value",
+    "placeholders": {
+      "current": { "type": "int" },
+      "longest": { "type": "int" }
+    }
+  },
+  "activeEarned": "Earned",
+  "@activeEarned": { "description": "Workout completion screen time label" },
+  "activeEarnedScreenTime": "+{minutes} screen time",
+  "@activeEarnedScreenTime": {
+    "description": "Workout completion earned screen time value",
+    "placeholders": { "minutes": { "type": "String" } }
+  },
+  "activeConfigureSettings": "Configure in Settings",
+  "@activeConfigureSettings": { "description": "Workout completion unconfigured screen time state" },
+  "activeWorkoutLogged": "Workout logged",
+  "@activeWorkoutLogged": { "description": "Workout completion Android earned state" },
+  "activeNewAchievements": "New achievements",
+  "@activeNewAchievements": { "description": "Workout completion achievement heading" },
+  "activeBackToWorkouts": "Back to Workouts",
+  "@activeBackToWorkouts": { "description": "Workout completion return action" }
 }

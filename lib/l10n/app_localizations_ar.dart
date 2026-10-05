@@ -429,4 +429,114 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get builderInvalidValue => 'تحقق من القيمة';
+
+  @override
+  String get activePause => 'إيقاف مؤقت';
+
+  @override
+  String get activeResume => 'استئناف';
+
+  @override
+  String get activePaused => 'متوقف';
+
+  @override
+  String get activeRunning => 'مستمر';
+
+  @override
+  String get activeDone => 'تم';
+
+  @override
+  String get activeQuitTitle => 'تطلع من التمرين؟';
+
+  @override
+  String get activeQuitBody => 'بتفقد تقدمك. متأكد؟';
+
+  @override
+  String get activeKeepGoing => 'كمل التمرين';
+
+  @override
+  String get activeQuit => 'خروج';
+
+  @override
+  String get activeCompleteSet => 'إنهاء المجموعة';
+
+  @override
+  String get activeSkip => 'تخطي';
+
+  @override
+  String get activeElapsed => 'الوقت المنقضي';
+
+  @override
+  String get activeRest => 'راحة';
+
+  @override
+  String get activeSkipRest => 'تخطي الراحة';
+
+  @override
+  String get activeUpNext => 'التالي';
+
+  @override
+  String get activeFinishSession => 'إنهاء الجلسة';
+
+  @override
+  String activeSetProgress(int current, int total) {
+    return 'المجموعة $current من $total';
+  }
+
+  @override
+  String get activeWorkoutComplete => 'خلص التمرين';
+
+  @override
+  String get activeSaving => 'جارٍ حفظ الجلسة...';
+
+  @override
+  String get activeStarting => 'جارٍ بدء الجلسة...';
+
+  @override
+  String get activeRetrySave => 'إعادة الحفظ';
+
+  @override
+  String get activeDuration => 'المدة';
+
+  @override
+  String get activeRewardPoints => 'نقاط المكافأة';
+
+  @override
+  String get activeNoRewardPoints => 'ما حصلت نقاط مكافأة لهذا التمرين';
+
+  @override
+  String get activePointBalance => 'رصيد النقاط';
+
+  @override
+  String activeTotalPoints(int points) {
+    return 'إجمالي النقاط: $points';
+  }
+
+  @override
+  String get activeWorkoutStreak => 'سلسلة التمارين';
+
+  @override
+  String activeStreakValue(int current, int longest) {
+    return '$current أيام · الأطول: $longest';
+  }
+
+  @override
+  String get activeEarned => 'المكتسب';
+
+  @override
+  String activeEarnedScreenTime(String minutes) {
+    return '+$minutes وقت شاشة';
+  }
+
+  @override
+  String get activeConfigureSettings => 'اضبطها من الإعدادات';
+
+  @override
+  String get activeWorkoutLogged => 'تم تسجيل التمرين';
+
+  @override
+  String get activeNewAchievements => 'إنجازات جديدة';
+
+  @override
+  String get activeBackToWorkouts => 'العودة إلى التمارين';
 }

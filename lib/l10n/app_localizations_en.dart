@@ -420,4 +420,114 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get builderInvalidValue => 'Check this value';
+
+  @override
+  String get activePause => 'Pause';
+
+  @override
+  String get activeResume => 'Resume';
+
+  @override
+  String get activePaused => 'Paused';
+
+  @override
+  String get activeRunning => 'Live';
+
+  @override
+  String get activeDone => 'Done';
+
+  @override
+  String get activeQuitTitle => 'Quit workout?';
+
+  @override
+  String get activeQuitBody => 'Your progress will be lost. Are you sure?';
+
+  @override
+  String get activeKeepGoing => 'Keep going';
+
+  @override
+  String get activeQuit => 'Quit';
+
+  @override
+  String get activeCompleteSet => 'Complete set';
+
+  @override
+  String get activeSkip => 'Skip';
+
+  @override
+  String get activeElapsed => 'Elapsed';
+
+  @override
+  String get activeRest => 'Rest';
+
+  @override
+  String get activeSkipRest => 'Skip rest';
+
+  @override
+  String get activeUpNext => 'Up next';
+
+  @override
+  String get activeFinishSession => 'Finish session';
+
+  @override
+  String activeSetProgress(int current, int total) {
+    return 'Set $current of $total';
+  }
+
+  @override
+  String get activeWorkoutComplete => 'Workout complete';
+
+  @override
+  String get activeSaving => 'Saving session...';
+
+  @override
+  String get activeStarting => 'Starting session...';
+
+  @override
+  String get activeRetrySave => 'Retry save';
+
+  @override
+  String get activeDuration => 'Duration';
+
+  @override
+  String get activeRewardPoints => 'Reward points';
+
+  @override
+  String get activeNoRewardPoints => 'No reward points earned for this workout';
+
+  @override
+  String get activePointBalance => 'Point balance';
+
+  @override
+  String activeTotalPoints(int points) {
+    return 'Total points: $points';
+  }
+
+  @override
+  String get activeWorkoutStreak => 'Workout streak';
+
+  @override
+  String activeStreakValue(int current, int longest) {
+    return '$current days · Longest: $longest';
+  }
+
+  @override
+  String get activeEarned => 'Earned';
+
+  @override
+  String activeEarnedScreenTime(String minutes) {
+    return '+$minutes screen time';
+  }
+
+  @override
+  String get activeConfigureSettings => 'Configure in Settings';
+
+  @override
+  String get activeWorkoutLogged => 'Workout logged';
+
+  @override
+  String get activeNewAchievements => 'New achievements';
+
+  @override
+  String get activeBackToWorkouts => 'Back to Workouts';
 }
