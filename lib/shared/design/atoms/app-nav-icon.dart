@@ -12,6 +12,7 @@ class AppNavIcon extends StatelessWidget {
   final bool selected;
   final String wasmLabel;
   final double size;
+  final Color? color;
 
   const AppNavIcon({
     super.key,
@@ -19,6 +20,7 @@ class AppNavIcon extends StatelessWidget {
     this.selected = false,
     this.wasmLabel = 'N',
     this.size = 26,
+    this.color,
   });
 
   @override
@@ -33,9 +35,11 @@ class AppNavIcon extends StatelessWidget {
       child: CustomPaint(
         painter: _AppNavGlyphPainter(
           glyph: glyph,
-          color: selected
-              ? context.nashaatPalette.accentText
-              : context.nashaatPalette.textMuted,
+          color:
+              color ??
+              (selected
+                  ? context.nashaatPalette.accentText
+                  : context.nashaatPalette.textMuted),
         ),
       ),
     );
@@ -55,7 +59,7 @@ class _AppNavGlyphPainter extends CustomPainter {
     final stroke = Paint()
       ..color = color
       ..style = PaintingStyle.stroke
-      ..strokeWidth = math.max(1.5, size.shortestSide * 0.075)
+      ..strokeWidth = math.max(1.5, size.shortestSide * 0.06)
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
     final fill = Paint()..color = color;
@@ -200,10 +204,10 @@ class _AppNavGlyphPainter extends CustomPainter {
 
   void _paintFanar(Canvas canvas, Rect bounds, Paint stroke, Paint fill) {
     final center = bounds.center;
-    final glow = Paint()..color = color.withValues(alpha: 0.18);
+    final glow = Paint()..color = color.withValues(alpha: 0.08);
     canvas.drawCircle(
       center.translate(0, -bounds.height * 0.08),
-      bounds.width * 0.29,
+      bounds.width * 0.20,
       glow,
     );
 

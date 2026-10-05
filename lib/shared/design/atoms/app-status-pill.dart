@@ -11,6 +11,7 @@ class AppStatusPill extends StatelessWidget {
   final AppStatusTone tone;
   final bool showDot;
   final bool? dashed;
+  final IconData? icon;
 
   const AppStatusPill({
     super.key,
@@ -18,6 +19,7 @@ class AppStatusPill extends StatelessWidget {
     this.tone = AppStatusTone.neutral,
     this.showDot = false,
     this.dashed,
+    this.icon,
   });
 
   Color _background(NashaatPalette palette) => switch (tone) {
@@ -47,12 +49,18 @@ class AppStatusPill extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
         color: _background(palette),
-        border: isDashed ? null : Border.all(color: palette.border),
+        border: isDashed || tone != AppStatusTone.neutral
+            ? null
+            : Border.all(color: palette.border),
         borderRadius: AppRadii.pill,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (icon != null) ...[
+            Icon(icon, size: 16, color: foreground),
+            const SizedBox(width: 6),
+          ],
           if (showDot) ...[
             DecoratedBox(
               decoration: BoxDecoration(

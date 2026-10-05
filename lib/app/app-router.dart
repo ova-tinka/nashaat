@@ -9,6 +9,7 @@ import '../features/auth/view/auth-gate.dart';
 import '../features/auth/view/login-screen.dart';
 import '../features/auth/view/register-screen.dart';
 import '../features/blocking/view/time-exhausted-screen.dart';
+import '../features/blocking/view-model/blocking-view-model.dart';
 import '../features/onboarding/coordinator/onboarding-coordinator.dart';
 import '../features/onboarding/view-model/onboarding-view-model.dart';
 import '../features/onboarding/view/onboarding-screen.dart';
@@ -125,8 +126,15 @@ class AppRouter {
         return MaterialPageRoute(builder: (_) => const SettingsScreen());
 
       case timeExhausted:
+        final args = routeSettings.arguments as Map<String, dynamic>?;
         return MaterialPageRoute(
-          builder: (_) => const TimeExhaustedScreen(),
+          builder: (_) => TimeExhaustedScreen(
+            nextWorkoutMinutes: args?['nextWorkoutMinutes'] as int?,
+            lockedAppCount: args?['lockedAppCount'] as int?,
+            blockingVm: args?['blockingVm'] is BlockingViewModel
+                ? args!['blockingVm'] as BlockingViewModel
+                : null,
+          ),
           fullscreenDialog: true,
         );
 
