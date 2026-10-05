@@ -118,10 +118,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
               slivers: [
                 SliverPadding(
                   padding: const EdgeInsetsDirectional.fromSTEB(
+                    22,
+                    10,
+                    22,
                     AppSpacing.lg,
-                    AppSpacing.lg,
-                    AppSpacing.lg,
-                    AppSpacing.xl,
                   ),
                   sliver: SliverList(
                     delegate: SliverChildListDelegate([
@@ -140,10 +140,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             ),
                           ),
                         ),
-                        const SizedBox(height: AppSpacing.md),
+                        const SizedBox(height: AppSpacing.sm),
                       ],
                       _HomeHeader(vm: _vm),
-                      const SizedBox(height: AppSpacing.lg),
+                      const SizedBox(height: 12),
                       if (_selectedTab == 0)
                         _HomeDashboard(
                           vm: _vm,
@@ -158,7 +158,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           onChanged: (value) =>
                               setState(() => _selectedTab = value),
                         ),
-                        const SizedBox(height: AppSpacing.lg),
+                        const SizedBox(height: AppSpacing.md),
                         AchievementsScreen(viewModel: _achievementsVm),
                       ],
                     ]),
@@ -184,21 +184,36 @@ class _HomeHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.nashaatPalette;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        AppWasmBadge(label: _initial(vm.displayName), size: 52),
+        AppWasmBadge(label: _initial(vm.displayName), size: 40),
         const SizedBox(width: AppSpacing.md),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              AppText.section('WELCOME BACK,'),
+              Text(
+                'WELCOME BACK,',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  fontFamily: 'JetBrains Mono',
+                  fontSize: 10.5,
+                  letterSpacing: 1.1,
+                  fontWeight: FontWeight.w600,
+                  color: palette.textMuted,
+                ),
+              ),
+              const SizedBox(height: 1),
               Text(
                 vm.displayName,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.headlineSmall,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontSize: 21,
+                  fontWeight: FontWeight.w700,
+                  color: palette.textPrimary,
+                ),
               ),
             ],
           ),
@@ -206,24 +221,30 @@ class _HomeHeader extends StatelessWidget {
         const SizedBox(width: AppSpacing.sm),
         DecoratedBox(
           decoration: BoxDecoration(
-            color: context.nashaatPalette.reward.withValues(alpha: 0.16),
+            color: palette.reward.withValues(alpha: 0.14),
             borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: palette.reward.withValues(alpha: 0.22),
+              width: 0.8,
+            ),
           ),
           child: Padding(
-            padding: const EdgeInsetsDirectional.fromSTEB(10, 8, 12, 8),
+            padding: const EdgeInsetsDirectional.fromSTEB(9, 6, 11, 6),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
                   Icons.card_membership_outlined,
-                  size: 19,
-                  color: context.nashaatPalette.rewardText,
+                  size: 17,
+                  color: palette.rewardText,
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: 5),
                 Text(
                   '${vm.streakCount}',
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    color: context.nashaatPalette.rewardText,
+                    color: palette.rewardText,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ],
@@ -254,25 +275,32 @@ class _HomeDashboard extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _PointsSummary(vm: vm),
-        const SizedBox(height: AppSpacing.md),
+        const SizedBox(height: 10),
         _StreakCard(vm: vm),
-        const SizedBox(height: AppSpacing.lg),
+        const SizedBox(height: 12),
         AppSegmentedControl<int>(
           options: tabs,
           selected: selectedTab,
           onChanged: onTabChanged,
         ),
-        const SizedBox(height: AppSpacing.lg),
-        AppText.title('Recent points'),
-        const SizedBox(height: AppSpacing.md),
+        const SizedBox(height: 14),
+        Text(
+          'Recent points',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            color: context.nashaatPalette.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 8),
         _RecentPointsCard(vm: vm),
-        const SizedBox(height: AppSpacing.lg),
+        const SizedBox(height: 14),
         _BalanceHero(vm: vm),
-        const SizedBox(height: AppSpacing.md),
+        const SizedBox(height: 10),
         _WeeklyProgressCard(vm: vm),
         AppSectionHeader('This week'),
         _WeeklyMetrics(vm: vm),
-        const SizedBox(height: AppSpacing.md),
+        const SizedBox(height: 10),
         _ActivityChart(vm: vm),
       ],
     );
@@ -399,9 +427,10 @@ class _StreakCard extends StatelessWidget {
     final streak = vm.streakCount;
     final completedBands = _completedStreakBands(streak);
     final progress = _currentBandProgress(streak, completedBands);
+    final palette = context.nashaatPalette;
 
     return AppCard(
-      padding: const EdgeInsets.all(AppSpacing.base),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -422,43 +451,58 @@ class _StreakCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: AppSpacing.lg),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              AppText.section('YOUR LOOM'),
-              AppText.bodyMuted('8 milestones'),
-            ],
+          const SizedBox(height: 12),
+          Text(
+            'YOUR LOOM',
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              fontFamily: 'JetBrains Mono',
+              fontSize: 10.5,
+              letterSpacing: 1.1,
+              fontWeight: FontWeight.w600,
+              color: palette.textMuted,
+            ),
           ),
-          const SizedBox(height: AppSpacing.sm),
+          const SizedBox(height: 8),
           AppStreakLoom(
             completedBands: completedBands,
             currentProgress: progress,
-            bandHeight: 28,
-            gap: 7,
+            bandHeight: 32,
+            gap: 6,
           ),
-          const SizedBox(height: AppSpacing.xs),
+          const SizedBox(height: 6),
           Row(
-            children: _streakMilestones
-                .map(
-                  (milestone) => Expanded(
-                    child: Text(
-                      '$milestone',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: streak >= milestone
-                            ? context.nashaatPalette.rewardText
-                            : context.nashaatPalette.textMuted,
-                        fontWeight: FontWeight.w700,
-                        fontFamily: 'JetBrains Mono',
-                      ),
-                    ),
+            children: _streakMilestones.asMap().entries.map((entry) {
+              final index = entry.key;
+              final milestone = entry.value;
+              final isUnlocked = streak >= milestone;
+              final isTarget =
+                  index == completedBands &&
+                  completedBands < _streakMilestones.length;
+
+              return Expanded(
+                child: Text(
+                  '$milestone',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: (isUnlocked || isTarget)
+                        ? palette.rewardText
+                        : palette.textMuted.withValues(alpha: 0.6),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 11,
+                    fontFamily: 'JetBrains Mono',
                   ),
-                )
-                .toList(),
+                ),
+              );
+            }).toList(),
           ),
-          const SizedBox(height: AppSpacing.sm),
-          AppText.bodyMuted(_nextBandLabel(streak, completedBands)),
+          const SizedBox(height: 10),
+          Text(
+            _nextBandLabel(streak, completedBands),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: palette.textMuted,
+              fontSize: 12.5,
+            ),
+          ),
         ],
       ),
     );
@@ -482,11 +526,22 @@ class _StreakMetric extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        AppText.bodyMuted(label),
-        const SizedBox(height: AppSpacing.xs),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            fontFamily: 'JetBrains Mono',
+            fontSize: 10.5,
+            letterSpacing: 1.1,
+            fontWeight: FontWeight.w600,
+            color: palette.textMuted,
+          ),
+        ),
+        const SizedBox(height: 2),
         Text(
           value,
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
             color: accent ? palette.rewardText : palette.textPrimary,
           ),
         ),
@@ -504,44 +559,80 @@ class _PointsSummary extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = context.nashaatPalette;
     return AppCard.standard(
-      padding: const EdgeInsetsDirectional.fromSTEB(24, 24, 24, 24),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: RadialGradient(
-                colors: [palette.textPrimary, palette.textSecondary],
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: palette.textPrimary.withValues(alpha: 0.12),
-                  blurRadius: 14,
-                  spreadRadius: 2,
-                ),
-              ],
-            ),
-            child: const SizedBox.shrink(),
-          ),
-          const SizedBox(width: AppSpacing.lg),
+          const _PearlSphere(size: 42),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                AppText.section('TOTAL POINTS'),
-                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  'TOTAL POINTS',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    fontFamily: 'JetBrains Mono',
+                    fontSize: 10.5,
+                    letterSpacing: 1.1,
+                    fontWeight: FontWeight.w600,
+                    color: palette.textMuted,
+                  ),
+                ),
+                const SizedBox(height: 2),
                 Text(
                   _formatPoints(vm.totalPoints),
                   style: Theme.of(context).textTheme.displayLarge?.copyWith(
                     color: palette.textPrimary,
-                    fontSize: 48,
-                    height: 0.95,
+                    fontSize: 38,
+                    fontWeight: FontWeight.w700,
+                    height: 1.0,
                   ),
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PearlSphere extends StatelessWidget {
+  final double size;
+
+  const _PearlSphere({this.size = 42});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: const RadialGradient(
+          center: Alignment(-0.35, -0.38),
+          radius: 0.85,
+          colors: [
+            Color(0xFFFFFFFF),
+            Color(0xFFF6EFE5),
+            Color(0xFFDED3C4),
+            Color(0xFFB1A28F),
+          ],
+          stops: [0.0, 0.35, 0.75, 1.0],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFF6EFE5).withValues(alpha: 0.35),
+            blurRadius: 10,
+            spreadRadius: 1,
+            offset: const Offset(0, 1),
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.35),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
@@ -592,36 +683,80 @@ class _RecentPointsCard extends StatelessWidget {
           return Column(
             children: [
               Padding(
-                padding: const EdgeInsets.all(AppSpacing.base),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 11,
+                ),
                 child: Row(
                   children: [
-                    ExcludeSemantics(
-                      child: AppNavIcon(
-                        glyph: AppNavGlyph.crossedOars,
-                        size: 24,
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: palette.well,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: palette.border.withValues(alpha: 0.5),
+                          width: 0.8,
+                        ),
+                      ),
+                      alignment: Alignment.center,
+                      child: ExcludeSemantics(
+                        child: AppNavIcon(
+                          glyph: AppNavGlyph.crossedOars,
+                          size: 22,
+                          color: palette.textMuted,
+                        ),
                       ),
                     ),
-                    const SizedBox(width: AppSpacing.md),
+
+                    const SizedBox(width: 12),
                     Expanded(
-                      child: Text(
-                        award.description,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodyMedium,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            award.description,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  color: palette.textPrimary,
+                                ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Today · Push Day',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  fontSize: 12,
+                                  color: palette.textMuted,
+                                ),
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(width: AppSpacing.sm),
                     Text(
                       '+${award.points}',
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         color: palette.rewardText,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ],
                 ),
               ),
               if (index < awards.length - 1)
-                Divider(height: 1, color: palette.border),
+                Divider(
+                  height: 1,
+                  color: palette.border.withValues(alpha: 0.5),
+                ),
             ],
           );
         }),
@@ -826,6 +961,16 @@ class _ActivityChart extends StatelessWidget {
 }
 
 const _streakMilestones = <int>[3, 7, 14, 30, 60, 100, 180, 365];
+const _streakMilestoneNames = <String>[
+  'Dhurwa',
+  'Mishat',
+  'Eein',
+  'Shajarah',
+  'Daraj',
+  'Al-Majlis',
+  'Al-Qasr',
+  'Al-Khatwa',
+];
 
 int _completedStreakBands(int streak) {
   return _streakMilestones.where((milestone) => streak >= milestone).length;
@@ -845,9 +990,10 @@ String _nextBandLabel(int streak, int completedBands) {
     return 'All eight bands are woven.';
   }
   final next = _streakMilestones[completedBands];
+  final name = _streakMilestoneNames[completedBands];
   final remaining = next - streak;
-  if (streak == 0) return 'First band at a $next-day streak.';
-  return 'Next band at $next days · $remaining to go.';
+  if (streak == 0) return 'First band at $next days: $name · $remaining to go';
+  return 'Next band at $next days: $name · $remaining to go';
 }
 
 String _formatMinutes(int minutes) {

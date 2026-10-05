@@ -8,11 +8,12 @@ class AppWasmBadge extends StatelessWidget {
   final String label;
   final double size;
 
-  const AppWasmBadge({super.key, required this.label, this.size = 44});
+  const AppWasmBadge({super.key, required this.label, this.size = 40});
 
   @override
   Widget build(BuildContext context) {
     final palette = context.nashaatPalette;
+    final innerDiameter = size * 0.68;
     return Semantics(
       label: 'Wasm $label',
       child: SizedBox(
@@ -22,8 +23,8 @@ class AppWasmBadge extends StatelessWidget {
           painter: _AppWasmPainter(palette: palette),
           child: Center(
             child: Container(
-              width: size * 0.72,
-              height: size * 0.72,
+              width: innerDiameter,
+              height: innerDiameter,
               decoration: BoxDecoration(
                 color: palette.card,
                 shape: BoxShape.circle,
@@ -35,7 +36,9 @@ class AppWasmBadge extends StatelessWidget {
                 overflow: TextOverflow.clip,
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
                   color: palette.textPrimary,
-                  fontSize: size * 0.27,
+                  fontSize: innerDiameter * 0.52,
+                  fontWeight: FontWeight.w700,
+                  height: 1.0,
                 ),
               ),
             ),
@@ -53,44 +56,64 @@ class _AppWasmPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    if (size.isEmpty) return;
+
     final center = size.center(Offset.zero);
     final radius = size.shortestSide / 2;
-    final background = Paint()..color = palette.saduRed;
-    canvas.drawCircle(center, radius, background);
+    final innerRadius = radius * 0.68;
 
-    final pattern = Paint()
-      ..color = palette.saduYellow
+    // Outer base
+    final basePaint = Paint()..color = palette.saduDark;
+    canvas.drawCircle(center, radius, basePaint);
+
+    // Sadu woven bead teeth around the perimeter
+    const totalSegments = 24;
+    final segmentAngle = (2 * math.pi) / totalSegments;
+    final beadColors = [
+      palette.saduRed,
+      palette.saduLight,
+      palette.saduRed,
+      palette.saduYellow,
+      palette.saduDark,
+      palette.saduLight,
+    ];
+
+    final stroke = Paint()
+      ..style = PaintingStyle.fill
+      ..isAntiAlias = true;
+
+    for (var i = 0; i < totalSegments; i++) {
+      final startAngle = i * segmentAngle;
+      final sweepAngle = segmentAngle * 0.82;
+      stroke.color = beadColors[i % beadColors.length];
+
+      final path = Path()
+        ..arcTo(
+          Rect.fromCircle(center: center, radius: radius),
+          startAngle,
+          sweepAngle,
+          false,
+        )
+        ..arcTo(
+          Rect.fromCircle(
+            center: center,
+            radius: innerRadius + (radius - innerRadius) * 0.15,
+          ),
+          startAngle + sweepAngle,
+          -sweepAngle,
+          false,
+        )
+        ..close();
+
+      canvas.drawPath(path, stroke);
+    }
+
+    // Inner rim line
+    final rimPaint = Paint()
+      ..color = palette.saduDark
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.3;
-    canvas.save();
-    canvas.clipPath(
-      Path()..addOval(Rect.fromCircle(center: center, radius: radius)),
-    );
-    for (var i = -2; i < 8; i++) {
-      final offset = i * size.width * 0.22;
-      canvas.drawLine(
-        Offset(offset, size.height),
-        Offset(offset + size.height, 0),
-        pattern,
-      );
-    }
-    final star = Path();
-    for (var i = 0; i < 8; i++) {
-      final pointRadius = i.isEven ? radius * 0.68 : radius * 0.34;
-      final angle = -math.pi / 2 + i * math.pi / 4;
-      final point = Offset(
-        center.dx + math.cos(angle) * pointRadius,
-        center.dy + math.sin(angle) * pointRadius,
-      );
-      if (i == 0) {
-        star.moveTo(point.dx, point.dy);
-      } else {
-        star.lineTo(point.dx, point.dy);
-      }
-    }
-    star.close();
-    canvas.drawPath(star, pattern);
-    canvas.restore();
+      ..strokeWidth = 1.0;
+    canvas.drawCircle(center, innerRadius, rimPaint);
   }
 
   @override

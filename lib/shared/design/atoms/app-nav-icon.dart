@@ -1,8 +1,7 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 import 'app-wasm-badge.dart';
+
 import '../tokens/app-colors.dart';
 
 enum AppNavGlyph { qasr, crossedOars, fanar, tent, wasm }
@@ -59,7 +58,7 @@ class _AppNavGlyphPainter extends CustomPainter {
     final stroke = Paint()
       ..color = color
       ..style = PaintingStyle.stroke
-      ..strokeWidth = math.max(1.5, size.shortestSide * 0.06)
+      ..strokeWidth = 1.4
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
     final fill = Paint()..color = color;
@@ -80,208 +79,188 @@ class _AppNavGlyphPainter extends CustomPainter {
   }
 
   void _paintQasr(Canvas canvas, Rect bounds, Paint stroke, Paint fill) {
-    final left = bounds.left + bounds.width * 0.12;
-    final right = bounds.right - bounds.width * 0.12;
-    final baseline = bounds.bottom - bounds.height * 0.13;
-    final towerTop = bounds.top + bounds.height * 0.25;
-    final bodyTop = bounds.top + bounds.height * 0.43;
+    final w = bounds.width;
+    final h = bounds.height;
+    final baseline = bounds.bottom - h * 0.12;
 
-    canvas.drawLine(Offset(left, baseline), Offset(right, baseline), stroke);
-    canvas.drawRect(Rect.fromLTRB(left, bodyTop, right, baseline), stroke);
-    canvas.drawRect(
-      Rect.fromLTRB(
-        bounds.left + bounds.width * 0.34,
-        towerTop,
-        bounds.left + bounds.width * 0.66,
-        baseline,
-      ),
+    // Main base line
+    canvas.drawLine(
+      Offset(bounds.left + w * 0.1, baseline),
+      Offset(bounds.right - w * 0.1, baseline),
       stroke,
     );
 
-    final crenellations = Path()
-      ..moveTo(bounds.left + bounds.width * 0.29, towerTop)
-      ..lineTo(
-        bounds.left + bounds.width * 0.29,
-        bounds.top + bounds.height * 0.16,
-      )
-      ..lineTo(
-        bounds.left + bounds.width * 0.39,
-        bounds.top + bounds.height * 0.16,
-      )
-      ..lineTo(bounds.left + bounds.width * 0.39, towerTop)
-      ..moveTo(bounds.left + bounds.width * 0.61, towerTop)
-      ..lineTo(
-        bounds.left + bounds.width * 0.61,
-        bounds.top + bounds.height * 0.16,
-      )
-      ..lineTo(
-        bounds.left + bounds.width * 0.71,
-        bounds.top + bounds.height * 0.16,
-      )
-      ..lineTo(bounds.left + bounds.width * 0.71, towerTop);
-    canvas.drawPath(crenellations, stroke);
+    // Main castle outline with crenellated turrets
+    final path = Path()
+      // Left turret base
+      ..moveTo(bounds.left + w * 0.15, baseline)
+      ..lineTo(bounds.left + w * 0.15, bounds.top + h * 0.28)
+      // Left turret crenellation
+      ..lineTo(bounds.left + w * 0.15, bounds.top + h * 0.15)
+      ..lineTo(bounds.left + w * 0.25, bounds.top + h * 0.15)
+      ..lineTo(bounds.left + w * 0.25, bounds.top + h * 0.22)
+      ..lineTo(bounds.left + w * 0.35, bounds.top + h * 0.22)
+      ..lineTo(bounds.left + w * 0.35, bounds.top + h * 0.15)
+      ..lineTo(bounds.left + w * 0.42, bounds.top + h * 0.15)
+      ..lineTo(bounds.left + w * 0.42, bounds.top + h * 0.30)
+      // Center wall & crenellation
+      ..lineTo(bounds.left + w * 0.48, bounds.top + h * 0.30)
+      ..lineTo(bounds.left + w * 0.48, bounds.top + h * 0.22)
+      ..lineTo(bounds.left + w * 0.52, bounds.top + h * 0.22)
+      ..lineTo(bounds.left + w * 0.52, bounds.top + h * 0.30)
+      ..lineTo(bounds.left + w * 0.58, bounds.top + h * 0.30)
+      // Right turret crenellation
+      ..lineTo(bounds.left + w * 0.58, bounds.top + h * 0.15)
+      ..lineTo(bounds.left + w * 0.65, bounds.top + h * 0.15)
+      ..lineTo(bounds.left + w * 0.65, bounds.top + h * 0.22)
+      ..lineTo(bounds.left + w * 0.75, bounds.top + h * 0.22)
+      ..lineTo(bounds.left + w * 0.75, bounds.top + h * 0.15)
+      ..lineTo(bounds.left + w * 0.85, bounds.top + h * 0.15)
+      ..lineTo(bounds.left + w * 0.85, baseline);
 
+    canvas.drawPath(path, stroke);
+
+    // Central Arch Doorway
     final arch = Path()
-      ..moveTo(bounds.center.dx - bounds.width * 0.08, baseline)
-      ..lineTo(
-        bounds.center.dx - bounds.width * 0.08,
-        bounds.top + bounds.height * 0.68,
-      )
+      ..moveTo(bounds.center.dx - w * 0.10, baseline)
+      ..lineTo(bounds.center.dx - w * 0.10, bounds.top + h * 0.62)
       ..quadraticBezierTo(
         bounds.center.dx,
-        bounds.top + bounds.height * 0.55,
-        bounds.center.dx + bounds.width * 0.08,
-        bounds.top + bounds.height * 0.68,
+        bounds.top + h * 0.48,
+        bounds.center.dx + w * 0.10,
+        bounds.top + h * 0.62,
       )
-      ..lineTo(bounds.center.dx + bounds.width * 0.08, baseline);
+      ..lineTo(bounds.center.dx + w * 0.10, baseline);
     canvas.drawPath(arch, stroke);
+
+    // Small castle window dot
     canvas.drawCircle(
-      Offset(bounds.center.dx, bounds.top + bounds.height * 0.33),
-      bounds.width * 0.035,
+      Offset(bounds.center.dx, bounds.top + h * 0.40),
+      1.2,
       fill,
     );
   }
 
   void _paintCrossedOars(Canvas canvas, Rect bounds, Paint stroke, Paint fill) {
     final center = bounds.center;
-    final inset = bounds.shortestSide * 0.16;
-    final topLeft = Offset(bounds.left + inset, bounds.top + inset);
-    final topRight = Offset(bounds.right - inset, bounds.top + inset);
-    final bottomLeft = Offset(bounds.left + inset, bounds.bottom - inset);
-    final bottomRight = Offset(bounds.right - inset, bounds.bottom - inset);
+    final w = bounds.width;
+    final h = bounds.height;
 
-    canvas.drawLine(topLeft, bottomRight, stroke);
-    canvas.drawLine(topRight, bottomLeft, stroke);
-    canvas.drawCircle(center, bounds.shortestSide * 0.1, fill);
+    // Cross shafts
+    final p1 = Offset(bounds.left + w * 0.2, bounds.top + h * 0.2);
+    final p2 = Offset(bounds.right - w * 0.2, bounds.bottom - h * 0.2);
+    final p3 = Offset(bounds.right - w * 0.2, bounds.top + h * 0.2);
+    final p4 = Offset(bounds.left + w * 0.2, bounds.bottom - h * 0.2);
 
-    _drawOarBlade(
-      canvas,
-      topLeft,
-      topLeft - Offset(inset * 0.42, inset * 0.58),
-      fill,
-    );
-    _drawOarBlade(
-      canvas,
-      bottomRight,
-      bottomRight + Offset(inset * 0.42, inset * 0.58),
-      fill,
-    );
-    _drawOarBlade(
-      canvas,
-      topRight,
-      topRight + Offset(inset * 0.42, -inset * 0.58),
-      fill,
-    );
-    _drawOarBlade(
-      canvas,
-      bottomLeft,
-      bottomLeft - Offset(inset * 0.42, -inset * 0.58),
-      fill,
-    );
+    canvas.drawLine(p1, p2, stroke);
+    canvas.drawLine(p3, p4, stroke);
+
+    // Blades/Tips
+    _drawBlade(canvas, p1, Offset(-w * 0.10, -h * 0.10), stroke, fill);
+    _drawBlade(canvas, p2, Offset(w * 0.10, h * 0.10), stroke, fill);
+    _drawBlade(canvas, p3, Offset(w * 0.10, -h * 0.10), stroke, fill);
+    _drawBlade(canvas, p4, Offset(-w * 0.10, h * 0.10), stroke, fill);
+
+    // Center joint ring
+    canvas.drawCircle(center, 2.2, stroke);
   }
 
-  void _drawOarBlade(Canvas canvas, Offset handle, Offset tip, Paint fill) {
-    final direction = tip - handle;
-    final length = direction.distance;
-    if (length == 0) return;
-    final unit = direction / length;
-    final perpendicular = Offset(-unit.dy, unit.dx);
-    final bladeStart = handle + unit * length * 0.22;
-    final bladeEnd = handle + unit * length;
-    final blade = Path()
-      ..moveTo(bladeStart.dx, bladeStart.dy)
-      ..lineTo(
-        (bladeEnd + perpendicular * 2.8).dx,
-        (bladeEnd + perpendicular * 2.8).dy,
-      )
-      ..lineTo(
-        (bladeEnd - perpendicular * 2.8).dx,
-        (bladeEnd - perpendicular * 2.8).dy,
-      )
+  void _drawBlade(
+    Canvas canvas,
+    Offset origin,
+    Offset delta,
+    Paint stroke,
+    Paint fill,
+  ) {
+    final tip = origin + delta;
+    final perp = Offset(-delta.dy, delta.dx) * 0.35;
+    final path = Path()
+      ..moveTo(origin.dx, origin.dy)
+      ..lineTo(tip.dx + perp.dx, tip.dy + perp.dy)
+      ..lineTo(tip.dx - perp.dx, tip.dy - perp.dy)
       ..close();
-    canvas.drawPath(blade, fill);
+    canvas.drawPath(path, fill);
   }
 
   void _paintFanar(Canvas canvas, Rect bounds, Paint stroke, Paint fill) {
     final center = bounds.center;
-    final glow = Paint()..color = color.withValues(alpha: 0.08);
+    final w = bounds.width;
+    final h = bounds.height;
+
+    // Top loop ring
     canvas.drawCircle(
-      center.translate(0, -bounds.height * 0.08),
-      bounds.width * 0.20,
-      glow,
+      Offset(center.dx, bounds.top + h * 0.16),
+      w * 0.08,
+      stroke,
     );
 
+    // Dome cap
+    final cap = Path()
+      ..moveTo(bounds.left + w * 0.32, bounds.top + h * 0.32)
+      ..quadraticBezierTo(
+        center.dx,
+        bounds.top + h * 0.24,
+        bounds.right - w * 0.32,
+        bounds.top + h * 0.32,
+      )
+      ..close();
+    canvas.drawPath(cap, fill);
+
+    // Glass cylinder cage
     final body = Rect.fromLTRB(
-      bounds.left + bounds.width * 0.29,
-      bounds.top + bounds.height * 0.35,
-      bounds.right - bounds.width * 0.29,
-      bounds.bottom - bounds.height * 0.16,
+      bounds.left + w * 0.30,
+      bounds.top + h * 0.34,
+      bounds.right - w * 0.30,
+      bounds.bottom - h * 0.24,
     );
     canvas.drawRRect(
-      RRect.fromRectAndRadius(body, Radius.circular(bounds.width * 0.08)),
+      RRect.fromRectAndRadius(body, const Radius.circular(3)),
       stroke,
     );
+
+    // Inner flame
+    canvas.drawCircle(center.translate(0, 1), 2.0, fill);
+
+    // Base
     canvas.drawLine(
-      Offset(
-        bounds.left + bounds.width * 0.23,
-        bounds.bottom - bounds.height * 0.1,
-      ),
-      Offset(
-        bounds.right - bounds.width * 0.23,
-        bounds.bottom - bounds.height * 0.1,
-      ),
+      Offset(bounds.left + w * 0.24, bounds.bottom - h * 0.16),
+      Offset(bounds.right - w * 0.24, bounds.bottom - h * 0.16),
       stroke,
-    );
-    canvas.drawLine(
-      Offset(
-        bounds.left + bounds.width * 0.4,
-        bounds.top + bounds.height * 0.25,
-      ),
-      Offset(
-        bounds.right - bounds.width * 0.4,
-        bounds.top + bounds.height * 0.25,
-      ),
-      stroke,
-    );
-    canvas.drawLine(
-      Offset(center.dx, bounds.top + bounds.height * 0.12),
-      Offset(center.dx, bounds.top + bounds.height * 0.25),
-      stroke,
-    );
-    canvas.drawCircle(
-      Offset(center.dx, bounds.top + bounds.height * 0.16),
-      bounds.width * 0.045,
-      fill,
     );
   }
 
   void _paintTent(Canvas canvas, Rect bounds, Paint stroke, Paint fill) {
-    final apex = Offset(bounds.center.dx, bounds.top + bounds.height * 0.13);
-    final left = Offset(
-      bounds.left + bounds.width * 0.12,
-      bounds.bottom - bounds.height * 0.14,
-    );
-    final right = Offset(
-      bounds.right - bounds.width * 0.12,
-      bounds.bottom - bounds.height * 0.14,
-    );
-    final base = Path()
-      ..moveTo(apex.dx, apex.dy)
-      ..lineTo(left.dx, left.dy)
-      ..lineTo(right.dx, right.dy)
-      ..close();
-    canvas.drawPath(base, stroke);
-    canvas.drawLine(apex, Offset(bounds.center.dx, right.dy), stroke);
+    final w = bounds.width;
+    final h = bounds.height;
+    final apex = Offset(bounds.center.dx, bounds.top + h * 0.22);
+    final leftBase = Offset(bounds.left + w * 0.14, bounds.bottom - h * 0.18);
+    final rightBase = Offset(bounds.right - w * 0.14, bounds.bottom - h * 0.18);
+
+    // Tent roof canopy
+    final roof = Path()
+      ..moveTo(leftBase.dx - 2, leftBase.dy)
+      ..lineTo(apex.dx, apex.dy)
+      ..lineTo(rightBase.dx + 2, rightBase.dy);
+    canvas.drawPath(roof, stroke);
+
+    // Ground baseline
+    canvas.drawLine(leftBase, rightBase, stroke);
+
+    // Front poles & entrance drape
+    canvas.drawLine(apex, Offset(apex.dx, rightBase.dy), stroke);
     canvas.drawLine(
-      Offset(bounds.center.dx, bounds.top + bounds.height * 0.63),
-      Offset(bounds.center.dx, right.dy),
+      Offset(bounds.center.dx - w * 0.14, bounds.top + h * 0.48),
+      Offset(bounds.center.dx - w * 0.14, rightBase.dy),
       stroke,
     );
-    canvas.drawCircle(
-      Offset(bounds.center.dx, bounds.top + bounds.height * 0.42),
-      bounds.width * 0.045,
-      fill,
+    canvas.drawLine(
+      Offset(bounds.center.dx + w * 0.14, bounds.top + h * 0.48),
+      Offset(bounds.center.dx + w * 0.14, rightBase.dy),
+      stroke,
     );
+
+    // Apex crown finial
+    canvas.drawCircle(apex, 1.4, fill);
   }
 
   @override

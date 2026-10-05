@@ -41,61 +41,61 @@ class _AppBackdropPainter extends CustomPainter {
 
     final glow = Paint()
       ..shader = RadialGradient(
-        center: const Alignment(0.0, -0.78),
-        radius: 1.05,
+        center: const Alignment(0.0, -0.42),
+        radius: 1.25,
         colors: [
-          palette.accent.withValues(alpha: 0.10),
-          palette.reward.withValues(alpha: 0.045),
+          palette.reward.withValues(alpha: 0.28),
+          palette.reward.withValues(alpha: 0.12),
           Colors.transparent,
         ],
-        stops: const [0, 0.42, 1],
+        stops: const [0.0, 0.48, 1.0],
       ).createShader(Offset.zero & size);
     canvas.drawRect(Offset.zero & size, glow);
 
     if (!showBottomWaves) return;
 
     final leftWave = Path()
-      ..moveTo(0, size.height * 0.935)
+      ..moveTo(0, size.height * 0.965)
       ..quadraticBezierTo(
         size.width * 0.22,
-        size.height * 0.905,
+        size.height * 0.945,
         size.width * 0.52,
-        size.height * 0.965,
+        size.height * 0.98,
       )
       ..quadraticBezierTo(
         size.width * 0.78,
-        size.height * 1.02,
+        size.height * 1.01,
         size.width,
-        size.height * 0.955,
+        size.height * 0.97,
       )
       ..lineTo(size.width, size.height)
       ..lineTo(0, size.height)
       ..close();
     canvas.drawPath(
       leftWave,
-      Paint()..color = palette.calm.withValues(alpha: 0.065),
+      Paint()..color = palette.calm.withValues(alpha: 0.035),
     );
 
     final rightWave = Path()
-      ..moveTo(0, size.height * 0.98)
+      ..moveTo(0, size.height * 0.99)
       ..quadraticBezierTo(
         size.width * 0.3,
-        size.height * 0.90,
+        size.height * 0.95,
         size.width * 0.64,
-        size.height * 0.965,
+        size.height * 0.985,
       )
       ..quadraticBezierTo(
         size.width * 0.82,
         size.height * 1.0,
         size.width,
-        size.height * 0.93,
+        size.height * 0.96,
       )
       ..lineTo(size.width, size.height)
       ..lineTo(0, size.height)
       ..close();
     canvas.drawPath(
       rightWave,
-      Paint()..color = palette.reward.withValues(alpha: 0.045),
+      Paint()..color = palette.reward.withValues(alpha: 0.025),
     );
   }
 

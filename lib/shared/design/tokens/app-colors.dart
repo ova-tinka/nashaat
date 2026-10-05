@@ -93,7 +93,7 @@ class NashaatPalette extends ThemeExtension<NashaatPalette> {
     raised: Color(0xFF2C241D),
     well: Color(0xFF1B1511),
     border: Color(0xFF3A3027),
-    cardEdge: Colors.transparent,
+    cardEdge: Color(0xFF2E241C),
     textPrimary: Color(0xFFF5EDE0),
     textSecondary: Color(0xFFD6CBBB),
     textBody: Color(0xFFBDB1A1),

@@ -47,12 +47,18 @@ class AppSegmentedControl<T> extends StatelessWidget {
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 160),
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 9,
+                    horizontal: 10,
+                    vertical: 7,
                   ),
                   decoration: BoxDecoration(
                     color: isSelected ? palette.card : Colors.transparent,
-                    borderRadius: AppRadii.sm,
+                    borderRadius: BorderRadius.circular(8),
+                    border: isSelected
+                        ? Border.all(
+                            color: palette.border.withValues(alpha: 0.4),
+                            width: 0.8,
+                          )
+                        : null,
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -61,12 +67,12 @@ class AppSegmentedControl<T> extends StatelessWidget {
                       if (option.icon != null) ...[
                         Icon(
                           option.icon,
-                          size: 16,
+                          size: 15,
                           color: isSelected
                               ? palette.textPrimary
                               : palette.textMuted,
                         ),
-                        const SizedBox(width: 6),
+                        const SizedBox(width: 5),
                       ],
                       Flexible(
                         child: Text(
@@ -74,6 +80,10 @@ class AppSegmentedControl<T> extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           textAlign: TextAlign.center,
                           style: textTheme.labelMedium?.copyWith(
+                            fontSize: 13,
+                            fontWeight: isSelected
+                                ? FontWeight.w700
+                                : FontWeight.w500,
                             color: isSelected
                                 ? palette.textPrimary
                                 : palette.textMuted,
