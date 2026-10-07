@@ -57,30 +57,34 @@ class SupabaseLeaderboardRepository implements LeaderboardRepository {
 
   @override
   Future<LeaderboardEntity> createLeaderboard(
-    String ownerId,
     String name,
     String inviteCode,
+    List<String> friendIds,
   ) async {
     Log.db('creating leaderboard: $name');
-    final data = await _db
-        .from('leaderboards')
-        .insert({
-          'owner_id': ownerId,
-          'name': name,
-          'invite_code': inviteCode,
-          'is_active': true,
-        })
-        .select()
-        .single();
-
-    // Automatically add owner as member
-    await _db.from('leaderboard_members').insert({
-      'leaderboard_id': data['id'],
-      'user_id': ownerId,
-    });
+    final data = await _db.rpc(
+      'create_leaderboard_with_members',
+      params: {
+        'p_name': name,
+        'p_invite_code': inviteCode,
+        'p_friend_ids': friendIds,
+      },
+    );
 
     Log.db('leaderboard created ✓');
     return _fromMap(data);
+  }
+
+  @override
+  Future<void> inviteFriends(
+    String leaderboardId,
+    List<String> friendIds,
+  ) async {
+    if (friendIds.isEmpty) return;
+    await _db.rpc(
+      'invite_friends_to_leaderboard',
+      params: {'p_leaderboard_id': leaderboardId, 'p_friend_ids': friendIds},
+    );
   }
 
   @override

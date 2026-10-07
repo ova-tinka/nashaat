@@ -29,14 +29,33 @@ class SupabaseProfileRepository implements ProfileRepository {
     final rows = data as List;
     if (rows.isEmpty) return null;
     final map = rows.first as Map<String, dynamic>;
-    return PublicProfileEntity(
-      id: map['id'] as String,
-      username: map['username'] as String?,
-      firstName: map['first_name'] as String?,
-      lastName: map['last_name'] as String?,
-      streakCount: map['streak_count'] as int? ?? 0,
-    );
+    return _publicProfileFromMap(map);
   }
+
+  @override
+  Future<List<PublicProfileEntity>> searchPublicProfiles(
+    String query, {
+    int limit = 20,
+  }) async {
+    final normalizedQuery = query.trim();
+    if (normalizedQuery.isEmpty) return const [];
+    final data = await _db.rpc(
+      'search_public_profiles',
+      params: {'p_query': normalizedQuery, 'p_limit': limit},
+    );
+    return (data as List)
+        .map((row) => _publicProfileFromMap(row as Map<String, dynamic>))
+        .toList(growable: false);
+  }
+
+  PublicProfileEntity _publicProfileFromMap(Map<String, dynamic> map) =>
+      PublicProfileEntity(
+        id: map['id'] as String,
+        username: map['username'] as String?,
+        firstName: map['first_name'] as String?,
+        lastName: map['last_name'] as String?,
+        streakCount: map['streak_count'] as int? ?? 0,
+      );
 
   @override
   Future<ProfileEntity> updateProfile(

@@ -7,6 +7,13 @@ abstract class ProfileRepository {
 
   Future<PublicProfileEntity?> getPublicProfile(String userId);
 
+  /// Searches the minimal public profile projection used by the social graph.
+  /// Implementations must never expose private fields such as email.
+  Future<List<PublicProfileEntity>> searchPublicProfiles(
+    String query, {
+    int limit = 20,
+  });
+
   Future<ProfileEntity> updateProfile(
     String userId, {
     String? username,

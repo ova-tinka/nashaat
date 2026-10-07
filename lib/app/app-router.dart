@@ -14,6 +14,7 @@ import '../features/onboarding/coordinator/onboarding-coordinator.dart';
 import '../features/onboarding/view-model/onboarding-view-model.dart';
 import '../features/onboarding/view/onboarding-screen.dart';
 import '../features/settings/view/settings-screen.dart';
+import '../features/social/view/friends-screen.dart';
 import '../features/shell/view/app-shell-screen.dart';
 import '../features/workout/view/active-session-screen.dart';
 import '../features/workout/view/ai-generation-screen.dart';
@@ -34,6 +35,7 @@ class AppRouter {
   // ── Authenticated shell ───────────────────────────────────────────────────
   static const String dashboard = '/dashboard';
   static const String achievementDetail = '/achievement-detail';
+  static const String friends = '/friends';
 
   // ── Workout feature ───────────────────────────────────────────────────────
   static const String workoutBuilder = '/workout-builder';
@@ -87,6 +89,9 @@ class AppRouter {
         return MaterialPageRoute(
           builder: (_) => AchievementDetailScreen(achievement: achievement),
         );
+
+      case friends:
+        return MaterialPageRoute(builder: (_) => const FriendsScreen());
 
       // ── Workout ──────────────────────────────────────────────────────────
 

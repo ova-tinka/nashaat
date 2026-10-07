@@ -3,6 +3,7 @@ import 'package:nashaat/core/repositories/auth-repository.dart';
 import 'package:nashaat/core/repositories/achievement-repository.dart';
 import 'package:nashaat/core/repositories/blocking-repository.dart';
 import 'package:nashaat/core/repositories/exercise-repository.dart';
+import 'package:nashaat/core/repositories/friendship-repository.dart';
 import 'package:nashaat/core/repositories/leaderboard-repository.dart';
 import 'package:nashaat/core/repositories/point-award-repository.dart';
 import 'package:nashaat/core/repositories/profile-repository.dart';
@@ -30,3 +31,5 @@ class MockScreenTimeTransactionRepository extends Mock
     implements ScreenTimeTransactionRepository {}
 
 class MockLeaderboardRepository extends Mock implements LeaderboardRepository {}
+
+class MockFriendshipRepository extends Mock implements FriendshipRepository {}

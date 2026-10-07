@@ -153,22 +153,42 @@ class LeaderboardViewModel extends ChangeNotifier {
     }
   }
 
-  Future<void> createLeaderboard(String name) async {
+  Future<bool> createLeaderboard(
+    String name, {
+    List<String> friendIds = const [],
+  }) async {
     try {
       final inviteCode = _generateInviteCode();
       final lb = await _leaderboardRepo.createLeaderboard(
-        currentUserId,
         name,
         inviteCode,
+        friendIds,
       );
       await _leaderboardRepo.recalculateMyWeeklyScore();
       _leaderboards.insert(0, lb);
       _selectedLeaderboard = lb;
       await _loadRankings(lb.id);
+      return true;
     } catch (e) {
       Log.error('LeaderboardViewModel.createLeaderboard', e);
       _error = 'Could not create leaderboard.';
       notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> inviteFriends(List<String> friendIds) async {
+    final leaderboard = _selectedLeaderboard;
+    if (leaderboard == null || friendIds.isEmpty) return false;
+    try {
+      await _leaderboardRepo.inviteFriends(leaderboard.id, friendIds);
+      await _loadRankings(leaderboard.id);
+      return true;
+    } catch (e) {
+      Log.error('LeaderboardViewModel.inviteFriends', e);
+      _error = 'Could not invite friends to this leaderboard.';
+      notifyListeners();
+      return false;
     }
   }
 

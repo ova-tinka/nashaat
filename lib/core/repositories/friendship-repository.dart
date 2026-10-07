@@ -8,6 +8,9 @@ abstract class FriendshipRepository {
   /// Returns incoming pending requests addressed to the given user.
   Future<List<FriendshipEntity>> getPendingRequests(String userId);
 
+  /// Returns pending requests sent by the given user.
+  Future<List<FriendshipEntity>> getSentRequests(String userId);
+
   Future<FriendshipEntity> sendRequest(String requesterId, String addresseeId);
 
   Future<FriendshipEntity> updateStatus(

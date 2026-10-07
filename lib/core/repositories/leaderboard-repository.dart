@@ -8,10 +8,12 @@ abstract class LeaderboardRepository {
   Future<LeaderboardEntity?> getLeaderboardByInviteCode(String inviteCode);
 
   Future<LeaderboardEntity> createLeaderboard(
-    String ownerId,
     String name,
     String inviteCode,
+    List<String> friendIds,
   );
+
+  Future<void> inviteFriends(String leaderboardId, List<String> friendIds);
 
   Future<List<LeaderboardMemberEntity>> getMembers(String leaderboardId);
 

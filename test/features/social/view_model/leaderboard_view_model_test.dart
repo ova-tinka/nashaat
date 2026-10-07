@@ -262,12 +262,43 @@ void main() {
         expect(vm.selectedLeaderboard?.id, 'lb-new');
         expect(vm.rankings.single.weeklyScore, 42);
         verifyInOrder([
-          () => mockLeaderboardRepo.createLeaderboard('u1', 'My Squad', any()),
+          () => mockLeaderboardRepo.createLeaderboard('My Squad', any(), []),
           () => mockLeaderboardRepo.recalculateMyWeeklyScore(),
           () => mockLeaderboardRepo.getMembers('lb-new'),
         ]);
       },
     );
+
+    test('passes selected friends to the atomic creation operation', () async {
+      final leaderboard = TestData.leaderboard(id: 'lb-friends');
+      when(
+        () => mockLeaderboardRepo.createLeaderboard('Friends first', any(), [
+          'u2',
+          'u3',
+        ]),
+      ).thenAnswer((_) async => leaderboard);
+      when(() => mockLeaderboardRepo.getMembers(leaderboard.id)).thenAnswer(
+        (_) async => [
+          TestData.leaderboardMember(leaderboardId: leaderboard.id),
+        ],
+      );
+      when(
+        () => mockProfileRepo.getPublicProfile(any()),
+      ).thenAnswer((_) async => TestData.publicProfile());
+
+      final created = await vm.createLeaderboard(
+        'Friends first',
+        friendIds: const ['u2', 'u3'],
+      );
+
+      expect(created, isTrue);
+      verify(
+        () => mockLeaderboardRepo.createLeaderboard('Friends first', any(), [
+          'u2',
+          'u3',
+        ]),
+      ).called(1);
+    });
 
     test('failure: error set', () async {
       when(

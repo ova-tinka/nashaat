@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
+import '../../../app/app-router.dart';
 import '../../../core/entities/leaderboard-entity.dart';
 import '../../../infra/repository-locator.dart';
 import '../../../shared/design/atoms/app-badge.dart';
@@ -11,6 +12,7 @@ import '../../../shared/design/organisms/app-empty-state.dart';
 import '../../../shared/design/tokens/app-colors.dart';
 import '../../../shared/design/tokens/app-spacing.dart';
 import '../../../shared/design/tokens/app-typography.dart';
+import '../view-model/friends-view-model.dart';
 import '../view-model/leaderboard-view-model.dart';
 
 class LeaderboardScreen extends StatefulWidget {
@@ -64,6 +66,12 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
               ),
             ),
             actions: [
+              IconButton(
+                icon: const Icon(Icons.people_outline, color: AppColors.ink),
+                tooltip: 'Friends',
+                onPressed: () =>
+                    Navigator.of(context).pushNamed(AppRouter.friends),
+              ),
               IconButton(
                 icon: const Icon(Icons.add, color: AppColors.ink),
                 tooltip: 'Create or join',
@@ -247,7 +255,20 @@ class _LeaderboardHeader extends StatelessWidget {
               ],
             ),
           ),
-          _InviteButton(inviteCode: leaderboard.inviteCode),
+          Column(
+            children: [
+              IconButton(
+                tooltip: 'Invite friends',
+                icon: const Icon(Icons.person_add_alt_1_outlined),
+                onPressed: () => showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  builder: (_) => _InviteFriendsSheet(vm: vm),
+                ),
+              ),
+              _InviteButton(inviteCode: leaderboard.inviteCode),
+            ],
+          ),
         ],
       ),
     );
@@ -443,13 +464,25 @@ class _CreateJoinSheet extends StatefulWidget {
 class _CreateJoinSheetState extends State<_CreateJoinSheet> {
   final _nameCtrl = TextEditingController();
   final _codeCtrl = TextEditingController();
+  late final FriendsViewModel _friendsVm;
+  final Set<String> _selectedFriendIds = {};
   bool _creating = false;
   bool _joining = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _friendsVm = FriendsViewModel(
+      friendshipRepo: RepositoryLocator.instance.friendship,
+      profileRepo: RepositoryLocator.instance.profile,
+    )..load();
+  }
 
   @override
   void dispose() {
     _nameCtrl.dispose();
     _codeCtrl.dispose();
+    _friendsVm.dispose();
     super.dispose();
   }
 
@@ -479,6 +512,55 @@ class _CreateJoinSheetState extends State<_CreateJoinSheet> {
             decoration: const InputDecoration(labelText: 'Leaderboard name'),
             textCapitalization: TextCapitalization.words,
           ),
+          const SizedBox(height: AppSpacing.md),
+          ListenableBuilder(
+            listenable: _friendsVm,
+            builder: (context, _) {
+              if (_friendsVm.isLoading) {
+                return const Padding(
+                  padding: EdgeInsets.all(AppSpacing.md),
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+              if (_friendsVm.friends.isEmpty) {
+                return Text(
+                  'No accepted friends yet. You can still create the leaderboard.',
+                  style: AppTypography.labelMuted,
+                );
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('INVITE FRIENDS', style: AppTypography.sectionHeader),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    'They will join the leaderboard immediately.',
+                    style: AppTypography.labelMuted,
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  ..._friendsVm.friends.map(
+                    (friend) => CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: _selectedFriendIds.contains(friend.profile.id),
+                      title: Text(friend.displayName),
+                      subtitle: friend.profile.streakCount > 0
+                          ? Text('${friend.profile.streakCount}-day streak')
+                          : null,
+                      onChanged: _creating
+                          ? null
+                          : (selected) => setState(() {
+                              if (selected ?? false) {
+                                _selectedFriendIds.add(friend.profile.id);
+                              } else {
+                                _selectedFriendIds.remove(friend.profile.id);
+                              }
+                            }),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
           const SizedBox(height: AppSpacing.sm),
           AppButton.primary(
             'Create',
@@ -489,9 +571,18 @@ class _CreateJoinSheetState extends State<_CreateJoinSheet> {
                     final name = _nameCtrl.text.trim();
                     if (name.isEmpty) return;
                     setState(() => _creating = true);
-                    widget.vm.createLeaderboard(name).then((_) {
-                      if (context.mounted) Navigator.pop(context);
-                    });
+                    widget.vm
+                        .createLeaderboard(
+                          name,
+                          friendIds: _selectedFriendIds.toList(),
+                        )
+                        .then((created) {
+                          if (created && context.mounted) {
+                            Navigator.pop(context);
+                          } else if (mounted) {
+                            setState(() => _creating = false);
+                          }
+                        });
                   },
             width: double.infinity,
           ),
@@ -537,6 +628,125 @@ class _CreateJoinSheetState extends State<_CreateJoinSheet> {
             width: double.infinity,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _InviteFriendsSheet extends StatefulWidget {
+  final LeaderboardViewModel vm;
+  const _InviteFriendsSheet({required this.vm});
+
+  @override
+  State<_InviteFriendsSheet> createState() => _InviteFriendsSheetState();
+}
+
+class _InviteFriendsSheetState extends State<_InviteFriendsSheet> {
+  late final FriendsViewModel _friendsVm;
+  final Set<String> _selectedFriendIds = {};
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _friendsVm = FriendsViewModel(
+      friendshipRepo: RepositoryLocator.instance.friendship,
+      profileRepo: RepositoryLocator.instance.profile,
+    )..load();
+  }
+
+  @override
+  void dispose() {
+    _friendsVm.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          AppSpacing.xl,
+          AppSpacing.xl,
+          AppSpacing.xl,
+          MediaQuery.of(context).viewInsets.bottom + AppSpacing.xl,
+        ),
+        child: ListenableBuilder(
+          listenable: _friendsVm,
+          builder: (context, _) => Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Invite friends', style: AppTypography.title),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                'Accepted friends join immediately.',
+                style: AppTypography.bodyMuted,
+              ),
+              const SizedBox(height: AppSpacing.md),
+              if (_friendsVm.isLoading)
+                const Padding(
+                  padding: EdgeInsets.all(AppSpacing.lg),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (_friendsVm.friends.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+                  child: Text('You have no accepted friends to invite yet.'),
+                )
+              else
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 280),
+                  child: ListView(
+                    shrinkWrap: true,
+                    children: _friendsVm.friends
+                        .map(
+                          (friend) => CheckboxListTile(
+                            contentPadding: EdgeInsets.zero,
+                            value: _selectedFriendIds.contains(
+                              friend.profile.id,
+                            ),
+                            title: Text(friend.displayName),
+                            onChanged: _saving
+                                ? null
+                                : (selected) => setState(() {
+                                    if (selected ?? false) {
+                                      _selectedFriendIds.add(friend.profile.id);
+                                    } else {
+                                      _selectedFriendIds.remove(
+                                        friend.profile.id,
+                                      );
+                                    }
+                                  }),
+                          ),
+                        )
+                        .toList(growable: false),
+                  ),
+                ),
+              const SizedBox(height: AppSpacing.md),
+              AppButton.primary(
+                'Invite selected',
+                width: double.infinity,
+                isLoading: _saving,
+                onPressed: _saving || _selectedFriendIds.isEmpty
+                    ? null
+                    : () async {
+                        final navigator = Navigator.of(context);
+                        setState(() => _saving = true);
+                        final invited = await widget.vm.inviteFriends(
+                          _selectedFriendIds.toList(),
+                        );
+                        if (!mounted) return;
+                        if (invited) {
+                          navigator.pop();
+                        } else {
+                          setState(() => _saving = false);
+                        }
+                      },
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
