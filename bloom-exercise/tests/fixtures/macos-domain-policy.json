@@ -1,0 +1,16 @@
+[
+  {"rule":"example.com","address":"example.com","blocked":true},
+  {"rule":"example.com","address":"https://WWW.Example.COM./path","blocked":true},
+  {"rule":"example.com","address":"deep.www.example.com","blocked":true},
+  {"rule":"example.com","address":"notexample.com","blocked":false},
+  {"rule":"example.com","address":"example.com.other.test","blocked":false},
+  {"rule":"www.example.com","address":"example.com","blocked":false},
+  {"rule":"www.example.com","address":"deep.www.example.com","blocked":true},
+  {"rule":"bücher.example","address":"xn--bcher-kva.example","blocked":true},
+  {"rule":"xn--bcher-kva.example","address":"https://BÜCHER.example/","blocked":true},
+  {"rule":"example.com","address":"https://user@example.com","blocked":true},
+  {"rule":"example.com","address":"https://example.com:443/path?query=1","blocked":true},
+  {"rule":"example.com","address":"ftp://example.com","blocked":false},
+  {"rule":"example.com","address":"not a hostname","blocked":false},
+  {"rule":"example.com","address":"example..com","blocked":false}
+]

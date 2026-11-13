@@ -1,0 +1,57 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Bloom Exercise",
+  "version": "0.1.0",
+  "identifier": "com.focusflow.focusFlowFlutter",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:8081",
+    "beforeDevCommand": "npm run build:macos-filter && npm run web",
+    "beforeBuildCommand": "npm run build:macos-filter && npm run build:web"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Bloom Exercise",
+        "width": 1100,
+        "height": 800,
+        "minWidth": 720,
+        "minHeight": 580,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data: blob:; font-src 'self' asset: http://asset.localhost data:; connect-src 'self' ipc: http://ipc.localhost; object-src 'none'; base-uri 'none'; frame-src 'none'; form-action 'none'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "macOS": {
+      "minimumSystemVersion": "13.0",
+      "hardenedRuntime": true,
+      "entitlements": "macos/build/Host.entitlements",
+      "infoPlist": "macos/build/BloomInfo.plist",
+      "files": {
+        "MacOS/libBloomFilterHost.dylib": "macos/build/libBloomFilterHost.dylib",
+        "MacOS/BloomAppMonitor": "macos/build/BloomAppMonitor",
+        "MacOS/BloomPolicyBroker": "macos/build/BloomPolicyBroker",
+        "Library/LaunchAgents/com.focusflow.focusFlowFlutter.monitor.plist": "macos/build/com.focusflow.focusFlowFlutter.monitor.plist",
+        "Library/LaunchDaemons/com.focusflow.focusFlowFlutter.policy-broker.plist": "macos/build/com.focusflow.focusFlowFlutter.policy-broker.plist",
+        "Library/SystemExtensions/com.focusflow.focusFlowFlutter.filter.systemextension/Contents/Info.plist": "macos/build/com.focusflow.focusFlowFlutter.filter.systemextension/Contents/Info.plist",
+        "Library/SystemExtensions/com.focusflow.focusFlowFlutter.filter.systemextension/Contents/MacOS/BloomFilter": "macos/build/com.focusflow.focusFlowFlutter.filter.systemextension/Contents/MacOS/BloomFilter"
+      }
+    },
+    "android": {
+      "debugApplicationIdSuffix": ".debug"
+    }
+  }
+}

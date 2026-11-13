@@ -45,7 +45,7 @@ ADD COLUMN IF NOT EXISTS timezone TEXT NOT NULL DEFAULT 'UTC';
 
 
 CREATE TABLE IF NOT EXISTS public.point_awards (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT pg_catalog.gen_random_uuid(),
 
     user_id UUID NOT NULL
         REFERENCES public.profiles(id)
@@ -77,7 +77,7 @@ CREATE TABLE IF NOT EXISTS public.point_awards (
 );
 
 CREATE TABLE IF NOT EXISTS public.achievement_definitions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT pg_catalog.gen_random_uuid(),
 
     code TEXT UNIQUE NOT NULL,
 
@@ -106,7 +106,7 @@ CREATE TABLE IF NOT EXISTS public.achievement_definitions (
 
 
 CREATE TABLE IF NOT EXISTS public.user_achievements (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT pg_catalog.gen_random_uuid(),
 
     user_id UUID NOT NULL
         REFERENCES public.profiles(id)

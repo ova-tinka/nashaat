@@ -1,0 +1,3 @@
+<resources>
+    <string name="bloom_blocking_accessibility_description">Bloom checks which app is open and reads supported browsers’ address fields on this device to block your selected apps and websites. If a recognized browser address cannot be read, Bloom blocks the whole browser while website blocking is active. Bloom does not send website addresses to Bloom servers.</string>
+</resources>
