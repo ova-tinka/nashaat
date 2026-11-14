@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import type { CreditSettings, WorkoutAnalytics, WorkoutPlan } from './bloom';
+import { canonicalWebsiteDomain, MAX_IOS_ALWAYS_WEBSITE_DOMAINS } from './website-domain';
 
 export type FamilyMember = { user_id: string; role: 'parent' | 'child'; display_name: string };
 export type ManagedChildProfile = { profile_id: string; household_id: string; display_name: string };
@@ -74,6 +75,8 @@ export async function leaveOrRemoveChild(familyId: string, childId: string) {
 }
 
 export type ChildRule = { id: string; platform: 'ios' | 'android' | 'macos'; target_type: 'app' | 'website'; target_identifier: string };
+export type WebsiteRuleScope = 'always' | 'focus';
+export type WebsiteRule = { id: string; user_id: string; domain: string; scope: WebsiteRuleScope; created_by: string };
 
 export async function loadUserBlockingRules(userId: string, platform: ChildRule['platform']): Promise<ChildRule[]> {
   const { data, error } = await client().from('bloom_blocking_rules')
@@ -83,19 +86,28 @@ export async function loadUserBlockingRules(userId: string, platform: ChildRule[
   return (data ?? []) as ChildRule[];
 }
 
+export async function loadWebsiteRules(userId: string): Promise<WebsiteRule[]> {
+  const { data, error } = await client().from('bloom_website_rules')
+    .select('id,user_id,domain,scope,created_by')
+    .eq('user_id', userId).order('scope').order('created_at');
+  if (error) throw error;
+  return (data ?? []) as WebsiteRule[];
+}
+
 export async function loadChild(childId: string) {
   const db = client();
-  const [settings, balance, plans, rules, workoutAnalytics, planProgress] = await Promise.all([
+  const [settings, balance, plans, rules, websiteRules, workoutAnalytics, planProgress] = await Promise.all([
     db.from('bloom_settings').select('credits_enabled,credit_mode,credit_timezone,earning_strategy,reps_per_award,rep_award_minutes,exercise_minutes_per_award,time_award_minutes,super_daily_cap_minutes,weekly_workout_target,weekly_credit_target_minutes').eq('user_id', childId).maybeSingle(),
     db.rpc('bloom_parent_child_balance', { p_child_id: childId }),
     db.from('bloom_workout_plans').select('id,title,created_at,scheduled_days,bloom_plan_exercises(position,sets,target_reps,target_seconds,target_weight_kg,target_distance_km,exercise:exercises(id,name,measurement_type,description,instructions,media_link))').eq('user_id', childId).order('created_at', { ascending: false }),
     db.from('bloom_blocking_rules').select('id,platform,target_type,target_identifier').eq('user_id', childId).order('created_at'),
+    db.from('bloom_website_rules').select('id,user_id,domain,scope,created_by').eq('user_id', childId).order('scope').order('created_at'),
     db.rpc('bloom_workout_analytics', { p_user_id: childId }),
     db.rpc('bloom_weekly_plan_progress', { p_user_id: childId }),
   ]);
-  for (const result of [settings, balance, plans, rules, workoutAnalytics, planProgress]) if (result.error) throw result.error;
+  for (const result of [settings, balance, plans, rules, websiteRules, workoutAnalytics, planProgress]) if (result.error) throw result.error;
   if (!settings.data) throw new Error('The child needs to open Bloom before settings can be managed.');
-  return { settings: settings.data as CreditSettings, balance: Number(balance.data ?? 0), plans: (plans.data ?? []) as unknown as WorkoutPlan[], rules: (rules.data ?? []) as ChildRule[], workoutAnalytics: { ...(workoutAnalytics.data as WorkoutAnalytics), ...(planProgress.data as Pick<WorkoutAnalytics, 'planned_workouts' | 'completed_planned_workouts' | 'scheduled_days' | 'rest_days' | 'missed_planned_workouts'>) } };
+  return { settings: settings.data as CreditSettings, balance: Number(balance.data ?? 0), plans: (plans.data ?? []) as unknown as WorkoutPlan[], rules: (rules.data ?? []) as ChildRule[], websiteRules: (websiteRules.data ?? []) as WebsiteRule[], workoutAnalytics: { ...(workoutAnalytics.data as WorkoutAnalytics), ...(planProgress.data as Pick<WorkoutAnalytics, 'planned_workouts' | 'completed_planned_workouts' | 'scheduled_days' | 'rest_days' | 'missed_planned_workouts'>) } };
 }
 
 export async function adjustChildCredit(childId: string, requestId: string, minutes: number, reason: string) {
@@ -104,7 +116,9 @@ export async function adjustChildCredit(childId: string, requestId: string, minu
 }
 
 export async function addChildRule(childId: string, platform: ChildRule['platform'], type: ChildRule['target_type'], identifier: string) {
-  const { error } = await client().from('bloom_blocking_rules').insert({ user_id: childId, platform, target_type: type, target_identifier: identifier.trim() });
+  const target_identifier = type === 'website' ? canonicalWebsiteDomain(identifier) : identifier.trim();
+  if (!target_identifier) throw new Error(type === 'website' ? 'Enter a valid website URL or domain.' : 'Enter an app identifier.');
+  const { error } = await client().from('bloom_blocking_rules').insert({ user_id: childId, platform, target_type: type, target_identifier });
   if (error) throw error;
 }
 
@@ -112,4 +126,25 @@ export async function deleteChildRule(childId: string, id: string) {
   const { data, error } = await client().from('bloom_blocking_rules').delete().eq('user_id', childId).eq('id', id).select('id').maybeSingle();
   if (error) throw error;
   if (!data) throw new Error('Rule was not found.');
+}
+
+export async function addWebsiteRule(userId: string, scope: WebsiteRuleScope, value: string) {
+  const domain = canonicalWebsiteDomain(value);
+  if (!domain) throw new Error('Enter a valid website URL or domain.');
+  if (scope === 'always') {
+    const current = await loadWebsiteRules(userId);
+    const domains = new Set(current.filter((rule) => rule.scope === 'always').map((rule) => rule.domain));
+    if (!domains.has(domain) && domains.size >= MAX_IOS_ALWAYS_WEBSITE_DOMAINS) {
+      throw new Error(`iOS allows up to ${MAX_IOS_ALWAYS_WEBSITE_DOMAINS} always-blocked domains.`);
+    }
+  }
+  const { error } = await client().from('bloom_website_rules').insert({ user_id: userId, scope, domain });
+  if (error) throw error;
+}
+
+export async function deleteWebsiteRule(userId: string, id: string) {
+  const { data, error } = await client().from('bloom_website_rules').delete()
+    .eq('user_id', userId).eq('id', id).select('id').maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error('This website rule is managed by a parent or was removed already.');
 }

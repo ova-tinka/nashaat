@@ -8,6 +8,7 @@
     "scheme": "bloomexercise",
     "userInterfaceStyle": "dark",
     "ios": {
+      "appleTeamId": "SSYR69RTPK",
       "bundleIdentifier": "com.focusflow.focusFlowFlutter",
       "icon": "./assets/expo.icon"
     },

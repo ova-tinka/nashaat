@@ -72,6 +72,12 @@ class BloomBlockingModule : Module() {
       context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).getBoolean(WEBSITE_CONSENT, false)
     }
 
+    Function("getSafariContentBlockerState") { mapOf("supported" to false, "enabled" to false) }
+
+    AsyncFunction("setSafariWebsiteRules") { _alwaysDomains: List<String>, _focusDomains: List<String>, _accountId: String ->
+      mapOf("alwaysApplied" to false, "authorizationRequired" to false, "alwaysDomainCount" to 0)
+    }
+
     AsyncFunction("setWebsiteConsent") { enabled: Boolean ->
       val context = appContext.reactContext ?: throw IllegalStateException("Bloom is not available.")
       checkNoActiveAccess(context)

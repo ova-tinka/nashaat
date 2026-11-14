@@ -5,7 +5,7 @@ import { ActivityIndicator, View } from 'react-native';
 import { Body, Button, ErrorText, Eyebrow, Field, Heading, Label, Panel, Screen, sharedStyles } from '../../components/bloom-ui';
 import { CreditRulesEditor } from '../../components/credit-rules-editor';
 import { deletePlan, formatScheduledDays, updateCredits, updateCreditRules } from '../../lib/bloom';
-import { addChildRule, adjustChildCredit, deleteChildRule, loadChild, type ChildRule } from '../../lib/family';
+import { addChildRule, addWebsiteRule, adjustChildCredit, deleteChildRule, deleteWebsiteRule, loadChild, type ChildRule, type WebsiteRuleScope } from '../../lib/family';
 import { colors } from '../../theme';
 
 export default function FamilyChildScreen() {
@@ -20,6 +20,8 @@ export default function FamilyChildScreen() {
   const [platform, setPlatform] = useState<ChildRule['platform']>('android');
   const [kind, setKind] = useState<ChildRule['target_type']>('website');
   const [identifier, setIdentifier] = useState('');
+  const [website, setWebsite] = useState('');
+  const [websiteScope, setWebsiteScope] = useState<WebsiteRuleScope>('focus');
 
   const load = useCallback(async () => {
     try { setChild(await loadChild(childId)); setError(null); }
@@ -31,7 +33,10 @@ export default function FamilyChildScreen() {
   async function run(action: () => Promise<void>) {
     setBusy(true); setError(null);
     try { await action(); await load(); }
-    catch { setError('Could not save this change. Check the values and family connection, then try again.'); }
+    catch (cause) {
+      if (cause instanceof Error && cause.message === 'iOS allows up to 50 always-blocked domains.') setError(cause.message);
+      else setError('Could not save this change. Check the values and family connection, then try again.');
+    }
     finally { setBusy(false); }
   }
   async function adjust() {
@@ -73,13 +78,23 @@ export default function FamilyChildScreen() {
         {child.plans.map((plan) => <View key={plan.id} style={sharedStyles.column}><Body>{plan.title} · {plan.bloom_plan_exercises.length} exercises</Body><Body>{formatScheduledDays(plan.scheduled_days)}</Body><Button label={`Edit ${plan.title}`} secondary onPress={() => router.push({ pathname: '/new-plan', params: { childId, planId: plan.id } } as Href)} /><Button label={`Delete ${plan.title}`} secondary busy={busy} onPress={() => void run(() => deletePlan(plan.id))} /></View>)}
         <Button label="Create workout for this child" onPress={() => router.push({ pathname: '/new-plan', params: { childId } } as Href)} />
       </Panel>
-      <Panel><Label>Blocking rules</Label><Body>Android and macOS sync parent-set rules when Focus opens. iOS targets must be selected on the child’s device in Apple’s Screen Time picker.</Body>
+      <Panel><Eyebrow>iPhone website rules</Eyebrow><Body>Always rules use iOS web-content filtering on the child’s iPhone, need Screen Time access there, and support up to 50 domains. Focus-only rules use Bloom’s Safari extension while Focus is on. Safari Private Browsing may be disabled while the iOS filter is active; other browser coverage should be checked on the device. The child can add their own rules but can’t remove parent-managed ones.</Body>
+        {child.websiteRules.map((rule) => <View key={rule.id} style={sharedStyles.row}>
+          <View style={sharedStyles.grow}><Body>{rule.domain} · {rule.scope === 'always' ? 'Always' : 'During Focus'}</Body><Body>{rule.created_by === childId ? 'Added by child' : 'Parent-managed'}</Body></View>
+          <Button label="Remove" secondary busy={busy} onPress={() => void run(() => deleteWebsiteRule(childId, rule.id))} />
+        </View>)}
+        <Body>Rule applies to</Body>{(['always', 'focus'] as const).map((choice) => <Button key={choice} secondary label={`${websiteScope === choice ? '✓ ' : ''}${choice === 'always' ? 'Always' : 'During Focus'}`} onPress={() => setWebsiteScope(choice)} />)}
+        <Field label="Website or URL" value={website} onChangeText={setWebsite} autoCapitalize="none" autoCorrect={false} keyboardType="url" placeholder="example.com" />
+        <Button label={websiteScope === 'always' ? 'Add always-blocked domain' : 'Add Safari Focus domain'} busy={busy} disabled={!website.trim()} onPress={() => void run(async () => { await addWebsiteRule(childId, websiteScope, website); setWebsite(''); })} />
+      </Panel>
+      <Panel><Label>App blocking rules</Label><Body>Android and macOS sync parent-set app rules when Focus opens. On iPhone, apps remain selected on the child’s device in Apple’s Screen Time picker. Website rules for Safari are managed above.</Body>
         {child.rules.map((rule) => <View key={rule.id} style={sharedStyles.column}><Body>{rule.platform} · {rule.target_type} · {rule.target_identifier}</Body><Button label="Remove rule" secondary busy={busy} onPress={() => void run(() => deleteChildRule(childId, rule.id))} /></View>)}
         <Body>Platform</Body>{(['android', 'ios', 'macos'] as const).map((choice) => <Button key={choice} secondary label={`${platform === choice ? '✓ ' : ''}${choice}`} onPress={() => setPlatform(choice)} />)}
         <Body>Type</Body>{(['app', 'website'] as const).map((choice) => <Button key={choice} secondary label={`${kind === choice ? '✓ ' : ''}${choice}`} onPress={() => setKind(choice)} />)}
         <Field label={kind === 'website' ? 'Website domain' : 'App identifier'} value={identifier} onChangeText={setIdentifier} autoCapitalize="none" autoCorrect={false} maxLength={500} />
-        {platform === 'ios' && <Body>Apple requires app and website selections on the child’s device. It hides those selections behind local tokens, so Bloom cannot enforce an account rule by package name or domain on iOS. Choose the target in Apple’s Screen Time picker on that device.</Body>}
-        <Button label="Save rule" busy={busy} disabled={!identifier.trim() || platform === 'ios'} onPress={() => void run(async () => { await addChildRule(childId, platform, kind, identifier); setIdentifier(''); })} />
+        {platform === 'ios' && kind === 'app' && <Body>Apple hides app selections behind local tokens, so Bloom cannot enforce an account app rule by package name on iOS. Choose the app in Apple’s Screen Time picker on that device.</Body>}
+        {platform === 'ios' && kind === 'website' && <Body>Safari website rules are managed in the section above. This older Focus rule stays available for existing synced settings.</Body>}
+        <Button label="Save rule" busy={busy} disabled={!identifier.trim() || (platform === 'ios' && kind === 'app')} onPress={() => void run(async () => { await addChildRule(childId, platform, kind, identifier); setIdentifier(''); })} />
       </Panel>
     </>}
   </Screen>;

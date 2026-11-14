@@ -1,5 +1,5 @@
 import { NativeModule, requireNativeModule } from 'expo';
-import type { AppCandidate, BlockingStatus, ManagedTargets, UsageAccess } from './BloomBlocking.types';
+import type { AppCandidate, BlockingStatus, ManagedTargets, SafariContentBlockerState, UsageAccess, WebsiteRuleSyncStatus } from './BloomBlocking.types';
 
 declare class BloomBlockingNativeModule extends NativeModule {
   getStatus(): BlockingStatus;
@@ -10,11 +10,13 @@ declare class BloomBlockingNativeModule extends NativeModule {
   getManagedTargets(): ManagedTargets;
   getWebsites(): string[];
   getWebsiteConsent(): boolean;
+  getSafariContentBlockerState(): Promise<SafariContentBlockerState>;
   requestAccessibilityPermission(): Promise<boolean>;
   saveApps(packageIds: string[]): Promise<void>;
   saveWebsites(addresses: string[]): Promise<void>;
   setManagedTargets(packageIds: string[], addresses: string[], accountId: string): Promise<void>;
   setWebsiteConsent(enabled: boolean): Promise<void>;
+  setSafariWebsiteRules(alwaysDomains: string[], focusDomains: string[], accountId: string): Promise<WebsiteRuleSyncStatus>;
   startBlocking(): Promise<void>;
   stopBlocking(): Promise<void>;
   getCreditClock(): { elapsedMillis: number; boot: number };

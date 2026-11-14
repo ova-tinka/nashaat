@@ -12,7 +12,8 @@ import { useAuth } from '../../../lib/auth';
 import { findUsageSession, finishUsageSession, startEnforcedCreditSession, startUsageSession } from '../../../lib/bloom';
 import { isMacDesktop } from '../../../lib/macos-blocking';
 import { MacosFocus } from '../../../components/macos-focus';
-import type { ChildRule } from '../../../lib/family';
+import { addWebsiteRule, deleteWebsiteRule, loadWebsiteRules, type ChildRule, type WebsiteRule, type WebsiteRuleScope } from '../../../lib/family';
+import { syncBlockingRules } from '../../../lib/blocking-rules-sync';
 
 const emptyStatus: BlockingStatus = { supported: false, authorized: false, active: false, appCount: 0, websiteCount: 0, categoryCount: 0 };
 type UsageRequest = { requestId: string; deviceKey: string; requestedMillis: number };
@@ -20,13 +21,16 @@ type UsageRequest = { requestId: string; deviceKey: string; requestedMillis: num
 export default function FocusScreen() {
   const { profileId } = useAuth();
   const userId = profileId;
-  const { creditsEnabled, creditSettings, creditBalance, refresh, blockingRules, blockingRulesSyncError, blockingRulesSyncedAt } = useBloom();
+  const { creditsEnabled, creditSettings, creditBalance, refresh, blockingRules, blockingRulesSyncError, blockingRulesSyncStatus, blockingRulesSyncedAt } = useBloom();
   const [status, setStatus] = useState(emptyStatus);
   const [apps, setApps] = useState<AppCandidate[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [websites, setWebsites] = useState<string[]>([]);
   const [websiteConsent, setWebsiteConsent] = useState(false);
   const [websiteInput, setWebsiteInput] = useState('');
+  const [websiteRuleScope, setWebsiteRuleScope] = useState<WebsiteRuleScope>('focus');
+  const [websiteRules, setWebsiteRules] = useState<WebsiteRule[]>([]);
+  const [safariBlocker, setSafariBlocker] = useState({ supported: false, enabled: false });
   const [managedRulesState, setManagedRulesState] = useState<{ userId: string; rules: ChildRule[] } | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -52,6 +56,17 @@ export default function FocusScreen() {
     try {
       const nextStatus = await BloomBlocking.getStatus();
       setStatus(nextStatus);
+      if (Platform.OS === 'ios' && userId) {
+        const [savedWebsiteRules, blockerState] = await Promise.all([
+          loadWebsiteRules(userId),
+          BloomBlocking.getSafariContentBlockerState(),
+        ]);
+        setWebsiteRules(savedWebsiteRules);
+        setSafariBlocker(blockerState);
+      } else if (Platform.OS === 'ios') {
+        setWebsiteRules([]);
+        setSafariBlocker(await BloomBlocking.getSafariContentBlockerState());
+      }
       setRemaining(BloomBlocking.getCreditAccessRemaining());
       if (Platform.OS === 'android' || Platform.OS === 'ios') {
         setUsage(BloomBlocking.getUsageAccess());
@@ -232,6 +247,46 @@ export default function FocusScreen() {
     } finally { setBusy(false); }
   }
 
+  async function saveSafariWebsiteRule() {
+    if (!userId) { setError('Sign in to save website rules.'); return; }
+    setBusy(true); setError(null);
+    try {
+      if (websiteRuleScope === 'always' && !status.authorized) {
+        const authorized = await BloomBlocking.requestAuthorization();
+        if (!authorized) {
+          setError('Allow Screen Time access to apply always-blocked websites on this iPhone.');
+          return;
+        }
+        setStatus(await BloomBlocking.getStatus());
+      }
+      await addWebsiteRule(userId, websiteRuleScope, websiteInput);
+      const nextRules = await loadWebsiteRules(userId);
+      setWebsiteRules(nextRules);
+      const synced = await syncBlockingRules(userId, 'ios');
+      if (!synced) throw new Error('Could not apply the latest website rules to this iPhone.');
+      if (synced.nativeStatus === 'websiteRulesAuthorizationRequired') {
+        setError('The website rule was saved, but Screen Time access is needed to apply the Always filter on this iPhone.');
+      }
+      setSafariBlocker(await BloomBlocking.getSafariContentBlockerState());
+      setWebsiteInput('');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not save this website rule.');
+    } finally { setBusy(false); }
+  }
+
+  async function removeSafariWebsiteRule(rule: WebsiteRule) {
+    if (!userId) return;
+    setBusy(true); setError(null);
+    try {
+      await deleteWebsiteRule(userId, rule.id);
+      setWebsiteRules(await loadWebsiteRules(userId));
+      const synced = await syncBlockingRules(userId, 'ios');
+      if (!synced) throw new Error('Could not apply the updated website rules to this iPhone.');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not remove this website rule.');
+    } finally { setBusy(false); }
+  }
+
   async function changeWebsiteConsent(enabled: boolean) {
     setBusy(true); setError(null);
     try {
@@ -249,17 +304,27 @@ export default function FocusScreen() {
       if (status.active) {
         await BloomBlocking.stopBlocking();
       } else if (Platform.OS === 'ios') {
-        if (!status.authorized) {
+        let current = await BloomBlocking.getStatus();
+        const hasAppleTargets = current.appCount + current.websiteCount + current.categoryCount > 0;
+        const hasFocusWebsites = websiteRules.some((rule) => rule.scope === 'focus')
+          || managedRules.some((rule) => rule.platform === 'ios' && rule.target_type === 'website');
+        const safariFocusReady = hasFocusWebsites && safariBlocker.enabled;
+        if (!current.authorized && (hasAppleTargets || !safariFocusReady)) {
           const authorized = await BloomBlocking.requestAuthorization();
           if (!authorized) { setError('Screen Time access is required to start blocking.'); return; }
+          current = await BloomBlocking.getStatus();
         }
-        let current = await BloomBlocking.getStatus();
-        if (current.appCount + current.websiteCount + current.categoryCount === 0) {
+        if (current.appCount + current.websiteCount + current.categoryCount === 0 && !hasFocusWebsites && current.authorized) {
           const selection = await BloomBlocking.presentPicker();
           if (selection.cancelled) return;
           current = await BloomBlocking.getStatus();
         }
-        if (current.appCount + current.websiteCount + current.categoryCount === 0) { setError('Choose at least one app, website, or category before starting a focus session.'); return; }
+        const hasTargets = current.appCount + current.websiteCount + current.categoryCount > 0;
+        if (!hasTargets && !safariFocusReady) {
+          setError(hasFocusWebsites ? 'Enable Bloom under Settings → Safari → Extensions before starting Safari website blocking.' : 'Choose an app or add a Focus website before starting a focus session.');
+          return;
+        }
+        if (hasTargets && !current.authorized) { setError('Allow Screen Time access to block the selected apps.'); return; }
         await BloomBlocking.startBlocking();
       } else if (Platform.OS === 'android') {
         if (!status.authorized) {
@@ -298,7 +363,7 @@ export default function FocusScreen() {
         <Eyebrow>Parent-set blocking rules</Eyebrow>
         <Label>{managedRules.length} rules for this device</Label>
         {blockingRulesSyncedAt && !blockingRulesSyncError && <Body>Last refreshed {new Date(blockingRulesSyncedAt).toLocaleTimeString()}.</Body>}
-        {Platform.OS === 'ios' ? <Body>Apple requires app and website targets to be selected on this device. Account rules use names that Apple does not expose to Bloom, so they cannot be applied automatically. Select the required targets in Apple’s picker below.</Body> : <>
+        {Platform.OS === 'ios' ? <Body>Parent-set app targets still need to be selected on this iPhone. Parent-set website rules are added to Safari’s Focus block list below.</Body> : <>
           {managedRules.map((rule) => <Body key={rule.id}>{rule.target_type === 'app' ? 'App' : 'Website'} · {rule.target_identifier}</Body>)}
           {managedRules.some((rule) => rule.target_type === 'website') && !websiteConsent && <Body>Enable website checks below before starting these parent-set website rules.</Body>}
         </>}
@@ -307,11 +372,12 @@ export default function FocusScreen() {
         <Eyebrow>{Platform.OS === 'ios' ? 'iPhone and iPad' : 'Android device'}</Eyebrow>
         <Label>{loading ? 'Checking device access…' : status.active ? Platform.OS === 'android' && status.serviceConnected === false ? 'Blocking service needs attention' : 'Focus blocking is on' : 'Focus blocking is off'}</Label>
         <Body>{Platform.OS === 'ios'
-          ? 'Apple’s Screen Time controls block selected apps and web domains on this device.'
+          ? 'Apple’s Screen Time controls block selected apps. Typed website rules are managed separately for Safari below.'
           : 'Bloom blocks selected apps and checks website addresses in supported browsers while focus blocking is on.'}</Body>
-        {Platform.OS === 'ios' && !status.authorized && <Body>Screen Time access is not enabled yet. Allow it on this iPhone or iPad, then select the apps and websites on this device.</Body>}
-        {Platform.OS === 'ios' && status.authorized && status.appCount + status.websiteCount + status.categoryCount === 0 && <Body>Screen Time is authorized, but no targets are selected. Choose them on this device to finish setup.</Body>}
-        {Platform.OS === 'ios' && <Button label="Choose apps and websites" secondary onPress={() => void chooseTargets()} busy={busy} disabled={loading} />}
+        {Platform.OS === 'ios' && !status.authorized && <Body>Screen Time access is not enabled yet. Allow it on this iPhone or iPad to block selected apps and categories.</Body>}
+        {Platform.OS === 'ios' && status.authorized && status.appCount + status.websiteCount + status.categoryCount === 0 && !websiteRules.some((rule) => rule.scope === 'focus') && !managedRules.some((rule) => rule.platform === 'ios' && rule.target_type === 'website') && <Body>Screen Time is authorized, but no app targets are selected. Choose them on this device or add a Focus website below.</Body>}
+        {Platform.OS === 'ios' && <Body>Type website domains in Bloom below. The Apple picker remains available for app and category blocking.</Body>}
+        {Platform.OS === 'ios' && <Button label="Choose apps and categories" secondary onPress={() => void chooseTargets()} busy={busy} disabled={loading} />}
         {Platform.OS === 'ios' && status.appCount + status.websiteCount + status.categoryCount > 0 && <Body>{status.appCount} apps · {status.websiteCount} websites · {status.categoryCount} categories selected</Body>}
         {Platform.OS === 'android' && !status.authorized && <>
           <Body>Android grants Bloom access to screen content. Bloom checks the open app and, only if you enable website checks below, the address field in supported browsers. Website addresses are checked on this device.</Body>
@@ -323,6 +389,38 @@ export default function FocusScreen() {
         </>}
         <Button label={status.active && Platform.OS === 'android' && managedRules.length > 0 ? 'Parent rules stay on' : status.active ? 'Stop blocking' : 'Start focus blocking'} onPress={() => void toggleBlocking()} busy={busy} disabled={loading || (Platform.OS === 'android' && !status.authorized) || (Platform.OS === 'android' && status.active && managedRules.length > 0)} />
       </Panel>
+
+      {Platform.OS === 'ios' && <Panel>
+        <Eyebrow>iPhone website blocking</Eyebrow>
+        <Body>Enter a domain or paste a URL. Always rules use iOS web-content filtering and need Screen Time access (up to 50 domains). Focus-only rules use Bloom’s Safari extension while Focus is on. Safari Private Browsing may be disabled while the iOS web filter is active; check other browsers on the device because their coverage can vary.</Body>
+        {!safariBlocker.supported
+          ? <Body>The Safari extension isn’t available in this app build. Install a build that includes Bloom’s extension.</Body>
+          : !safariBlocker.enabled && <Body>Enable Bloom in Settings → Safari → Extensions. Focus-only website rules won’t block until the extension is enabled. Always rules use the iOS web filter.</Body>}
+        {blockingRulesSyncStatus === 'websiteRulesAuthorizationRequired' && websiteRules.some((rule) => rule.scope === 'always') && <Body>Always website rules are saved, but Screen Time access is needed to apply them on this iPhone.</Body>}
+
+        <Label>Always blocked by iOS</Label>
+        {websiteRules.filter((rule) => rule.scope === 'always').map((rule) => <View key={rule.id} style={sharedStyles.row}>
+          <View style={sharedStyles.grow}><Body>{rule.domain}</Body>{rule.created_by !== userId && <Body>Parent-managed</Body>}</View>
+          <Button label="Remove" secondary disabled={busy || rule.created_by !== userId} onPress={() => void removeSafariWebsiteRule(rule)} />
+        </View>)}
+        {websiteRules.filter((rule) => rule.scope === 'always').length === 0 && <Body>No always-blocked websites yet.</Body>}
+
+        <Label>Blocked in Safari while Focus is on</Label>
+        {websiteRules.filter((rule) => rule.scope === 'focus').map((rule) => <View key={rule.id} style={sharedStyles.row}>
+          <View style={sharedStyles.grow}><Body>{rule.domain}</Body>{rule.created_by !== userId && <Body>Parent-managed</Body>}</View>
+          <Button label="Remove" secondary disabled={busy || rule.created_by !== userId} onPress={() => void removeSafariWebsiteRule(rule)} />
+        </View>)}
+        {managedRules.filter((rule) => rule.platform === 'ios' && rule.target_type === 'website').map((rule) => <Body key={`parent-${rule.id}`}>{rule.target_identifier} · Parent rule</Body>)}
+        {websiteRules.every((rule) => rule.scope !== 'focus') && !managedRules.some((rule) => rule.platform === 'ios' && rule.target_type === 'website') && <Body>No Focus-only websites yet.</Body>}
+
+        <Field label="Website or URL" value={websiteInput} onChangeText={setWebsiteInput} autoCapitalize="none" autoCorrect={false} keyboardType="url" placeholder="example.com or https://example.com/page" />
+        <View style={sharedStyles.row}>
+          <Button label={websiteRuleScope === 'always' ? '✓ Always block' : 'Always block'} secondary onPress={() => setWebsiteRuleScope('always')} />
+          <Button label={websiteRuleScope === 'focus' ? '✓ During Focus' : 'During Focus'} secondary onPress={() => setWebsiteRuleScope('focus')} />
+        </View>
+        <Button label={websiteRuleScope === 'always' ? 'Add always-blocked domain' : 'Add Safari Focus domain'} onPress={() => void saveSafariWebsiteRule()} busy={busy} disabled={loading || !websiteInput.trim()} />
+        {safariBlocker.supported && <Button label="Recheck Safari extension" secondary onPress={() => void BloomBlocking.getSafariContentBlockerState().then(setSafariBlocker).catch(() => setError('Could not check the Safari extension state.'))} busy={busy} />}
+      </Panel>}
 
       {(Platform.OS === 'android' || Platform.OS === 'ios') && creditsEnabled && creditSettings && <Panel>
         <Eyebrow>Earned screen time</Eyebrow>

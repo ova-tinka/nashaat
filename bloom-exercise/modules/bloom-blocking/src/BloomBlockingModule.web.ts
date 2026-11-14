@@ -9,11 +9,13 @@ class BloomBlockingWebModule extends NativeModule {
   getManagedTargets() { return { apps: [], websites: [], accountId: null }; }
   getWebsites() { return []; }
   getWebsiteConsent() { return false; }
+  async getSafariContentBlockerState() { return { supported: false, enabled: false }; }
   async requestAccessibilityPermission() { return false; }
   async saveApps(_packageIds: string[]) {}
   async saveWebsites(_addresses: string[]) {}
   async setManagedTargets(_packageIds: string[], _addresses: string[], _accountId: string) {}
   async setWebsiteConsent(_enabled: boolean) {}
+  async setSafariWebsiteRules(_alwaysDomains: string[], _focusDomains: string[], _accountId: string) { return { alwaysApplied: false, authorizationRequired: false, alwaysDomainCount: 0 }; }
   async startBlocking() { throw new Error('Blocking is unavailable in a web browser.'); }
   async stopBlocking() {}
   getCreditClock() { return { elapsedMillis: 0, boot: -1 }; }

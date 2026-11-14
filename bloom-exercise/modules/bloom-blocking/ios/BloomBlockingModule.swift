@@ -1,6 +1,10 @@
 import ExpoModulesCore
 import UIKit
 
+#if os(iOS) && canImport(SafariServices)
+import SafariServices
+#endif
+
 #if canImport(FamilyControls) && canImport(ManagedSettings)
 import DeviceActivity
 import FamilyControls
@@ -18,16 +22,42 @@ public class BloomBlockingModule: Module {
       BloomBlockingStore.reconcileCountdown()
       let selection = BloomBlockingStore.loadSelection()
       let authorized = BloomBlockingStore.authorized()
+      let active = BloomBlockingStore.defaults?.bool(forKey: BloomBlockingStore.activeKey) == true
       return [
         "supported": true,
         "authorized": authorized,
-        "active": authorized && BloomBlockingStore.defaults?.bool(forKey: BloomBlockingStore.activeKey) == true,
+        "active": (authorized && active) || BloomSafariBlocker.focusIsActive,
         "appCount": selection?.applicationTokens.count ?? 0,
         "websiteCount": selection?.webDomainTokens.count ?? 0,
         "categoryCount": selection?.categoryTokens.count ?? 0,
       ] as [String: Any]
       #else
       return ["supported": false, "authorized": false, "active": false, "appCount": 0, "websiteCount": 0, "categoryCount": 0] as [String: Any]
+      #endif
+    }
+
+    AsyncFunction("getSafariContentBlockerState") { () async -> [String: Bool] in
+      #if os(iOS) && canImport(SafariServices)
+      return await BloomSafariBlocker.state()
+      #else
+      return ["supported": false, "enabled": false]
+      #endif
+    }
+
+    AsyncFunction("setSafariWebsiteRules") { (alwaysDomains: [String], focusDomains: [String], accountId: String) async throws -> [String: Any] in
+      #if os(iOS) && canImport(SafariServices)
+      let normalizedAlways = try BloomSafariBlocker.canonicalDomains(alwaysDomains)
+      let normalizedFocus = try BloomSafariBlocker.canonicalDomains(focusDomains)
+      try BloomSafariBlocker.save(alwaysDomains: normalizedAlways, focusDomains: normalizedFocus, accountId: accountId)
+      let websiteStatus = BloomManagedWebsiteFilter.synchronize(alwaysDomains: normalizedAlways)
+      await BloomSafariBlocker.reloadIgnoringErrors()
+      return [
+        "alwaysApplied": websiteStatus.alwaysApplied,
+        "authorizationRequired": websiteStatus.authorizationRequired,
+        "alwaysDomainCount": normalizedAlways.count,
+      ]
+      #else
+      throw BlockingControlError.unavailable
       #endif
     }
 
@@ -94,19 +124,24 @@ public class BloomBlockingModule: Module {
       #endif
     }
 
-    AsyncFunction("startBlocking") { () throws -> Void in
+    AsyncFunction("startBlocking") { () async throws -> Void in
       #if canImport(FamilyControls) && canImport(ManagedSettings)
-      guard BloomBlockingStore.authorized() else {
-        throw BlockingControlError.authorizationRequired
-      }
       guard BloomBlockingStore.countdownRemaining() <= 0 else { throw BlockingControlError.sessionActive }
       guard try !BloomBlockingStore.usageExists() else { throw BlockingControlError.usageNeedsSync }
       guard BloomBlockingStore.defaults != nil else { throw BlockingControlError.appGroupUnavailable }
-      guard let selection = BloomBlockingStore.loadSelection(), BloomBlockingStore.hasTargets(selection) else {
+      let selection = BloomBlockingStore.loadSelection() ?? FamilyActivitySelection()
+      let hasAppleTargets = BloomBlockingStore.hasTargets(selection)
+      guard BloomBlockingStore.authorized() || BloomSafariBlocker.hasFocusDomains else {
+        throw BlockingControlError.authorizationRequired
+      }
+      guard hasAppleTargets || BloomSafariBlocker.hasFocusDomains else {
         throw BlockingControlError.noTargets
       }
-      BloomBlockingStore.apply(selection)
+      if BloomBlockingStore.authorized() && hasAppleTargets { BloomBlockingStore.apply(selection) }
+      else { BloomBlockingStore.clearShields() }
       BloomBlockingStore.defaults?.set(true, forKey: BloomBlockingStore.activeKey)
+      BloomSafariBlocker.setFocusActive(true)
+      await BloomSafariBlocker.reloadIgnoringErrors()
       #else
       throw BlockingControlError.unavailable
       #endif
@@ -155,7 +190,7 @@ public class BloomBlockingModule: Module {
       guard now >= requestElapsed, remaining >= 1000 else { throw BlockingControlError.invalidDuration }
       let startedAt = Date().addingTimeInterval(-elapsedSinceRequest / 1000)
       let expiry = Date().addingTimeInterval(remaining / 1000)
-      try BloomBlockingStore.startUsage(session: session, user: user, budget: Int64(budget),
+      try await BloomBlockingStore.startUsage(session: session, user: user, budget: Int64(budget),
         startedAt: startedAt, expiry: expiry, selection: selection)
       #else
       throw BlockingControlError.unavailable
@@ -180,7 +215,7 @@ public class BloomBlockingModule: Module {
       #endif
     }
 
-    AsyncFunction("startCreditAccess") { (durationMillis: Double, requestElapsedMillis: Double, requestBoot: Int) throws -> Void in
+    AsyncFunction("startCreditAccess") { (durationMillis: Double, requestElapsedMillis: Double, requestBoot: Int) async throws -> Void in
       #if canImport(FamilyControls) && canImport(ManagedSettings)
       guard requestBoot == 1, durationMillis.isFinite, requestElapsedMillis.isFinite,
             durationMillis >= 1000, durationMillis <= 86400000,
@@ -195,24 +230,26 @@ public class BloomBlockingModule: Module {
       guard now >= requestElapsedMillis else { throw BlockingControlError.invalidDuration }
       let remaining = durationMillis - (now - requestElapsedMillis)
       guard remaining >= 3000 else { throw BlockingControlError.invalidDuration }
-      try BloomBlockingStore.startCountdown(seconds: remaining / 1000, selection: selection)
+      try await BloomBlockingStore.startCountdown(seconds: remaining / 1000, selection: selection)
       #else
       throw BlockingControlError.unavailable
       #endif
     }
 
-    AsyncFunction("endCreditAccess") { () -> Void in
+    AsyncFunction("endCreditAccess") { () async -> Void in
       #if canImport(FamilyControls) && canImport(ManagedSettings)
-      BloomBlockingStore.endCountdown()
+      await BloomBlockingStore.endCountdown()
       #endif
     }
 
-    AsyncFunction("stopBlocking") { () throws -> Void in
+    AsyncFunction("stopBlocking") { () async throws -> Void in
       #if canImport(FamilyControls) && canImport(ManagedSettings)
       guard BloomBlockingStore.countdownRemaining() <= 0 else { throw BlockingControlError.sessionActive }
       guard try !BloomBlockingStore.usageExists() else { throw BlockingControlError.usageNeedsSync }
       BloomBlockingStore.clearShields()
       BloomBlockingStore.defaults?.set(false, forKey: BloomBlockingStore.activeKey)
+      BloomSafariBlocker.setFocusActive(false)
+      await BloomSafariBlocker.reloadIgnoringErrors()
       #endif
     }
   }
@@ -234,6 +271,8 @@ private enum BlockingControlError: LocalizedError {
   case usageNeedsSync
   case appGroupUnavailable
   case invalidDuration
+  case invalidWebsite
+  case tooManyWebsiteRules
 
   var errorDescription: String? {
     switch self {
@@ -244,11 +283,133 @@ private enum BlockingControlError: LocalizedError {
     case .usageNeedsSync: return "Finish and sync the screen-time session before changing blocking."
     case .appGroupUnavailable: return "Bloom's Screen Time extension is not configured for this app."
     case .invalidDuration: return "The screen-time session expired or could not be timed."
+    case .invalidWebsite: return "Enter a valid website URL or domain."
+    case .tooManyWebsiteRules: return "iOS allows up to 50 always-blocked domains and 1,000 Safari Focus domains."
     }
   }
 }
 
+#if os(iOS) && canImport(SafariServices)
+private enum BloomSafariBlocker {
+  static let alwaysRulesKey = "bloom_safari_always_domains"
+  static let focusRulesKey = "bloom_safari_focus_domains"
+  static let focusActiveKey = "bloom_safari_focus_active"
+  static let focusSuspendedKey = "bloom_safari_focus_suspended"
+  static let accountKey = "bloom_safari_website_rules_account"
+  static let extensionSuffix = ".SafariContentBlocker"
+
+  static var defaults: UserDefaults? {
+    guard let group = Bundle.main.object(forInfoDictionaryKey: "BloomAppGroup") as? String,
+          FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: group) != nil else { return nil }
+    return UserDefaults(suiteName: group)
+  }
+
+  static var focusIsActive: Bool { defaults?.bool(forKey: focusActiveKey) == true }
+  static var hasFocusDomains: Bool { !(defaults?.stringArray(forKey: focusRulesKey) ?? []).isEmpty }
+
+  static func save(alwaysDomains: [String], focusDomains: [String], accountId: String) throws {
+    guard UUID(uuidString: accountId) != nil, let defaults else { throw BlockingControlError.appGroupUnavailable }
+    let always = try canonicalDomains(alwaysDomains)
+    let focus = try canonicalDomains(focusDomains)
+    guard always.count <= 50, focus.count <= 1000 else { throw BlockingControlError.tooManyWebsiteRules }
+    let previousAccount = defaults.string(forKey: accountKey)
+    if previousAccount == nil {
+      defaults.set(defaults.bool(forKey: "bloom_blocking_active"), forKey: focusActiveKey)
+    } else if previousAccount != accountId {
+      defaults.set(false, forKey: focusActiveKey)
+      defaults.set(false, forKey: focusSuspendedKey)
+    }
+    defaults.set(always, forKey: alwaysRulesKey)
+    defaults.set(focus, forKey: focusRulesKey)
+    defaults.set(accountId, forKey: accountKey)
+    guard defaults.synchronize() else { throw BlockingControlError.appGroupUnavailable }
+  }
+
+  static func setFocusActive(_ active: Bool) {
+    defaults?.set(active, forKey: focusActiveKey)
+  }
+
+  static func setFocusSuspended(_ suspended: Bool) {
+    defaults?.set(suspended, forKey: focusSuspendedKey)
+  }
+
+  static func state() async -> [String: Bool] {
+    guard let identifier = extensionIdentifier else { return ["supported": false, "enabled": false] }
+    return await withCheckedContinuation { (continuation: CheckedContinuation<[String: Bool], Never>) in
+      SFContentBlockerManager.getStateOfContentBlocker(withIdentifier: identifier) { state, error in
+        continuation.resume(returning: ["supported": state != nil && error == nil, "enabled": state?.isEnabled == true])
+      }
+    }
+  }
+
+  static func reloadIgnoringErrors() async {
+    guard let identifier = extensionIdentifier else { return }
+    await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+      SFContentBlockerManager.reloadContentBlocker(withIdentifier: identifier) { _ in continuation.resume() }
+    }
+  }
+
+  private static var extensionIdentifier: String? {
+    Bundle.main.bundleIdentifier.map { $0 + extensionSuffix }
+  }
+
+  static func canonicalDomains(_ values: [String]) throws -> [String] {
+    var result = Set<String>()
+    for value in values {
+      guard let domain = canonicalDomain(value) else { throw BlockingControlError.invalidWebsite }
+      result.insert(domain)
+    }
+    return result.sorted()
+  }
+
+  private static func canonicalDomain(_ value: String) -> String? {
+    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return nil }
+    let urlString = trimmed.range(of: #"^[a-z][a-z0-9+.-]*://"#, options: [.regularExpression, .caseInsensitive]) == nil ? "https://\(trimmed)" : trimmed
+    guard let components = URLComponents(string: urlString),
+          let scheme = components.scheme?.lowercased(), scheme == "http" || scheme == "https",
+          components.user == nil, components.password == nil,
+          let host = components.host?.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: ".")),
+          host.count <= 253 else { return nil }
+    let labels = host.split(separator: ".", omittingEmptySubsequences: false)
+    guard labels.count >= 2 else { return nil }
+    for label in labels {
+      guard label.count <= 63,
+            label.range(of: #"^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$"#, options: .regularExpression) != nil else { return nil }
+    }
+    return host
+  }
+}
+#else
+private enum BloomSafariBlocker {
+  static var focusIsActive: Bool { false }
+  static var hasFocusDomains: Bool { false }
+  static func setFocusActive(_ active: Bool) {}
+  static func setFocusSuspended(_ suspended: Bool) {}
+  static func reloadIgnoringErrors() async {}
+}
+#endif
+
 #if canImport(FamilyControls) && canImport(ManagedSettings)
+@available(iOS 16.0, *)
+private enum BloomManagedWebsiteFilter {
+  private static let storeName = ManagedSettingsStore.Name("bloom.always.website.rules")
+
+  static func synchronize(alwaysDomains: [String]) -> (alwaysApplied: Bool, authorizationRequired: Bool) {
+    guard BloomBlockingStore.authorized() else {
+      return (false, !alwaysDomains.isEmpty)
+    }
+
+    let store = ManagedSettingsStore(named: storeName)
+    if alwaysDomains.isEmpty {
+      store.webContent.blockedByFilter = nil
+    } else {
+      store.webContent.blockedByFilter = .specific(Set(alwaysDomains.map { WebDomain(domain: $0) }))
+    }
+    return (true, false)
+  }
+}
+
 @available(iOS 16.0, *)
 private enum BloomBlockingStore {
   static let selectionKey = "bloom_family_activity_selection"
@@ -273,7 +434,11 @@ private enum BloomBlockingStore {
       if var current = state {
         let wasOpen = !current.closed
         current.refresh(now: Date())
-        if wasOpen && current.closed && defaults?.bool(forKey: activeKey) == true, let selection = loadSelection() { apply(selection) }
+        if wasOpen && current.closed {
+          if defaults?.bool(forKey: activeKey) == true, let selection = loadSelection() { apply(selection) }
+          BloomSafariBlocker.setFocusSuspended(false)
+          Task { await BloomSafariBlocker.reloadIgnoringErrors() }
+        }
         state = current
       }
       return state?.response
@@ -286,15 +451,17 @@ private enum BloomBlockingStore {
       guard current.userId == user else { throw BlockingControlError.sessionActive }
       current.finish(now: Date())
       if defaults?.bool(forKey: activeKey) == true, let selection = loadSelection() { apply(selection) }
+      BloomSafariBlocker.setFocusSuspended(false)
       state = current
       return current
     }
     guard let closed else { return nil }
     DeviceActivityCenter().stopMonitoring([DeviceActivityName("bloom.usage.expiry.\(closed.sessionId)")])
+    await BloomSafariBlocker.reloadIgnoringErrors()
     return closed.response
   }
 
-  static func startUsage(session: String, user: String, budget: Int64, startedAt: Date, expiry: Date, selection: FamilyActivitySelection) throws {
+  static func startUsage(session: String, user: String, budget: Int64, startedAt: Date, expiry: Date, selection: FamilyActivitySelection) async throws {
     guard UUID(uuidString: session) != nil, UUID(uuidString: user) != nil, startedAt <= Date(), expiry > Date() else { throw BlockingControlError.invalidDuration }
     let center = DeviceActivityCenter()
     let expiryMonitor = DeviceActivityName("bloom.usage.expiry.\(session)")
@@ -320,8 +487,10 @@ private enum BloomBlockingStore {
       }
       try file.mutate { state in
         guard let current = state, current.sessionId == session, !current.closed, current.expiry.timeIntervalSinceNow > 1 else { throw BlockingControlError.invalidDuration }
+        BloomSafariBlocker.setFocusSuspended(true)
         clearShields()
       }
+      await BloomSafariBlocker.reloadIgnoringErrors()
     } catch {
       center.stopMonitoring([expiryMonitor])
       try? file.mutate { state in
@@ -330,6 +499,8 @@ private enum BloomBlockingStore {
           state = current
         }
       }
+      BloomSafariBlocker.setFocusSuspended(false)
+      await BloomSafariBlocker.reloadIgnoringErrors()
       apply(selection)
       throw error
     }
@@ -385,10 +556,12 @@ private enum BloomBlockingStore {
   static func reconcileCountdown() {
     guard let defaults = defaults, defaults.object(forKey: countdownEndKey) != nil, countdownRemaining() <= 0 else { return }
     if defaults.bool(forKey: activeKey), let selection = loadSelection() { apply(selection) }
+    BloomSafariBlocker.setFocusSuspended(false)
+    Task { await BloomSafariBlocker.reloadIgnoringErrors() }
     defaults.removeObject(forKey: countdownEndKey)
   }
 
-  static func startCountdown(seconds: Double, selection: FamilyActivitySelection) throws {
+  static func startCountdown(seconds: Double, selection: FamilyActivitySelection) async throws {
     guard let defaults = defaults else { throw BlockingControlError.appGroupUnavailable }
     saveSelection(selection)
     guard defaults.data(forKey: selectionKey) != nil, defaults.synchronize() else { throw BlockingControlError.appGroupUnavailable }
@@ -407,19 +580,25 @@ private enum BloomBlockingStore {
     do {
       try DeviceActivityCenter().startMonitoring(countdownName, during: schedule)
       guard end.timeIntervalSinceNow > 2 else { throw BlockingControlError.invalidDuration }
+      BloomSafariBlocker.setFocusSuspended(true)
       clearShields()
+      await BloomSafariBlocker.reloadIgnoringErrors()
     } catch {
       defaults.removeObject(forKey: countdownEndKey)
       DeviceActivityCenter().stopMonitoring([countdownName])
+      BloomSafariBlocker.setFocusSuspended(false)
+      await BloomSafariBlocker.reloadIgnoringErrors()
       apply(selection)
       throw error
     }
   }
 
-  static func endCountdown() {
+  static func endCountdown() async {
     DeviceActivityCenter().stopMonitoring([countdownName])
     if defaults?.bool(forKey: activeKey) == true, let selection = loadSelection() { apply(selection) }
+    BloomSafariBlocker.setFocusSuspended(false)
     defaults?.removeObject(forKey: countdownEndKey)
+    await BloomSafariBlocker.reloadIgnoringErrors()
   }
 }
 
@@ -437,7 +616,11 @@ private struct BloomActivityPicker: View {
 
   var body: some View {
     NavigationStack {
-      FamilyActivityPicker(selection: $selection)
+      FamilyActivityPicker(
+        headerText: nil,
+        footerText: "Open Websites to choose a domain, then tap Save.",
+        selection: $selection
+      )
         .navigationTitle("Choose what to block")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

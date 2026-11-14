@@ -2,6 +2,7 @@ import DeviceActivity
 import FamilyControls
 import Foundation
 import ManagedSettings
+import SafariServices
 
 /// Runs in a system-managed extension, including while the Bloom app is closed.
 final class BloomDeviceActivityMonitor: DeviceActivityMonitor {
@@ -41,6 +42,7 @@ final class BloomDeviceActivityMonitor: DeviceActivityMonitor {
   }
 
   private func restoreUsageShields() {
+    setSafariFocusSuspended(false)
     guard let group = Bundle.main.object(forInfoDictionaryKey: "BloomAppGroup") as? String,
           let defaults = UserDefaults(suiteName: group), defaults.bool(forKey: "bloom_blocking_active"),
           let data = defaults.data(forKey: "bloom_family_activity_selection"),
@@ -55,8 +57,12 @@ final class BloomDeviceActivityMonitor: DeviceActivityMonitor {
   private func restoreShields() {
     guard let group = Bundle.main.object(forInfoDictionaryKey: "BloomAppGroup") as? String,
           let defaults = UserDefaults(suiteName: group),
-          defaults.bool(forKey: "bloom_blocking_active"),
-          let end = defaults.object(forKey: "bloom_countdown_end") as? Date, end <= Date(),
+          let end = defaults.object(forKey: "bloom_countdown_end") as? Date, end <= Date() else { return }
+    defer {
+      setSafariFocusSuspended(false)
+      defaults.removeObject(forKey: "bloom_countdown_end")
+    }
+    guard defaults.bool(forKey: "bloom_blocking_active"),
           let data = defaults.data(forKey: "bloom_family_activity_selection"),
           let selection = try? JSONDecoder().decode(FamilyActivitySelection.self, from: data) else { return }
     let store = ManagedSettingsStore()
@@ -64,6 +70,18 @@ final class BloomDeviceActivityMonitor: DeviceActivityMonitor {
     store.shield.applicationCategories = selection.categoryTokens.isEmpty ? nil : .specific(selection.categoryTokens)
     store.shield.webDomains = selection.webDomainTokens.isEmpty ? nil : selection.webDomainTokens
     store.shield.webDomainCategories = selection.categoryTokens.isEmpty ? nil : .specific(selection.categoryTokens)
-    defaults.removeObject(forKey: "bloom_countdown_end")
+  }
+
+  private func setSafariFocusSuspended(_ suspended: Bool) {
+    guard let group = Bundle.main.object(forInfoDictionaryKey: "BloomAppGroup") as? String,
+          let defaults = UserDefaults(suiteName: group) else { return }
+    let key = "bloom_safari_focus_suspended"
+    let changed = defaults.bool(forKey: key) != suspended
+    defaults.set(suspended, forKey: key)
+    guard changed,
+          let identifier = Bundle.main.bundleIdentifier,
+          identifier.hasSuffix(".DeviceActivityMonitorExtension") else { return }
+    let appIdentifier = String(identifier.dropLast(".DeviceActivityMonitorExtension".count))
+    SFContentBlockerManager.reloadContentBlocker(withIdentifier: appIdentifier + ".SafariContentBlocker") { _ in }
   }
 }
