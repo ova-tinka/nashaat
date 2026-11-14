@@ -13,7 +13,7 @@ export type BlockingStatus = {
 export type AppCandidate = { id: string; name: string };
 
 export type ManagedTargets = { apps: string[]; websites: string[]; accountId?: string | null };
-export type SafariContentBlockerState = { supported: boolean; enabled: boolean };
+export type SafariContentBlockerState = { bundled: boolean; stateAvailable: boolean; enabled: boolean };
 export type WebsiteRuleSyncStatus = {
   alwaysApplied: boolean;
   authorizationRequired: boolean;

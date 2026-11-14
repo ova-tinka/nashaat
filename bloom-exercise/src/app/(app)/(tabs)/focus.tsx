@@ -5,7 +5,7 @@ import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { Body, Button, ErrorText, Eyebrow, Field, Heading, Label, Panel, Screen, sharedStyles } from '../../../components/bloom-ui';
 import BloomBlocking from '../../../../modules/bloom-blocking/src/BloomBlockingModule';
-import type { AppCandidate, BlockingStatus, UsageAccess } from '../../../../modules/bloom-blocking/src/BloomBlocking.types';
+import type { AppCandidate, BlockingStatus, SafariContentBlockerState, UsageAccess } from '../../../../modules/bloom-blocking/src/BloomBlocking.types';
 import { colors } from '../../../theme';
 import { useBloom } from '../../../lib/bloom-context';
 import { useAuth } from '../../../lib/auth';
@@ -30,7 +30,7 @@ export default function FocusScreen() {
   const [websiteInput, setWebsiteInput] = useState('');
   const [websiteRuleScope, setWebsiteRuleScope] = useState<WebsiteRuleScope>('focus');
   const [websiteRules, setWebsiteRules] = useState<WebsiteRule[]>([]);
-  const [safariBlocker, setSafariBlocker] = useState({ supported: false, enabled: false });
+  const [safariBlocker, setSafariBlocker] = useState<SafariContentBlockerState | null>(null);
   const [managedRulesState, setManagedRulesState] = useState<{ userId: string; rules: ChildRule[] } | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -56,13 +56,18 @@ export default function FocusScreen() {
     try {
       const nextStatus = await BloomBlocking.getStatus();
       setStatus(nextStatus);
+      let loadError: string | null = null;
       if (Platform.OS === 'ios' && userId) {
-        const [savedWebsiteRules, blockerState] = await Promise.all([
+        const [rulesResult, blockerResult] = await Promise.allSettled([
           loadWebsiteRules(userId),
           BloomBlocking.getSafariContentBlockerState(),
         ]);
-        setWebsiteRules(savedWebsiteRules);
-        setSafariBlocker(blockerState);
+        if (rulesResult.status === 'fulfilled') setWebsiteRules(rulesResult.value);
+        else {
+          setWebsiteRules([]);
+          loadError = 'Could not load saved website rules. Check your connection and try again.';
+        }
+        setSafariBlocker(blockerResult.status === 'fulfilled' ? blockerResult.value : null);
       } else if (Platform.OS === 'ios') {
         setWebsiteRules([]);
         setSafariBlocker(await BloomBlocking.getSafariContentBlockerState());
@@ -99,7 +104,7 @@ export default function FocusScreen() {
           if (parsed && typeof parsed === 'object' && 'requestId' in parsed && 'deviceKey' in parsed && 'minutes' in parsed && typeof parsed.requestId === 'string' && typeof parsed.deviceKey === 'string' && typeof parsed.minutes === 'number') setPending({ requestId: parsed.requestId, deviceKey: parsed.deviceKey, minutes: parsed.minutes });
         } else setPending(null);
       }
-      setError(null);
+      setError(loadError);
     } catch {
       setError('Could not read this device’s blocking settings. Rebuild the native app and try again.');
     } finally {
@@ -327,7 +332,7 @@ export default function FocusScreen() {
         const hasAppleTargets = current.appCount + current.websiteCount + current.categoryCount > 0;
         const hasFocusWebsites = websiteRules.some((rule) => rule.scope === 'focus')
           || managedRules.some((rule) => rule.platform === 'ios' && rule.target_type === 'website');
-        const safariFocusReady = hasFocusWebsites && safariBlocker.enabled;
+        const safariFocusReady = hasFocusWebsites && safariBlocker?.enabled === true;
         if (!current.authorized && (hasAppleTargets || !safariFocusReady)) {
           const authorized = await BloomBlocking.requestAuthorization();
           if (!authorized) { setError('Screen Time access is required to start blocking.'); return; }
@@ -412,9 +417,13 @@ export default function FocusScreen() {
       {Platform.OS === 'ios' && <Panel>
         <Eyebrow>iPhone website blocking</Eyebrow>
         <Body>Enter a domain or paste a URL. Always rules use iOS web-content filtering and need Screen Time access (up to 50 domains). Focus-only rules use Bloom’s Safari extension while Focus is on. Safari Private Browsing may be disabled while the iOS web filter is active; check other browsers on the device because their coverage can vary.</Body>
-        {!safariBlocker.supported
+        {safariBlocker && !safariBlocker.bundled
           ? <Body>The Safari extension isn’t available in this app build. Install a build that includes Bloom’s extension.</Body>
-          : !safariBlocker.enabled && <Body>Enable Bloom in Settings → Safari → Extensions. Focus-only website rules won’t block until the extension is enabled. Always rules use the iOS web filter.</Body>}
+          : safariBlocker && !safariBlocker.stateAvailable
+            ? <Body>Bloom’s Safari extension is included, but iOS can’t confirm whether it’s enabled. Check Settings → Apps → Safari → Extensions and allow Bloom. Focus-only rules need the extension enabled; Always rules use the iOS web filter.</Body>
+            : safariBlocker && !safariBlocker.enabled
+              ? <Body>Enable Bloom in Settings → Apps → Safari → Extensions. Focus-only website rules won’t block until the extension is enabled. Always rules use the iOS web filter.</Body>
+              : !safariBlocker && !loading && <Body>Could not check the Safari extension state. Check Settings → Apps → Safari → Extensions to confirm Bloom is allowed, then recheck here.</Body>}
         {websiteRules.some((rule) => rule.scope === 'always') && !status.authorized && <>
           <Body>Always website rules are saved. Allow Screen Time access to apply them with iOS web-content filtering.</Body>
           <Button label="Allow Screen Time for Always websites" secondary onPress={() => void authorizeAlwaysWebsiteRules()} busy={busy} />
@@ -441,7 +450,7 @@ export default function FocusScreen() {
           <Button label={websiteRuleScope === 'focus' ? '✓ During Focus' : 'During Focus'} secondary onPress={() => setWebsiteRuleScope('focus')} />
         </View>
         <Button label={websiteRuleScope === 'always' ? 'Add always-blocked domain' : 'Add Safari Focus domain'} onPress={() => void saveSafariWebsiteRule()} busy={busy} disabled={loading || !websiteInput.trim()} />
-        {safariBlocker.supported && <Button label="Recheck Safari extension" secondary onPress={() => void BloomBlocking.getSafariContentBlockerState().then(setSafariBlocker).catch(() => setError('Could not check the Safari extension state.'))} busy={busy} />}
+        <Button label="Recheck Safari extension" secondary onPress={() => void BloomBlocking.getSafariContentBlockerState().then(setSafariBlocker).catch(() => { setSafariBlocker(null); setError('Could not check the Safari extension state.'); })} busy={busy} />
       </Panel>}
 
       {(Platform.OS === 'android' || Platform.OS === 'ios') && creditsEnabled && creditSettings && <Panel>

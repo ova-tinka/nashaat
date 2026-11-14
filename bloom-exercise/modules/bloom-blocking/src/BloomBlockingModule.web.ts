@@ -9,7 +9,7 @@ class BloomBlockingWebModule extends NativeModule {
   getManagedTargets() { return { apps: [], websites: [], accountId: null }; }
   getWebsites() { return []; }
   getWebsiteConsent() { return false; }
-  async getSafariContentBlockerState() { return { supported: false, enabled: false }; }
+  async getSafariContentBlockerState() { return { bundled: false, stateAvailable: false, enabled: false }; }
   async requestAccessibilityPermission() { return false; }
   async saveApps(_packageIds: string[]) {}
   async saveWebsites(_addresses: string[]) {}

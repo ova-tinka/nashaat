@@ -40,7 +40,7 @@ public class BloomBlockingModule: Module {
       #if os(iOS) && canImport(SafariServices)
       return await BloomSafariBlocker.state()
       #else
-      return ["supported": false, "enabled": false]
+      return ["bundled": false, "stateAvailable": false, "enabled": false]
       #endif
     }
 
@@ -334,10 +334,17 @@ private enum BloomSafariBlocker {
   }
 
   static func state() async -> [String: Bool] {
-    guard let identifier = extensionIdentifier else { return ["supported": false, "enabled": false] }
+    let bundled = isExtensionBundled
+    guard let identifier = extensionIdentifier else {
+      return ["bundled": false, "stateAvailable": false, "enabled": false]
+    }
     return await withCheckedContinuation { (continuation: CheckedContinuation<[String: Bool], Never>) in
       SFContentBlockerManager.getStateOfContentBlocker(withIdentifier: identifier) { state, error in
-        continuation.resume(returning: ["supported": state != nil && error == nil, "enabled": state?.isEnabled == true])
+        continuation.resume(returning: [
+          "bundled": bundled,
+          "stateAvailable": state != nil && error == nil,
+          "enabled": state?.isEnabled == true,
+        ])
       }
     }
   }
@@ -351,6 +358,21 @@ private enum BloomSafariBlocker {
 
   private static var extensionIdentifier: String? {
     Bundle.main.bundleIdentifier.map { $0 + extensionSuffix }
+  }
+
+  private static var isExtensionBundled: Bool {
+    guard let identifier = extensionIdentifier else { return false }
+    let infoURL = Bundle.main.bundleURL
+      .appendingPathComponent("PlugIns", isDirectory: true)
+      .appendingPathComponent("BloomSafariContentBlocker.appex", isDirectory: true)
+      .appendingPathComponent("Info.plist")
+    guard let infoData = try? Data(contentsOf: infoURL),
+          let propertyList = try? PropertyListSerialization.propertyList(from: infoData, options: [], format: nil),
+          let extensionInfo = propertyList as? [String: Any],
+          extensionInfo["CFBundleIdentifier"] as? String == identifier,
+          let extensionDescription = extensionInfo["NSExtension"] as? [String: Any],
+          extensionDescription["NSExtensionPointIdentifier"] as? String == "com.apple.Safari.content-blocker" else { return false }
+    return true
   }
 
   static func canonicalDomains(_ values: [String]) throws -> [String] {
