@@ -21,7 +21,7 @@ type UsageRequest = { requestId: string; deviceKey: string; requestedMillis: num
 export default function FocusScreen() {
   const { profileId } = useAuth();
   const userId = profileId;
-  const { creditsEnabled, creditSettings, creditBalance, refresh, blockingRules, blockingRulesSyncError, blockingRulesSyncStatus, blockingRulesSyncedAt } = useBloom();
+  const { creditsEnabled, creditSettings, creditBalance, refresh, blockingRules, blockingRulesSyncError, blockingRulesSyncedAt } = useBloom();
   const [status, setStatus] = useState(emptyStatus);
   const [apps, setApps] = useState<AppCandidate[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
@@ -274,6 +274,25 @@ export default function FocusScreen() {
     } finally { setBusy(false); }
   }
 
+  async function authorizeAlwaysWebsiteRules() {
+    if (!userId) return;
+    setBusy(true); setError(null);
+    try {
+      const authorized = await BloomBlocking.requestAuthorization();
+      if (!authorized) {
+        setError('Allow Screen Time access to apply the Always website rules on this iPhone.');
+        return;
+      }
+      setStatus(await BloomBlocking.getStatus());
+      const synced = await syncBlockingRules(userId, 'ios');
+      if (!synced || synced.nativeStatus === 'websiteRulesAuthorizationRequired') {
+        throw new Error('Could not apply the Always website rules on this iPhone.');
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not apply the Always website rules on this iPhone.');
+    } finally { setBusy(false); }
+  }
+
   async function removeSafariWebsiteRule(rule: WebsiteRule) {
     if (!userId) return;
     setBusy(true); setError(null);
@@ -396,7 +415,10 @@ export default function FocusScreen() {
         {!safariBlocker.supported
           ? <Body>The Safari extension isn’t available in this app build. Install a build that includes Bloom’s extension.</Body>
           : !safariBlocker.enabled && <Body>Enable Bloom in Settings → Safari → Extensions. Focus-only website rules won’t block until the extension is enabled. Always rules use the iOS web filter.</Body>}
-        {blockingRulesSyncStatus === 'websiteRulesAuthorizationRequired' && websiteRules.some((rule) => rule.scope === 'always') && <Body>Always website rules are saved, but Screen Time access is needed to apply them on this iPhone.</Body>}
+        {websiteRules.some((rule) => rule.scope === 'always') && !status.authorized && <>
+          <Body>Always website rules are saved. Allow Screen Time access to apply them with iOS web-content filtering.</Body>
+          <Button label="Allow Screen Time for Always websites" secondary onPress={() => void authorizeAlwaysWebsiteRules()} busy={busy} />
+        </>}
 
         <Label>Always blocked by iOS</Label>
         {websiteRules.filter((rule) => rule.scope === 'always').map((rule) => <View key={rule.id} style={sharedStyles.row}>
