@@ -105,6 +105,25 @@ def temporary_session(base, key, token):
     return client
 
 
+def create_disposable_test_session(base, key, label):
+    """Create a no-activity test login without writing credentials to disk."""
+    anonymous = Client(base, key)
+    email = f'bloom-qa-{label}-{secrets.token_hex(8)}@example.invalid'
+    password = secrets.token_urlsafe(32)
+    _, result = anonymous.request('POST', '/auth/v1/signup', {'email': email, 'password': password})
+    token = result.get('access_token') if isinstance(result, dict) else None
+    if not isinstance(token, str):
+        # Some Auth deployments return a user without a session even when
+        # email confirmation is disabled; sign in with the generated secret.
+        _, login = anonymous.request('POST', '/auth/v1/token?grant_type=password',
+                                     {'email': email, 'password': password})
+        token = login.get('access_token') if isinstance(login, dict) else None
+    password = None
+    if not isinstance(token, str):
+        raise RuntimeError('Could not start disposable test account session')
+    return temporary_session(base, key, token)
+
+
 def check(condition, label):
     if not condition:
         raise RuntimeError(label + ' failed')
@@ -200,40 +219,53 @@ def main():
     parser.add_argument('--project-ref', required=True, help='Confirmed non-production project reference')
     parser.add_argument('--extended', action='store_true', help='Test coaching privacy and workout scoring')
     parser.add_argument('--convert', action='store_true', help='Also link a second empty, verified test account')
+    parser.add_argument('--create-test-accounts', action='store_true',
+                        help='Create disposable synthetic parent and independent accounts for --convert')
     args = parser.parse_args()
     if args.convert and not args.extended:
         parser.error('--convert requires --extended')
+    if args.create_test_accounts and not args.convert:
+        parser.error('--create-test-accounts requires --convert')
     base, key = public_config(args.project_ref)
     print('Use a dedicated verified test parent. Synthetic family and competition records will remain in the test project.')
-    email = input('Test parent email: ').strip()
-    password = getpass.getpass('Test parent password: ')
     anonymous = Client(base, key)
-    try:
-        _, login = anonymous.request('POST', '/auth/v1/token?grant_type=password', {'email': email, 'password': password})
-    except RuntimeError as error:
-        raise RuntimeError(f'Parent account sign-in failed. {error}') from None
-    password = None
-    token = login.get('access_token') if isinstance(login, dict) else None
-    check(isinstance(token, str), 'Verified parent sign-in')
-    parent = temporary_session(base, key, token)
+    if args.create_test_accounts:
+        print('Creating disposable synthetic parent and independent test accounts; credentials stay in memory.')
+        parent = create_disposable_test_session(base, key, 'parent')
+        check(True, 'Synthetic parent sign-in')
+    else:
+        email = input('Test parent email: ').strip()
+        password = getpass.getpass('Test parent password: ')
+        try:
+            _, login = anonymous.request('POST', '/auth/v1/token?grant_type=password', {'email': email, 'password': password})
+        except RuntimeError as error:
+            raise RuntimeError(f'Parent account sign-in failed. {error}') from None
+        password = None
+        token = login.get('access_token') if isinstance(login, dict) else None
+        check(isinstance(token, str), 'Verified parent sign-in')
+        parent = temporary_session(base, key, token)
     _, identity = parent.rpc('bloom_current_profile', {})
     check(isinstance(identity, dict) and isinstance(identity.get('profile_id'), str)
           and not identity.get('child_profile'), 'Parent profile access')
     parent_id = identity['profile_id']
     independent = None
     if args.convert:
-        print('Enter a second verified test account with no existing Bloom activity.')
-        other_email = input('Independent test account email: ').strip()
-        other_password = getpass.getpass('Independent test account password: ')
-        try:
-            _, other_login = anonymous.request('POST', '/auth/v1/token?grant_type=password',
-                                               {'email': other_email, 'password': other_password})
-        except RuntimeError as error:
-            raise RuntimeError(f'Independent test account sign-in failed. {error}') from None
-        other_password = None
-        other_token = other_login.get('access_token') if isinstance(other_login, dict) else None
-        check(isinstance(other_token, str), 'Independent test account sign-in')
-        independent = temporary_session(base, key, other_token)
+        if args.create_test_accounts:
+            independent = create_disposable_test_session(base, key, 'independent')
+            check(True, 'Synthetic independent account sign-in')
+        else:
+            print('Enter a second verified test account with no existing Bloom activity.')
+            other_email = input('Independent test account email: ').strip()
+            other_password = getpass.getpass('Independent test account password: ')
+            try:
+                _, other_login = anonymous.request('POST', '/auth/v1/token?grant_type=password',
+                                                   {'email': other_email, 'password': other_password})
+            except RuntimeError as error:
+                raise RuntimeError(f'Independent test account sign-in failed. {error}') from None
+            other_password = None
+            other_token = other_login.get('access_token') if isinstance(other_login, dict) else None
+            check(isinstance(other_token, str), 'Independent test account sign-in')
+            independent = temporary_session(base, key, other_token)
         _, other_identity = independent.rpc('bloom_current_profile', {})
         check(other_identity.get('profile_id') != parent_id and not other_identity.get('child_profile'),
               'Independent account is separate from parent')

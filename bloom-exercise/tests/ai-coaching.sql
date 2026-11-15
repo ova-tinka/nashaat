@@ -110,6 +110,15 @@ do $$ begin
     perform public.bloom_decide_coach_proposal(current_setting('bloom.coach_stale')::uuid, true);
     raise exception using errcode = 'P0002', message = 'Stale proposal applied';
   exception when raise_exception then if sqlerrm <> 'The plan changed since this proposal was created' then raise; end if; end;
+  perform public.bloom_decide_coach_proposal(current_setting('bloom.coach_stale')::uuid, false);
+  if not exists (select 1 from public.bloom_child_coach_proposals(current_setting('bloom.coach_child')::uuid) p
+      where p.id = current_setting('bloom.coach_stale')::uuid and p.status = 'rejected') then
+    raise exception 'Parent rejection did not mark the child proposal as rejected';
+  end if;
+  if (select scheduled_days from public.bloom_workout_plans where id = current_setting('bloom.coach_plan')::uuid)
+      <> array[5]::smallint[] then
+    raise exception 'Rejecting a child proposal changed the workout plan';
+  end if;
   perform public.bloom_set_child_coaching(current_setting('bloom.coach_child')::uuid, false, false, false);
 end $$;
 select set_config('request.jwt.claim.sub', current_setting('bloom.coach_child'), true);

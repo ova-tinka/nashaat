@@ -5,18 +5,28 @@ type Context = { is_child: boolean; [key: string]: unknown };
 export type CoachDependencies = {
   enabled: boolean;
   minorsApproved: boolean;
+  testDiagnostics?: boolean;
   authenticate: (token: string) => Promise<boolean>;
   begin: (token: string, id: string, kind: string, prompt: string) => Promise<{ status: string; context?: Context }>;
   finish: (id: string, message: string, proposal: Item | null) => Promise<void>;
   fail: (id: string) => Promise<void>;
   generate: (input: { context: Item; prompt: string; kind: string }) => Promise<unknown>;
 };
+export type CoachProviderFailure = 'timeout' | 'network' | 'http' | 'response_body' | 'truncated' | 'invalid_content' | 'response_json';
+export class CoachProviderError extends Error {
+  constructor(readonly reason: CoachProviderFailure, readonly status?: number) { super('Provider request failed'); }
+}
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const harm = /\b(pain|painful|painkillers?|hurts?|sore(?:ness)?|aches?|aching|injur(?:y|ed|ies)|chest\s+(?:tightness|pressure)|faint(?:ing|ed)?|dizz(?:y|iness)|shortness\s+of\s+breath|suicid\w*|self[ -]?harm|kill\s+myself|overdos\w*|starv\w*|purge|dehydrat\w*|steroids?|exercise\s+through\s+pain|push\s+through\s+pain)\b|(?:^|[^\p{L}\p{M}])(?:ألم|الم|وجع|إصابة|اصابة|دوخة|انتحار)(?=$|[^\p{L}\p{M}])|أؤذي نفسي/iu;
 const identifiers = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b|(?:\+?\d[\s().-]*){8,}|\b(?:medical\s+record|patient\s+id|date\s+of\s+birth|home\s+address)\b/i;
 const dangerousOutput = /\b(?:ignore|push\s+through|train\s+through)\s+(?:the\s+)?pain\b|\b(?:skip\s+meals|starve\s+yourself|dehydrate\s+yourself|take\s+steroids)\b/i;
 function object(value: unknown): Item | null { return value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Item : null; }
 function array(value: unknown): unknown[] { return Array.isArray(value) ? value : []; }
+function readableText(value: string): string {
+  return value.replace(/\s*\((?:exercise|plan)_\d+\)/gi, '')
+    .replace(/\bexercise_\d+\b/gi, 'the exercise')
+    .replace(/\bplan_\d+\b/gi, 'your plan').trim();
+}
 
 // Replace persistent database IDs with request-local aliases before disclosure.
 function anonymize(context: Context) {
@@ -48,11 +58,15 @@ function normalizeOutput(output: unknown, maps: ReturnType<typeof anonymize>, ch
   const value = object(output);
   if (!value || typeof value.reply !== 'string' || !value.reply.trim() || value.reply.length > 4000
     || dangerousOutput.test(value.reply) || harm.test(value.reply) || identifiers.test(value.reply)) throw new Error('Invalid coach reply');
-  if (value.proposal === null) return { message: value.reply.trim(), proposal: null };
+  const message = readableText(value.reply);
+  if (!message) throw new Error('Invalid coach reply');
+  if (value.proposal === null) return { message, proposal: null };
   const proposal = object(value.proposal);
   if (!proposal || typeof proposal.title !== 'string' || !proposal.title.trim() || proposal.title.trim().length > 100
     || typeof proposal.explanation !== 'string' || !proposal.explanation.trim() || proposal.explanation.length > 1000
     || dangerousOutput.test(JSON.stringify(proposal)) || harm.test(JSON.stringify(proposal)) || identifiers.test(JSON.stringify(proposal))) throw new Error('Invalid proposal');
+  const title = readableText(proposal.title); const explanation = readableText(proposal.explanation);
+  if (!title || !explanation) throw new Error('Invalid proposal');
   const planId = proposal.plan_ref === null ? null : [...maps.plans].find(([, alias]) => alias === proposal.plan_ref)?.[0];
   if (proposal.plan_ref !== null && !planId) throw new Error('Unknown plan');
   const days = array(proposal.scheduled_days);
@@ -76,7 +90,8 @@ function normalizeOutput(output: unknown, maps: ReturnType<typeof anonymize>, ch
         || typeof custom.description !== 'string' || custom.description.length > 1000
         || typeof custom.measurement_type !== 'string') throw new Error('Invalid custom exercise');
       measurement = custom.measurement_type;
-      customValue = { name: custom.name.trim(), description: custom.description.trim(), measurement_type: measurement };
+      customValue = { name: readableText(custom.name), description: readableText(custom.description), measurement_type: measurement };
+      if (!customValue.name) throw new Error('Invalid custom exercise name');
     }
     if (!['reps_only', 'reps_weight', 'time_only', 'time_distance'].includes(measurement)) throw new Error('Invalid measurement');
     const limit = measurement.startsWith('reps') ? (child ? 50 : 200) : (child ? 1800 : 3600);
@@ -89,7 +104,7 @@ function normalizeOutput(output: unknown, maps: ReturnType<typeof anonymize>, ch
       || measurement !== 'time_distance')) throw new Error('Invalid distance');
     return { exercise_id: existing?.[0] ?? null, custom: customValue, sets: item.sets, target: item.target, weight_kg: weight, distance_km: distance };
   });
-  return { message: value.reply.trim(), proposal: { title: proposal.title.trim(), explanation: proposal.explanation.trim(),
+  return { message, proposal: { title, explanation,
     plan_id: planId ?? null, scheduled_days: days, exercises } };
 }
 
@@ -104,13 +119,15 @@ export function coachHandler(deps: CoachDependencies) {
     const prompt = typeof input?.prompt === 'string' ? input.prompt.trim() : '';
     if (!uuid.test(id) || !['chat', 'weekly'].includes(kind) || !prompt || prompt.length > 2000) return reply(400, { error: 'Invalid coaching request' });
     if (!deps.enabled) return reply(503, { error: 'Coaching is not available yet.' });
-    let started = false;
+    let started = false; let authorized = false; let stage = 'authentication';
     try {
       if (!await deps.authenticate(token)) return reply(401, { error: 'Sign in required' });
+      authorized = true; stage = 'request_setup';
       const startedRequest = await deps.begin(token, id, kind, prompt);
       if (startedRequest.status === 'completed') return reply(200, { status: 'completed' });
       if (startedRequest.status !== 'pending' || !startedRequest.context) return reply(409, { error: 'This request has already been processed.' });
       started = true;
+      stage = 'context';
       if (typeof startedRequest.context.is_child !== 'boolean') throw new Error('Invalid context');
       if (startedRequest.context.is_child && !deps.minorsApproved) {
         await deps.fail(id); started = false;
@@ -125,11 +142,25 @@ export function coachHandler(deps: CoachDependencies) {
         await deps.finish(id, safe, null); started = false;
         return reply(200, { status: 'completed' });
       }
-      const result = normalizeOutput(await deps.generate({ context: prepared.context, prompt, kind }), prepared, startedRequest.context.is_child);
+      stage = 'provider';
+      const output = await deps.generate({ context: prepared.context, prompt, kind });
+      stage = 'response_validation';
+      const result = normalizeOutput(output, prepared, startedRequest.context.is_child);
+      stage = 'save';
       await deps.finish(id, result.message, result.proposal); started = false;
       return reply(200, { status: 'completed' });
-    } catch {
+    } catch (error) {
       if (started) { try { await deps.fail(id); } catch { /* A pending request expires without retrying the provider. */ } }
+      if (deps.testDiagnostics && authorized) {
+        const diagnostic: Item = { error: 'Could not complete coaching. Please try again later.', stage };
+        if (error instanceof CoachProviderError) {
+          diagnostic.provider_reason = error.reason;
+          if (typeof error.status === 'number' && Number.isInteger(error.status) && error.status >= 400 && error.status <= 599) {
+            diagnostic.provider_status = error.status;
+          }
+        }
+        return reply(503, diagnostic);
+      }
       return reply(503, { error: 'Could not complete coaching. Please try again later.' });
     }
   };

@@ -66,6 +66,8 @@ docker exec -i "$bloom_test_container" psql -q -v ON_ERROR_STOP=1 -U postgres -d
 docker exec -i "$bloom_test_container" psql -q -v ON_ERROR_STOP=1 -U postgres -d postgres \
   < "$bloom_dir/tests/households.sql" >/dev/null
 docker exec -i "$bloom_test_container" psql -q -v ON_ERROR_STOP=1 -U postgres -d postgres \
+  < "$bloom_dir/tests/website-rules.sql" >/dev/null
+docker exec -i "$bloom_test_container" psql -q -v ON_ERROR_STOP=1 -U postgres -d postgres \
   < "$bloom_dir/tests/enforced-countdowns.sql" >/dev/null
 docker exec -i "$bloom_test_container" psql -q -v ON_ERROR_STOP=1 -U postgres -d postgres \
   < "$bloom_dir/tests/actual-usage.sql" >/dev/null

@@ -64,8 +64,14 @@ while IFS= read -r bloom_migration; do
 done < <(find "$bloom_root/supabase/migrations" -maxdepth 1 -type f -iname '*bloom*.sql' -print | sort)
 
 bloom_fixture_count=0
-for bloom_fixture in schema.sql credit-rules.sql goal-analytics.sql workout-plan-editing.sql weekly-planning.sql \
-  product-outcomes.sql credit-sessions.sql households.sql enforced-countdowns.sql actual-usage.sql cross-device-sync.sql workout-session-timer.sql custom-exercises.sql profile-identity.sql managed-child-profiles.sql child-device-pairing.sql parent-device-pin.sql profile-account-conversion.sql ai-coaching.sql competitions.sql; do
+bloom_fixtures=(schema.sql credit-rules.sql goal-analytics.sql workout-plan-editing.sql weekly-planning.sql \
+  product-outcomes.sql credit-sessions.sql households.sql website-rules.sql enforced-countdowns.sql actual-usage.sql cross-device-sync.sql \
+  workout-session-timer.sql custom-exercises.sql profile-identity.sql managed-child-profiles.sql child-device-pairing.sql \
+  parent-device-pin.sql profile-account-conversion.sql ai-coaching.sql)
+if [[ "${BLOOM_SKIP_PUBLIC_COMPETITIONS:-0}" != "1" ]]; then
+  bloom_fixtures+=(competitions.sql)
+fi
+for bloom_fixture in "${bloom_fixtures[@]}"; do
   bloom_psql < "$bloom_dir/tests/$bloom_fixture" >/dev/null
   bloom_fixture_count=$((bloom_fixture_count + 1))
 done

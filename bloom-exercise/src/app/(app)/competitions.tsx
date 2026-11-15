@@ -53,6 +53,9 @@ export default function CompetitionsScreen() {
     finally { setBusy(false); }
   }
   async function saveEvent() {
+    if (!editing && visibility === 'private' && !home?.social?.display_name?.trim()) {
+      setError('Save a display name above before creating a private competition. Search can stay off.'); return;
+    }
     const start = parseCompetitionDate(starts); const end = parseCompetitionDate(ends); const max = Number(capacity);
     if (!title.trim() || !start || !end || !Number.isInteger(max) || max < 2 || max > 100 || new Date(end) <= new Date(start)) {
       setError('Enter a title, valid local dates, and 2–100 participants. The end must follow the start.'); return;
@@ -85,7 +88,7 @@ export default function CompetitionsScreen() {
     <Button label="Back to profile" secondary onPress={() => router.replace('/settings')} disabled={busy} />
     {loading && <ActivityIndicator color={colors.accent} />}{error && <ErrorText>{error}</ErrorText>}{notice && <Body>{notice}</Body>}
     {home && <>
-      <Panel><Label>Display name and search</Label><Body>Results show your display name. Search is optional.{childProfile ? ' A parent must also opt in before you appear in search.' : ''}</Body>
+      <Panel><Label>Display name and search</Label><Body>Save a display name before creating a private competition. Results use that name; search is optional.{childProfile ? ' A parent must also opt in before you appear in search.' : ''}</Body>
         <Field label="Display name" value={name} onChangeText={setName} maxLength={60} />
         <View style={sharedStyles.row}><Body>Allow people to find me</Body><Switch accessibilityLabel="Allow people to find me" value={searchable} onValueChange={setSearchable} disabled={busy} /></View>
         {childProfile && <Body>Parent search permission: {home.social?.child_search_opt_in ? 'enabled' : 'not enabled'}</Body>}
