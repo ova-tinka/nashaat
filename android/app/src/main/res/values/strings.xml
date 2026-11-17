@@ -1,5 +1,5 @@
-<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Nashaat</string>
-    <string name="accessibility_service_description">Nashaat uses this permission to detect when a blocked app is opened and redirect you back to Nashaat.</string>
+  <string name="app_name">Bloom Exercise</string>
+  <string name="expo_system_ui_user_interface_style" translatable="false">dark</string>
+  <string name="expo_splash_screen_resize_mode" translatable="false">contain</string>
 </resources>

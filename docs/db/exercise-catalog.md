@@ -1,6 +1,6 @@
 # Exercise Catalog Data
 
-Nashaat stores the global exercise library in the `exercises` table. The curated seed is small enough for MVP development, while the generated free-exercise-db seed can be used when the app needs a larger real catalog.
+Bloom stores its global exercise library in the `exercises` table. The curated seed is small enough for MVP development, while the generated free-exercise-db seed can be used when the app needs a larger real catalog.
 
 ## Run Order
 
@@ -35,7 +35,7 @@ After running the seed, check the actual row count:
 SELECT count(*) FROM public.exercises;
 ```
 
-If this count is greater than zero but the Flutter app still logs `loaded 0 exercise(s)`, run `supabase/migrations/20260417000003_exercises_read_policy.sql` in the Supabase SQL Editor. That policy allows the app's `anon` and `authenticated` roles to read the global exercise catalog.
+If this count is greater than zero but the Bloom app still logs `loaded 0 exercise(s)`, run `supabase/migrations/20260417000003_exercises_read_policy.sql` in the Supabase SQL Editor. That policy allows the app's `anon` and `authenticated` roles to read the global exercise catalog.
 
 ## Data Source
 

@@ -1,48 +1,54 @@
-# Miscellaneous
+# Node and package manager output
+node_modules/
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+*.tsbuildinfo
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Expo-generated native projects; native plugin source is tracked under native/ and modules/
+/android/
+/ios/
+**/.gradle/
+**/.cxx/
+**/build/
+**/.kotlin/
+android/local.properties
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/ephemeral/
+
+# Tauri and Rust build output
+src-tauri/target/
+target/
+src-tauri/gen/schemas/
+
+# Local environment and signing files
+.env
+.env.*
+*.env.*
+!.env.example
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.pem
+
+# Editors, operating system and generated reports
+.DS_Store
+.idea/
+*.iml
 *.class
 *.log
 *.pyc
 *.swp
-.DS_Store
-.atom/
-.build/
-.buildlog/
-.history
-.svn/
-.swiftpm/
-migrate_working_dir/
-
-# IntelliJ related
-*.iml
-*.ipr
-*.iws
-.idea/
-
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
-
-# Flutter/Dart/Pub related
-**/doc/api/
-**/ios/Flutter/.last_build_id
-.dart_tool/
-.flutter-plugins-dependencies
-.pub-cache/
-.pub/
-/build/
-/coverage/
-
+coverage/
+*.symbols
+*.map.json
 /docs/SDP Report.docx
-*.env.*
-.env
-# Symbolication related
-app.*.symbols
-
-# Obfuscation related
-app.*.map.json
-
-# Android Studio will place build artifacts here
-/android/app/debug
-/android/app/profile
-/android/app/release

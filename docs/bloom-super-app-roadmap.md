@@ -6,7 +6,7 @@ This roadmap treats Exercise, Education, Reading, and Tasks as equal first-class
 
 ## Product direction
 
-Bloom's initial MVP should make all four pillars usable from one account, one home, one activity history, one credit wallet, and one device protection setup. Each pillar gets one meaningful end-to-end activity flow at launch. Depth can differ according to what users need and what the pilot shows, but no pillar is postponed until after an exercise-only product ships.
+Bloom's initial MVP should make all four pillars usable from one account, one home, one activity history, one credit wallet, and one device protection setup. Each pillar gets one meaningful end-to-end activity flow at launch. Depth can differ according to what users need and what the pilot shows.
 
 The common loop is:
 
@@ -16,13 +16,13 @@ Keep **Personal Mode complete and the default**. Supervised Family Mode is optio
 
 ## What the repository already tells us
 
-The repository has a developed Bloom Exercise client in `bloom-exercise/` and an older, separate Nashaat Flutter client in the root. Bloom Exercise uses Expo/React Native for iOS and Android and a Tauri macOS shell. It already contains exercise planning/logging, reward settings, a server-owned credit ledger, family linking, and native blocking integrations. Education, Reading, and Tasks do not yet have comparable product flows.
+The repository root now contains the Expo/React Native clients for iOS and Android and the Tauri macOS shell. The Flutter Nashaat client has been archived outside the repository at `../old/nashaat-flutter`. The Bloom code already contains exercise planning/logging, reward settings, a server-owned credit ledger, family linking, and native blocking integrations. Education, Reading, and Tasks still need their first product flows.
 
 The implementation also has platform risks that must stay visible: iOS target selections are device-local; Android blocking relies on user-enabled access and a supported-browser list; and the last detailed macOS readiness report records live blocking failures. The report is dated 2026-11-12, so retest the current signed artifact before treating its installed-build results as current.
 
-Use `bloom-exercise/` as the near-term product shell because it already spans the three requested platforms and contains the active native blocking work. Reorganize its product surface around four peer pillars. Freeze new feature work in the root Flutter client until the team migrates any needed pieces or retires the duplicate shell. Settle the shared product identity, bundle IDs, and single wallet contract before distribution. This is a platform and maintenance decision; it does not make Exercise the lead product area.
+Use the repository-root Bloom app as the canonical product shell and organize its navigation around four peer pillars. Keep one wallet contract and one product identity. Existing bundle identifiers and store entitlements still need a deliberate release review; do not change identifiers as a side effect of moving files.
 
-Baseline references: [Bloom Exercise README](../bloom-exercise/README.md), [macOS readiness assessment](../bloom-exercise/docs/qa/12-FINAL-READINESS-ASSESSMENT.md), [risk register](../bloom-exercise/docs/qa/04-GAP-AND-RISK-REGISTER.md), [Bloom migrations](../supabase/migrations/), and [Nashaat architecture](structure/architecture.md).
+Baseline references: [Bloom README](../README.md), [macOS readiness assessment](qa/12-FINAL-READINESS-ASSESSMENT.md), [risk register](qa/04-GAP-AND-RISK-REGISTER.md), [Bloom migrations](../supabase/migrations/), and [Bloom architecture](structure/architecture.md).
 
 ## Smallest useful four-pillar MVP
 
@@ -92,7 +92,7 @@ Family Mode extends Personal Mode and is not required for the personal journey. 
 
 | Phase | Scope and milestone | Exit criteria |
 |---|---|---|
-| **0. Unify the product foundation** | Make `bloom-exercise/` the single product shell; settle Bloom identity and app IDs; define one activity, reward, ledger, account, and device-policy contract. Build a physical-device blocking matrix for iOS, Android, and macOS while requesting/checking required entitlements and store-policy requirements. | One navigation shell exposes four peer pillars. No second client can issue rewards. A capability matrix documents exact app/site coverage, permission requirements, signing requirements, and open failures for each OS. |
+| **0. Unify the product foundation** | Complete the root app consolidation; settle Bloom identity and app IDs; define one activity, reward, ledger, account, and device-policy contract. Build a physical-device blocking matrix for iOS, Android, and macOS while requesting/checking required entitlements and store-policy requirements. | One navigation shell exposes four peer pillars. No second client can issue rewards. A capability matrix documents exact app/site coverage, permission requirements, signing requirements, and open failures for each OS. |
 | **1. Four-pillar MVP** | Deliver one end-to-end activity flow in each pillar, shared goals/history/dashboard, Focus attachment, and one wallet/reward engine. Reuse and adapt the existing exercise implementation; create the smallest useful Education, Reading, and Tasks slices in the same app. | A Personal Mode user can earn credits through any of the four pillars and sees each completed activity in one history. Retry, offline sync, limits, and linked Focus do not create duplicate awards. |
 | **2. Shared Screen Time and platform beta** | Complete atomic wallet reservation/settlement, two-device sync, native app/site enforcement, recovery, permission status, and store/distribution readiness. Add the optional family beta after Personal Mode works. | No double award or double spend in concurrency and retry checks; two physical devices show one consistent wallet; one racing unlock is accepted. Every advertised platform target passes 20 repeated block/control attempts with no essential-app false blocks. Permission loss, restart, offline/reconnect, and session expiry show truthful status and recovery. |
 | **3. Cross-platform general availability** | Release the same product identity and account experience on iOS, Android, and macOS after the relevant native artifacts pass their platform gates. | All three platforms meet the support matrix on signed builds. Cross-platform physical tests include an account earning on one device and spending on another. No known blocking bypass remains in the advertised coverage. |
@@ -113,7 +113,7 @@ Do not claim screen-time reduction from allowance countdowns alone. First establ
 |---|---|
 | Super-app ambition turns into four large feature builds | Define one useful completion journey per pillar. Defer advanced depth until users show demand. |
 | Exercise has much more code than the other pillars | Reuse it as a technical reference, but give all four pillars top-level navigation, onboarding goals, dashboard presence, event/reward support, and MVP success measures. |
-| Multiple clients drift | Keep one canonical client and one reward contract. Resolve the root Flutter duplicate before shipping. |
+| Multiple clients drift | Keep one canonical client and one reward contract, with four peer pillars across supported clients. |
 | App/site blocking differs by OS | Maintain per-platform coverage and permission states; release only tested target combinations; never call best-effort coverage universal. |
 | macOS blocker failures undermine the core promise | Treat the latest known live failures as open until a fresh notarized build passes. Do not infer runtime reliability from source changes. |
 | More earning paths create reward abuse or duplicate credits | Stable activity IDs, server-side idempotency, shared caps, one immutable ledger, pending approval state, and physical multi-device race testing. |
@@ -121,7 +121,6 @@ Do not claim screen-time reduction from allowance countdowns alone. First establ
 
 ## Sources checked
 
-- Repository: [Bloom Exercise implementation and current limits](../bloom-exercise/README.md), [macOS readiness assessment](../bloom-exercise/docs/qa/12-FINAL-READINESS-ASSESSMENT.md), [risk register](../bloom-exercise/docs/qa/04-GAP-AND-RISK-REGISTER.md), [Bloom migrations](../supabase/migrations/).
+- Repository: [Bloom implementation and current limits](../README.md), [macOS readiness assessment](qa/12-FINAL-READINESS-ASSESSMENT.md), [risk register](qa/04-GAP-AND-RISK-REGISTER.md), [Bloom migrations](../supabase/migrations/).
 - Apple: [Family Controls](https://developer.apple.com/documentation/familycontrols), [Family Controls entitlement request](https://developer.apple.com/documentation/familycontrols/requesting-the-family-controls-entitlement), [Network Extension](https://developer.apple.com/documentation/networkextension), [System Extensions and Endpoint Security](https://developer.apple.com/system-extensions/).
 - Android: [Google Play Accessibility API policy](https://support.google.com/googleplay/android-developer/answer/10964491), [DevicePolicyManager](https://developer.android.com/reference/android/app/admin/DevicePolicyManager).
-- Flutter: [macOS platform support](https://docs.flutter.dev/platform-integration/macos/setup).
