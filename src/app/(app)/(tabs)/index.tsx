@@ -6,7 +6,7 @@ import { useAuth } from '../../../lib/auth';
 import { loadDevices, type BloomDevice } from '../../../lib/devices';
 import { useBloom } from '../../../lib/bloom-context';
 import { buildDailyScreenTimeTotals, summarizeWeeklyGoals, type DailyScreenTimeTotal } from '../../../lib/home-dashboard';
-import { loadWeeklyPillarActuals, loadWeeklyPillarGoals } from '../../../lib/growth-modules';
+import { loadGrowthActivity, loadWeeklyPillarActuals, loadWeeklyPillarGoals, type GrowthActivityEvent } from '../../../lib/growth-modules';
 
 type LoadState<T> = { profileId: string | null; data: T | null; loading: boolean; error: string | null };
 
@@ -17,6 +17,7 @@ export default function HomeScreen() {
   const { profileId } = useAuth();
   const requestVersion = useRef(0);
   const [weeklyState, setWeeklyState] = useState<LoadState<ReturnType<typeof summarizeWeeklyGoals>>>(initialLoadState);
+  const [growthActivityState, setGrowthActivityState] = useState<LoadState<GrowthActivityEvent[]>>(initialLoadState);
   const [creditState, setCreditState] = useState<LoadState<DailyScreenTimeTotal[]>>(initialLoadState);
   const [deviceState, setDeviceState] = useState<LoadState<BloomDevice[]>>(initialLoadState);
 
@@ -25,6 +26,7 @@ export default function HomeScreen() {
     const request = ++requestVersion.current;
     const isCurrent = () => request === requestVersion.current;
     setWeeklyState({ profileId, data: null, loading: true, error: null });
+    setGrowthActivityState({ profileId, data: null, loading: true, error: null });
     setCreditState({ profileId, data: null, loading: true, error: null });
     setDeviceState({ profileId, data: null, loading: true, error: null });
 
@@ -33,6 +35,11 @@ export default function HomeScreen() {
         if (isCurrent()) setWeeklyState({ profileId, data: summarizeWeeklyGoals(goals, actuals), loading: false, error: null });
       }).catch(() => {
         if (isCurrent()) setWeeklyState({ profileId, data: null, loading: false, error: 'Could not load weekly goals. Please try again.' });
+      }),
+      loadGrowthActivity(profileId).then((events) => {
+        if (isCurrent()) setGrowthActivityState({ profileId, data: events, loading: false, error: null });
+      }).catch(() => {
+        if (isCurrent()) setGrowthActivityState({ profileId, data: null, loading: false, error: 'Could not load today’s pillar activity.' });
       }),
       loadCreditLedger().then((entries) => {
         const timezone = creditSettings?.credit_timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -55,6 +62,7 @@ export default function HomeScreen() {
   }, [refresh]));
 
   const profileWeekly = weeklyState.profileId === profileId ? weeklyState : initialLoadState;
+  const profileGrowthActivity = growthActivityState.profileId === profileId ? growthActivityState : initialLoadState;
   const profileCredits = creditState.profileId === profileId ? creditState : initialLoadState;
   const profileDevices = deviceState.profileId === profileId ? deviceState : initialLoadState;
 
@@ -62,6 +70,9 @@ export default function HomeScreen() {
     weeklySummary={profileWeekly.data}
     weeklyLoading={profileWeekly.loading}
     weeklyError={profileWeekly.error}
+    growthActivity={profileGrowthActivity.data}
+    growthActivityLoading={profileGrowthActivity.loading}
+    growthActivityError={profileGrowthActivity.error}
     creditHistory={profileCredits.data}
     creditHistoryLoading={profileCredits.loading}
     creditHistoryError={profileCredits.error}

@@ -9,12 +9,16 @@ import { useBloom } from '../lib/bloom-context';
 import { useBloomTheme } from '../lib/theme-context';
 import { moduleManifest } from '../lib/module-manifest';
 import { useModuleVisibility } from '../lib/module-visibility';
-import type { DailyScreenTimeTotal, WeeklyGoalSummary } from '../lib/home-dashboard';
+import { summarizeTodayPillars, type DailyScreenTimeTotal, type TodayPillarProgress, type WeeklyGoalSummary } from '../lib/home-dashboard';
+import type { GrowthActivityEvent } from '../lib/growth-modules';
 
 export type HomeDashboardProps = {
   weeklySummary: WeeklyGoalSummary | null;
   weeklyLoading: boolean;
   weeklyError: string | null;
+  growthActivity: GrowthActivityEvent[] | null;
+  growthActivityLoading: boolean;
+  growthActivityError: string | null;
   creditHistory: DailyScreenTimeTotal[] | null;
   creditHistoryLoading: boolean;
   creditHistoryError: string | null;
@@ -35,6 +39,9 @@ export function HomeDashboard({
   weeklySummary,
   weeklyLoading,
   weeklyError,
+  growthActivity,
+  growthActivityLoading,
+  growthActivityError,
   creditHistory,
   creditHistoryLoading,
   creditHistoryError,
@@ -43,7 +50,7 @@ export function HomeDashboard({
   devicesError,
   onRefresh,
 }: HomeDashboardProps) {
-  const { activeWorkout, creditsEnabled, creditBalance, dataConfirmedAt, loading, error, refresh } = useBloom();
+  const { activeWorkout, creditsEnabled, creditBalance, creditSettings, dataConfirmedAt, loading, error, refresh, workoutAnalytics } = useBloom();
   const { childProfile, assignedModules } = useAuth();
   const { visibleModules } = useModuleVisibility();
   const { theme } = useBloomTheme();
@@ -51,6 +58,9 @@ export function HomeDashboard({
   const pillars = moduleManifest.filter((module) => module.available && visibleModules.includes(module.id)
     && (!childProfile || assignedModules.includes(module.id)));
   const walletError = error && !dataConfirmedAt ? error : null;
+  const todayPillars = summarizeTodayPillars(weeklySummary?.goals ?? [], growthActivity ?? [],
+    workoutAnalytics?.history.map((session) => session.completed_at) ?? [], new Date(), creditSettings?.credit_timezone ?? 'UTC')
+    .filter((entry) => pillars.some((pillar) => pillar.id === entry.module_id));
 
   return <Screen safeAreaTop={false}>
     <View style={styles.content}>
@@ -76,7 +86,8 @@ export function HomeDashboard({
           <BalancePanel available={creditBalance} enabled={creditsEnabled} loading={loading} error={walletError} onRefresh={refresh} />
         </View>
         <View style={styles.goalsColumn}>
-          <WeeklyGoalsPanel summary={weeklySummary} visiblePillars={pillars.map((pillar) => pillar.id)} loading={weeklyLoading} error={weeklyError} onRetry={onRefresh} />
+          <TodayPillarsPanel progress={todayPillars} loading={weeklyLoading || growthActivityLoading}
+            error={weeklyError ?? growthActivityError} onRetry={onRefresh} />
         </View>
       </View>
 
@@ -117,51 +128,36 @@ export function HomeDashboard({
   </Screen>;
 }
 
-function WeeklyGoalsPanel({ summary, visiblePillars, loading, error, onRetry }: {
-  summary: WeeklyGoalSummary | null;
-  visiblePillars: (typeof moduleManifest)[number]['id'][];
+function TodayPillarsPanel({ progress, loading, error, onRetry }: {
+  progress: TodayPillarProgress[];
   loading: boolean;
   error: string | null;
   onRetry: () => void;
 }) {
   const { theme } = useBloomTheme();
-  const goals = summary?.goals.filter((goal) => visiblePillars.includes(goal.module_id)) ?? [];
-  const completedCount = goals.filter((goal) => goal.complete).length;
+  const completedCount = progress.filter((pillar) => pillar.complete).length;
 
   return <Panel>
     <View style={styles.panelHeading}>
-      <Eyebrow>Pillars · this week</Eyebrow>
-      <Text accessibilityRole="header" style={[styles.panelTitle, { color: theme.colors.ink }]}>{goals.length > 0 ? `${completedCount} of ${goals.length} complete` : 'Your weekly goals'}</Text>
+      <Eyebrow>Today’s plan</Eyebrow>
+      <Text accessibilityRole="header" style={[styles.panelTitle, { color: theme.colors.ink }]}>{progress.length > 0 ? `${completedCount} of ${progress.length} done` : 'A flexible day'}</Text>
     </View>
     {loading ? <ActivityIndicator color={theme.colors.action} /> : error ? <>
-      <Body>Your weekly goals could not be loaded.</Body>
+      <Body>Today’s pillar plan could not be loaded.</Body>
       <Button label="Try again" variant="secondary" onPress={onRetry} />
-    </> : goals.length > 0 ? <View style={styles.goalsList}>
-        {goals.map((goal) => {
-          const module = moduleManifest.find((entry) => entry.id === goal.module_id)!;
-          const moduleColors = theme.modules[goal.module_id];
-          const progress = Math.min(100, Math.round(goal.actualValue / goal.target_count * 100));
-          return <View key={goal.module_id} style={styles.goalRow}>
-            <View style={styles.goalCopy}>
-              <View style={styles.goalHeading}>
-                <View style={styles.goalTitleRow}>
-                  <MaterialIcons name={module.icon} size={15} color={moduleColors.deep} />
-                  <Text style={[styles.goalName, { color: theme.colors.ink }]} numberOfLines={1}>{module.name}</Text>
-                </View>
-                <Text style={[styles.goalTarget, { color: goal.complete ? moduleColors.deep : theme.colors.inkMuted }]}>{formatGoalValue(goal.actualValue)}/{formatGoalValue(goal.target_count)} {goalUnit(goal.unit)}</Text>
-              </View>
-              <View accessible accessibilityRole="progressbar" accessibilityLabel={`${module.name} weekly goal`}
-                accessibilityValue={{ min: 0, max: goal.target_count, now: Math.min(goal.actualValue, goal.target_count) }}
-                style={[styles.goalTrack, { backgroundColor: theme.colors.surfaceSoft }]}>
-                <View style={[styles.goalFill, { width: `${progress}%`, backgroundColor: moduleColors.deep }]} />
-              </View>
-            </View>
-          </View>;
-        })}
-      </View>
-    : <>
-      <Body>Your weekly plan is ready to shape around the days that work for you.</Body>
-      <Button label="Set a weekly goal" variant="secondary" onPress={() => router.push('/progress')} />
+    </> : progress.length > 0 ? <View style={styles.todayPillarList}>
+      {progress.map((pillar) => {
+        const module = moduleManifest.find((entry) => entry.id === pillar.module_id)!;
+        const moduleColors = theme.modules[pillar.module_id];
+        return <View key={pillar.module_id} style={styles.todayPillarRow}>
+          <MaterialIcons name={module.icon} size={16} color={moduleColors.deep} />
+          <Text style={[styles.todayPillarName, { color: theme.colors.ink }]} numberOfLines={1}>{module.name}</Text>
+          <Text style={[styles.todayPillarStatus, { color: pillar.complete ? moduleColors.deep : theme.colors.inkMuted }]}>{pillar.complete ? 'Done' : 'Planned'}</Text>
+        </View>;
+      })}
+    </View> : <>
+      <Body>No pillar is scheduled today. Keep the day flexible or choose a weekly plan.</Body>
+      <Button label="Edit weekly plan" variant="secondary" onPress={() => router.push('/progress')} />
     </>}
   </Panel>;
 }
@@ -334,16 +330,6 @@ function deviceIcon(platform: BloomDevice['platform']): 'phone-iphone' | 'phone-
   return 'devices';
 }
 
-function formatGoalValue(value: number) {
-  return value.toLocaleString(undefined, { maximumFractionDigits: 1 });
-}
-
-function goalUnit(unit: WeeklyGoalSummary['goals'][number]['unit']) {
-  if (unit === 'workouts') return 'wkts';
-  if (unit === 'minutes') return 'min';
-  return unit;
-}
-
 function moduleName(moduleId: WeeklyGoalSummary['goals'][number]['module_id']) {
   return moduleManifest.find((module) => module.id === moduleId)?.name ?? 'Your next pillar';
 }
@@ -378,19 +364,13 @@ const styles = StyleSheet.create({
   balanceColumn: { flex: 1, minWidth: 0 },
   goalsColumn: { flex: 2, minWidth: 0 },
   insightColumns: { flexDirection: 'row', alignItems: 'stretch', gap: 12 },
-  desktopColumns: { flexDirection: 'row', alignItems: 'stretch' },
   desktopColumn: { flex: 1, minWidth: 0 },
   panelHeading: { gap: 2 },
-  goalTitleRow: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 5 },
   panelTitle: { fontSize: 18, lineHeight: 24, fontWeight: '700', letterSpacing: -0.3 },
-  goalsList: { flex: 1, gap: 9, minWidth: 0 },
-  goalRow: { flexDirection: 'row', alignItems: 'center', minHeight: 28 },
-  goalCopy: { flex: 1, gap: 4, minWidth: 0 },
-  goalHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 4 },
-  goalName: { fontSize: 13, lineHeight: 16, fontWeight: '600', flex: 1 },
-  goalTarget: { fontSize: 12, lineHeight: 16, fontWeight: '600', fontVariant: ['tabular-nums'] },
-  goalTrack: { height: 6, overflow: 'hidden', borderRadius: 999 },
-  goalFill: { height: '100%', borderRadius: 999 },
+  todayPillarList: { gap: 8 },
+  todayPillarRow: { minHeight: 24, flexDirection: 'row', alignItems: 'center', gap: 7 },
+  todayPillarName: { flex: 1, minWidth: 0, fontSize: 13, lineHeight: 18, fontWeight: '600' },
+  todayPillarStatus: { fontSize: 12, lineHeight: 16, fontWeight: '600' },
   balanceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 3 },
   balanceAmount: { fontSize: 25, lineHeight: 32, fontWeight: '700', letterSpacing: -0.6, fontVariant: ['tabular-nums'] },
   balanceUnit: { fontSize: 14, fontWeight: '600' },

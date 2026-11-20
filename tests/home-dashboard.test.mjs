@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { buildDailyScreenTimeTotals, summarizeWeeklyGoals } from '../src/lib/home-dashboard.ts';
+import { buildDailyScreenTimeTotals, summarizeTodayPillars, summarizeWeeklyGoals } from '../src/lib/home-dashboard.ts';
 
 test('weekly goal progress only counts goals that meet their configured target', () => {
   const goals = [
@@ -26,8 +26,28 @@ test('weekly goal progress only counts goals that meet their configured target',
   });
 });
 
-test('weekly goal ring stays empty until real goals have been saved', () => {
+test('weekly goal summary stays empty until real goals have been saved', () => {
   assert.deepEqual(summarizeWeeklyGoals([]), { goals: [], completedCount: 0, totalCount: 0, percent: 0 });
+});
+
+test('today pillar progress respects the profile time zone and each saved active day', () => {
+  const goals = [
+    { profile_id: 'test-profile', module_id: 'tasks', target_count: 2, unit: 'tasks', active_days: [0], updated_at: '' },
+    { profile_id: 'test-profile', module_id: 'study', target_count: 60, unit: 'minutes', active_days: [0], updated_at: '' },
+    { profile_id: 'test-profile', module_id: 'exercise', target_count: 1, unit: 'workouts', active_days: [0], updated_at: '' },
+    { profile_id: 'test-profile', module_id: 'read', target_count: 2, unit: 'sessions', active_days: [6], updated_at: '' },
+  ];
+  const activity = [
+    { moduleId: 'study', occurredAt: '2026-11-21T21:30:00.000Z' },
+    { moduleId: 'tasks', occurredAt: '2026-11-21T20:30:00.000Z' },
+  ];
+
+  assert.deepEqual(summarizeTodayPillars(goals, activity, ['2026-11-21T21:45:00.000Z'],
+    new Date('2026-11-21T22:00:00.000Z'), 'Asia/Qatar'), [
+    { module_id: 'exercise', complete: true },
+    { module_id: 'study', complete: true },
+    { module_id: 'tasks', complete: false },
+  ]);
 });
 
 test('daily screen-time totals count spent minutes in the active profile time zone', () => {

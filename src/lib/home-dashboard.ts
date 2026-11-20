@@ -2,6 +2,7 @@ import { dateKeyInTimeZone } from './date-utils';
 import type { CreditLedgerEntry } from './bloom';
 import type { WeeklyPillarActual, WeeklyPillarGoal } from './growth-modules';
 import { moduleManifest } from './module-manifest';
+import type { ModuleKey } from '../theme';
 
 export type DailyScreenTimeTotal = { dateKey: string; label: string; minutes: number };
 export type PillarGoalProgress = WeeklyPillarGoal & { actualValue: number; complete: boolean };
@@ -11,6 +12,30 @@ export type WeeklyGoalSummary = {
   totalCount: number;
   percent: number;
 };
+export type TodayPillarProgress = { module_id: ModuleKey; complete: boolean };
+
+export function summarizeTodayPillars(
+  goals: readonly WeeklyPillarGoal[],
+  activity: readonly { moduleId: ModuleKey; occurredAt: string }[],
+  exerciseCompletedAt: readonly string[] = [],
+  now: Date = new Date(),
+  timeZone = 'UTC',
+): TodayPillarProgress[] {
+  const resolvedTimeZone = getSafeTimeZone(timeZone, now);
+  const today = dateKeyInTimeZone(now, resolvedTimeZone);
+  const weekday = new Date(`${today}T12:00:00.000Z`).getUTCDay();
+  return moduleManifest.flatMap((module) => {
+    const goal = goals.find((entry) => entry.module_id === module.id && entry.target_count > 0 && entry.active_days.includes(weekday));
+    if (!goal) return [];
+    const dates = module.id === 'exercise' ? exerciseCompletedAt
+      : activity.filter((event) => event.moduleId === module.id).map((event) => event.occurredAt);
+    const complete = dates.some((value) => {
+      const date = new Date(value);
+      return Number.isFinite(date.getTime()) && dateKeyInTimeZone(date, resolvedTimeZone) === today;
+    });
+    return [{ module_id: module.id, complete }];
+  });
+}
 
 export function summarizeWeeklyGoals(goals: readonly WeeklyPillarGoal[], actuals: readonly WeeklyPillarActual[] = []): WeeklyGoalSummary {
   const orderedGoals = moduleManifest.flatMap((module) => goals
@@ -34,12 +59,7 @@ export function buildDailyScreenTimeTotals(
   timeZone = 'UTC',
   locale?: string,
 ): DailyScreenTimeTotal[] {
-  let resolvedTimeZone = timeZone || 'UTC';
-  try {
-    new Intl.DateTimeFormat('en', { timeZone: resolvedTimeZone }).format(now);
-  } catch {
-    resolvedTimeZone = 'UTC';
-  }
+  const resolvedTimeZone = getSafeTimeZone(timeZone, now);
 
   const today = dateKeyInTimeZone(now, resolvedTimeZone);
   const [year, month, day] = today.split('-').map(Number);
@@ -61,4 +81,13 @@ export function buildDailyScreenTimeTotals(
   }
 
   return days.map((item) => ({ ...item, minutes: totals.get(item.dateKey) ?? 0 }));
+}
+
+function getSafeTimeZone(timeZone: string, referenceDate: Date) {
+  try {
+    new Intl.DateTimeFormat('en', { timeZone: timeZone || 'UTC' }).format(referenceDate);
+    return timeZone || 'UTC';
+  } catch {
+    return 'UTC';
+  }
 }
