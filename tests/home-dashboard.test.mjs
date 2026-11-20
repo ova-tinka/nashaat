@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { buildDailyCreditTotals, summarizeWeeklyGoals } from '../src/lib/home-dashboard.ts';
+import { buildDailyScreenTimeTotals, summarizeWeeklyGoals } from '../src/lib/home-dashboard.ts';
 
 test('weekly goal progress only counts goals that meet their configured target', () => {
   const goals = [
@@ -30,25 +30,26 @@ test('weekly goal ring stays empty until real goals have been saved', () => {
   assert.deepEqual(summarizeWeeklyGoals([]), { goals: [], completedCount: 0, totalCount: 0, percent: 0 });
 });
 
-test('daily credit totals count only earned rewards in the active profile time zone', () => {
-  const totals = buildDailyCreditTotals([
+test('daily screen-time totals count spent minutes in the active profile time zone', () => {
+  const totals = buildDailyScreenTimeTotals([
     { amount_minutes: 20, entry_type: 'earned', created_at: '2026-11-21T20:30:00.000Z' },
-    { amount_minutes: 15, entry_type: 'earned', created_at: '2026-11-21T20:00:00.000Z' },
+    { amount_minutes: -15, entry_type: 'spent', created_at: '2026-11-21T20:00:00.000Z' },
     { amount_minutes: -5, entry_type: 'expired', created_at: '2026-11-21T20:45:00.000Z' },
     { amount_minutes: 8, entry_type: 'adjustment', created_at: '2026-11-21T20:50:00.000Z' },
-    { amount_minutes: 60, entry_type: 'earned', created_at: '2026-11-13T20:30:00.000Z' },
-    { amount_minutes: 30, entry_type: 'earned', created_at: 'not-a-date' },
+    { amount_minutes: -60, entry_type: 'spent', created_at: '2026-11-13T20:30:00.000Z' },
+    { amount_minutes: -30, entry_type: 'spent', created_at: 'not-a-date' },
+    { amount_minutes: -22, entry_type: 'spent', created_at: '2026-11-21T20:40:00.000Z' },
   ], new Date('2026-11-21T22:00:00.000Z'), 'Asia/Qatar', 'en-US');
 
   assert.equal(totals.length, 7);
   assert.deepEqual(totals.map(({ dateKey }) => dateKey), [
     '2026-11-16', '2026-11-17', '2026-11-18', '2026-11-19', '2026-11-20', '2026-11-21', '2026-11-22',
   ]);
-  assert.deepEqual(totals.map(({ minutes }) => minutes), [0, 0, 0, 0, 0, 35, 0]);
+  assert.deepEqual(totals.map(({ minutes }) => minutes), [0, 0, 0, 0, 0, 37, 0]);
 });
 
 test('invalid time zones use UTC and days remain ordered chronologically', () => {
-  const totals = buildDailyCreditTotals([], new Date('2026-11-21T20:30:00.000Z'), 'invalid/time-zone', 'en-US');
+  const totals = buildDailyScreenTimeTotals([], new Date('2026-11-21T20:30:00.000Z'), 'invalid/time-zone', 'en-US');
 
   assert.deepEqual(totals.map(({ dateKey }) => dateKey), [
     '2026-11-15', '2026-11-16', '2026-11-17', '2026-11-18', '2026-11-19', '2026-11-20', '2026-11-21',

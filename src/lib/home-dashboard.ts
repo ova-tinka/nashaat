@@ -3,7 +3,7 @@ import type { CreditLedgerEntry } from './bloom';
 import type { WeeklyPillarActual, WeeklyPillarGoal } from './growth-modules';
 import { moduleManifest } from './module-manifest';
 
-export type DailyCreditTotal = { dateKey: string; label: string; minutes: number };
+export type DailyScreenTimeTotal = { dateKey: string; label: string; minutes: number };
 export type PillarGoalProgress = WeeklyPillarGoal & { actualValue: number; complete: boolean };
 export type WeeklyGoalSummary = {
   goals: PillarGoalProgress[];
@@ -28,12 +28,12 @@ export function summarizeWeeklyGoals(goals: readonly WeeklyPillarGoal[], actuals
   };
 }
 
-export function buildDailyCreditTotals(
+export function buildDailyScreenTimeTotals(
   entries: readonly Pick<CreditLedgerEntry, 'amount_minutes' | 'entry_type' | 'created_at'>[],
   now: Date = new Date(),
   timeZone = 'UTC',
   locale?: string,
-): DailyCreditTotal[] {
+): DailyScreenTimeTotal[] {
   let resolvedTimeZone = timeZone || 'UTC';
   try {
     new Intl.DateTimeFormat('en', { timeZone: resolvedTimeZone }).format(now);
@@ -52,12 +52,12 @@ export function buildDailyCreditTotals(
   });
 
   for (const entry of entries) {
-    if (entry.entry_type !== 'earned' || !Number.isFinite(entry.amount_minutes) || entry.amount_minutes <= 0) continue;
+    if (entry.entry_type !== 'spent' || !Number.isFinite(entry.amount_minutes) || entry.amount_minutes >= 0) continue;
     const date = new Date(entry.created_at);
     if (!Number.isFinite(date.getTime())) continue;
     const dateKey = dateKeyInTimeZone(date, resolvedTimeZone);
     const currentTotal = totals.get(dateKey);
-    if (currentTotal !== undefined) totals.set(dateKey, currentTotal + entry.amount_minutes);
+    if (currentTotal !== undefined) totals.set(dateKey, currentTotal + Math.abs(entry.amount_minutes));
   }
 
   return days.map((item) => ({ ...item, minutes: totals.get(item.dateKey) ?? 0 }));
