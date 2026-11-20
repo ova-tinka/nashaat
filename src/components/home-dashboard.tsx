@@ -71,22 +71,22 @@ export function HomeDashboard({
         </Pressable>
       </ImageBackground>
 
-      <View style={[styles.primaryColumns, desktop && styles.desktopColumns]}>
-        <View style={desktop && styles.desktopColumn}>
+      <View style={styles.balanceGoalsRow}>
+        <View style={styles.balanceColumn}>
           <BalancePanel available={creditBalance} enabled={creditsEnabled} loading={loading} error={walletError} onRefresh={refresh} />
         </View>
-        <View style={desktop && styles.desktopColumn}>
+        <View style={styles.goalsColumn}>
           <WeeklyGoalsPanel summary={weeklySummary} visiblePillars={pillars.map((pillar) => pillar.id)} loading={weeklyLoading} error={weeklyError} onRetry={onRefresh} />
         </View>
       </View>
 
       <WeeklyScreenTimePanel totals={creditHistory} loading={creditHistoryLoading} error={creditHistoryError} onRetry={onRefresh} />
 
-      <View style={[styles.secondaryColumns, desktop && styles.desktopColumns]}>
-        <View style={desktop && styles.desktopColumn}>
+      <View style={styles.insightColumns}>
+        <View style={styles.desktopColumn}>
           <ByDevicePanel devices={devices} loading={devicesLoading} error={devicesError} onRetry={onRefresh} />
         </View>
-        <View style={desktop && styles.desktopColumn}>
+        <View style={styles.desktopColumn}>
           <InsightsPanel summary={weeklySummary} loading={weeklyLoading} error={weeklyError} />
         </View>
       </View>
@@ -364,7 +364,7 @@ function formatCreditDuration(value: number) {
 }
 
 const styles = StyleSheet.create({
-  content: { width: '100%', gap: 16 },
+  content: { width: '100%', gap: 12, marginTop: -8 },
   hero: { minHeight: 194, overflow: 'hidden', justifyContent: 'flex-end', borderRadius: 27, padding: 20 },
   desktopHero: { minHeight: 274, padding: 30 },
   heroImage: { borderRadius: 27 },
@@ -374,45 +374,38 @@ const styles = StyleSheet.create({
   heroHeading: { color: '#FFFFFF', fontSize: 28, lineHeight: 34, fontWeight: '700', letterSpacing: -0.6 },
   heroBody: { color: 'rgba(255, 255, 255, 0.95)', fontSize: 15, lineHeight: 21 },
   heroAction: { position: 'absolute', right: 17, bottom: 17, width: 46, height: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 23, backgroundColor: '#FFFFFF', shadowColor: '#141B35', shadowOpacity: 0.12, shadowOffset: { width: 0, height: 3 }, shadowRadius: 8, elevation: 3 },
-  primaryColumns: { gap: 16 },
-  secondaryColumns: { gap: 16 },
+  balanceGoalsRow: { flexDirection: 'row', alignItems: 'stretch', gap: 12 },
+  balanceColumn: { flex: 1, minWidth: 0 },
+  goalsColumn: { flex: 2, minWidth: 0 },
+  insightColumns: { flexDirection: 'row', alignItems: 'stretch', gap: 12 },
   desktopColumns: { flexDirection: 'row', alignItems: 'stretch' },
   desktopColumn: { flex: 1, minWidth: 0 },
   panelHeading: { gap: 2 },
   goalTitleRow: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 5 },
   panelTitle: { fontSize: 18, lineHeight: 24, fontWeight: '700', letterSpacing: -0.3 },
-  goalsLayout: { flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 5 },
-  goalRing: { width: 140, height: 140, alignItems: 'center', justifyContent: 'center' },
-  ringSegment: { position: 'absolute', width: 4, height: 10, borderRadius: 4 },
-  goalRingCenter: { width: 98, height: 98, borderRadius: 49, alignItems: 'center', justifyContent: 'center', gap: 0 },
-  goalPercent: { fontSize: 39, lineHeight: 44, fontWeight: '700', letterSpacing: -1.1, fontVariant: ['tabular-nums'] },
-  goalRingLabel: { fontSize: 11, lineHeight: 17, fontWeight: '600', textAlign: 'center' },
-  goalsList: { flex: 1, gap: 11, minWidth: 0 },
-  goalRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 27 },
-  goalIcon: { width: 26, height: 26, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  goalsList: { flex: 1, gap: 9, minWidth: 0 },
+  goalRow: { flexDirection: 'row', alignItems: 'center', minHeight: 28 },
   goalCopy: { flex: 1, gap: 4, minWidth: 0 },
   goalHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 4 },
   goalName: { fontSize: 13, lineHeight: 16, fontWeight: '600', flex: 1 },
   goalTarget: { fontSize: 12, lineHeight: 16, fontWeight: '600', fontVariant: ['tabular-nums'] },
   goalTrack: { height: 6, overflow: 'hidden', borderRadius: 999 },
   goalFill: { height: '100%', borderRadius: 999 },
-  balanceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 7 },
-  balanceAmount: { fontSize: 40, lineHeight: 47, fontWeight: '700', letterSpacing: -1, fontVariant: ['tabular-nums'] },
-  balanceUnit: { fontSize: 16, fontWeight: '600' },
+  balanceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 3 },
+  balanceAmount: { fontSize: 25, lineHeight: 32, fontWeight: '700', letterSpacing: -0.6, fontVariant: ['tabular-nums'] },
+  balanceUnit: { fontSize: 14, fontWeight: '600' },
   balanceNote: { fontSize: 13, lineHeight: 19, fontWeight: '500' },
   screenTimeHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  balanceStatus: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 22 },
-  statusText: { fontSize: 12, lineHeight: 17 },
   creditsOff: { fontSize: 19, lineHeight: 26, fontWeight: '600' },
   inlineStatus: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 9 },
   panelActions: { gap: 3, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 8, marginTop: 3 },
   quickLink: { minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 9 },
   quickLinkText: { flex: 1, fontSize: 13, lineHeight: 19, fontWeight: '600' },
   trendAmount: { fontSize: 30, lineHeight: 37, fontWeight: '700', letterSpacing: -0.65, fontVariant: ['tabular-nums'] },
-  chart: { minHeight: 105, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 8, paddingTop: 8 },
-  chartDay: { flex: 1, minWidth: 0, alignItems: 'center', gap: 7 },
-  chartValue: { minHeight: 14, fontSize: 10, lineHeight: 14, fontWeight: '500', fontVariant: ['tabular-nums'] },
-  chartArea: { width: '100%', maxWidth: 32, height: 70, alignItems: 'center', justifyContent: 'flex-end', overflow: 'hidden', borderTopLeftRadius: 9, borderTopRightRadius: 9 },
+  chart: { minHeight: 126, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 8, paddingTop: 8 },
+  chartDay: { flex: 1, minWidth: 0, alignItems: 'center', gap: 5 },
+  chartValue: { minHeight: 15, fontSize: 10, lineHeight: 14, fontWeight: '500', fontVariant: ['tabular-nums'] },
+  chartArea: { width: '100%', maxWidth: 34, height: 84, alignItems: 'center', justifyContent: 'flex-end', overflow: 'hidden', borderTopLeftRadius: 9, borderTopRightRadius: 9 },
   chartBar: { width: '78%', borderTopLeftRadius: 8, borderTopRightRadius: 8 },
   chartLabel: { fontSize: 11, lineHeight: 15, fontWeight: '500' },
   deviceRow: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 11 },
@@ -420,8 +413,8 @@ const styles = StyleSheet.create({
   deviceCopy: { flex: 1, minWidth: 0, gap: 1 },
   deviceName: { fontSize: 14, lineHeight: 20, fontWeight: '600' },
   deviceDetail: { fontSize: 12, lineHeight: 17 },
-  unknownHours: { fontSize: 17, lineHeight: 22, fontWeight: '700' },
-  insightMetric: { fontSize: 29, lineHeight: 36, fontWeight: '700', letterSpacing: -0.6, fontVariant: ['tabular-nums'] },
+  unknownHours: { minWidth: 16, fontSize: 18, fontWeight: '600', textAlign: 'right' },
+  insightMetric: { fontSize: 28, lineHeight: 34, fontWeight: '700', letterSpacing: -0.6, fontVariant: ['tabular-nums'] },
   pillarsSection: { gap: 11, paddingTop: 1 },
   sectionHeading: { minHeight: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   sectionTitle: { flex: 1, gap: 2 },
@@ -436,8 +429,5 @@ const styles = StyleSheet.create({
   pillarCopy: { minHeight: 62, justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 8, gap: 1 },
   pillarName: { fontSize: 15, lineHeight: 20, fontWeight: '700' },
   pillarDescription: { fontSize: 12, lineHeight: 17 },
-  overviewRows: { gap: 7 },
-  overviewRow: { minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  secondaryLinks: { gap: 7, paddingBottom: 4 },
   pressed: { opacity: 0.78 },
 });
