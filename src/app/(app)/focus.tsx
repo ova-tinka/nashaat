@@ -2,23 +2,24 @@ import { randomUUID } from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 import { useCallback, useEffect, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useFocusEffect } from 'expo-router';
-import { Body, Button, ErrorText, Eyebrow, Field, Heading, Label, Panel, Screen, sharedStyles } from '../../../components/bloom-ui';
-import BloomBlocking from '../../../../modules/bloom-blocking/src/BloomBlockingModule';
-import type { AppCandidate, BlockingStatus, SafariContentBlockerState, UsageAccess } from '../../../../modules/bloom-blocking/src/BloomBlocking.types';
-import { colors } from '../../../theme';
-import { useBloom } from '../../../lib/bloom-context';
-import { useAuth } from '../../../lib/auth';
-import { findUsageSession, finishUsageSession, startEnforcedCreditSession, startUsageSession } from '../../../lib/bloom';
-import { isMacDesktop } from '../../../lib/macos-blocking';
-import { MacosFocus } from '../../../components/macos-focus';
-import { addWebsiteRule, deleteWebsiteRule, loadWebsiteRules, type ChildRule, type WebsiteRule, type WebsiteRuleScope } from '../../../lib/family';
-import { syncBlockingRules } from '../../../lib/blocking-rules-sync';
+import { router, useFocusEffect } from 'expo-router';
+import { Body, Button, ErrorText, Eyebrow, Field, Heading, Label, Panel, Screen, sharedStyles } from '../../components/bloom-ui';
+import BloomBlocking from '../../../modules/bloom-blocking/src/BloomBlockingModule';
+import type { AppCandidate, BlockingStatus, SafariContentBlockerState, UsageAccess } from '../../../modules/bloom-blocking/src/BloomBlocking.types';
+import { useBloomTheme } from '../../lib/theme-context';
+import { useBloom } from '../../lib/bloom-context';
+import { useAuth } from '../../lib/auth';
+import { findUsageSession, finishUsageSession, startEnforcedCreditSession, startUsageSession } from '../../lib/bloom';
+import { isMacDesktop } from '../../lib/macos-blocking';
+import { MacosFocus } from '../../components/macos-focus';
+import { addWebsiteRule, deleteWebsiteRule, loadWebsiteRules, type ChildRule, type WebsiteRule, type WebsiteRuleScope } from '../../lib/family';
+import { syncBlockingRules } from '../../lib/blocking-rules-sync';
 
 const emptyStatus: BlockingStatus = { supported: false, authorized: false, active: false, appCount: 0, websiteCount: 0, categoryCount: 0 };
 type UsageRequest = { requestId: string; deviceKey: string; requestedMillis: number };
 
 export default function FocusScreen() {
+  const { theme } = useBloomTheme();
   const { profileId } = useAuth();
   const userId = profileId;
   const { creditsEnabled, creditSettings, creditBalance, refresh, blockingRules, blockingRulesSyncError, blockingRulesSyncedAt } = useBloom();
@@ -372,16 +373,17 @@ export default function FocusScreen() {
 
   const nativePlatform = Platform.OS === 'ios' || Platform.OS === 'android';
   if (isMacDesktop()) return <MacosFocus />;
-  return <Screen>
+  return <Screen safeAreaTop={false}>
     <View style={sharedStyles.column}>
       <Eyebrow>Focus</Eyebrow>
       <Heading>App and website blocking</Heading>
       <Body>Choose the distractions you want out of reach while you focus.</Body>
+      <Button label="Back" variant="tertiary" onPress={() => router.canGoBack() ? router.back() : router.replace('/')} />
     </View>
 
     {!nativePlatform ? <Panel>
-      <Label>Blocking is not connected on this platform yet.</Label>
-      <Body>Use the Bloom iOS or Android app to set up device blocking. macOS enforcement through Tauri is still to be built.</Body>
+      <Label>Native Focus controls are unavailable in this browser.</Label>
+      <Body>Open Bloom on a supported iOS, Android, or macOS installation to check its local permissions and enforcement status.</Body>
     </Panel> : <>
       {managedRules.length > 0 && <Panel>
         <Eyebrow>Parent-set blocking rules</Eyebrow>
@@ -482,9 +484,9 @@ export default function FocusScreen() {
         {apps.map((app) => {
           const parentRequired = managedRules.some((rule) => rule.target_type === 'app' && rule.target_identifier === app.id);
           const checked = parentRequired || selected.includes(app.id);
-          return <Pressable key={app.id} accessibilityRole="checkbox" accessibilityState={{ checked, disabled: parentRequired }} onPress={() => toggleApp(app.id)} disabled={parentRequired} style={styles.appRow}>
-            <Text style={styles.appName}>{app.name}{parentRequired ? ' · Parent rule' : ''}</Text>
-            <Text style={[styles.check, checked && styles.checked]}>{checked ? '✓' : ''}</Text>
+          return <Pressable key={app.id} accessibilityRole="checkbox" accessibilityState={{ checked, disabled: parentRequired }} onPress={() => toggleApp(app.id)} disabled={parentRequired} style={[styles.appRow, { borderColor: theme.colors.border }]}>
+            <Text style={[styles.appName, { color: theme.colors.ink }]}>{app.name}{parentRequired ? ' · Parent rule' : ''}</Text>
+            <Text style={[styles.check, { color: theme.colors.ink, borderColor: theme.colors.inkMuted }, checked && { backgroundColor: theme.colors.action, borderColor: theme.colors.action, color: theme.colors.onAction }, checked && styles.checked]}>{checked ? '✓' : ''}</Text>
           </Pressable>;
         })}
         <Button label="Save app selection" secondary onPress={() => void saveSelection()} busy={busy} disabled={loading} />
@@ -507,12 +509,12 @@ export default function FocusScreen() {
     </>}
 
     {(blockingRulesSyncError || error) && <ErrorText>{blockingRulesSyncError || error}</ErrorText>}
-  </Screen>;
+    </Screen>;
 }
 
 const styles = StyleSheet.create({
-  appRow: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.border, paddingVertical: 8 },
-  appName: { color: colors.text, fontSize: 15, flex: 1 },
-  check: { width: 24, height: 24, borderWidth: 1, borderColor: colors.muted, borderRadius: 6, textAlign: 'center', color: colors.accentInk, overflow: 'hidden' },
-  checked: { backgroundColor: colors.accent, borderColor: colors.accent, fontWeight: '800' },
+  appRow: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 8 },
+  appName: { fontSize: 15, flex: 1 },
+  check: { width: 24, height: 24, borderWidth: 1, borderRadius: 6, textAlign: 'center', overflow: 'hidden' },
+  checked: { fontWeight: '800' },
 });

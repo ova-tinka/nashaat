@@ -8,10 +8,11 @@ import { useAuth } from '../../lib/auth';
 import { loadCatalog, type Exercise } from '../../lib/bloom';
 import { useBloom } from '../../lib/bloom-context';
 import { clearCoachConversation, decideCoachProposal, loadCoach, saveCoachPreferences, sendCoachRequest, type CoachMessage, type CoachProposal, type CoachSettings } from '../../lib/coach';
-import { colors } from '../../theme';
+import { useBloomTheme } from '../../lib/theme-context';
 
 type Pending = { id: string; kind: 'chat' | 'weekly'; prompt: string };
 export default function CoachScreen() {
+  const { theme } = useBloomTheme();
   const { profileId, childProfile } = useAuth();
   const { refresh } = useBloom();
   const [settings, setSettings] = useState<CoachSettings | null>(null);
@@ -75,18 +76,19 @@ export default function CoachScreen() {
     finally { setBusy(false); }
   }
 
-  return <Screen>
+  return <Screen safeAreaTop={false}>
     <View style={sharedStyles.column}><Eyebrow>AI coach</Eyebrow><Heading>Movement advice</Heading><Body>Ask for supportive ideas or review your recent workouts. Suggestions require approval before they change a plan.</Body></View>
     <Button label="Back to profile" secondary onPress={() => router.replace('/settings')} disabled={busy} />
-    {loading && <ActivityIndicator color={colors.accent} />}{error && <ErrorText>{error}</ErrorText>}{notice && <Body>{notice}</Body>}
+    {loading && <ActivityIndicator color={theme.colors.action} />}{error && <ErrorText>{error}</ErrorText>}{notice && <Body>{notice}</Body>}
     {!loading && <>
       <Panel>
         <Label>Privacy and preferences</Label>
-        <Body>If you consent, your message, goals, experience, equipment, plans, recent workouts, and recent chat are sent to Fireworks AI for coaching. Do not include names, contact details, medical records, or other identifying information.</Body>
+        <Body>If you consent, your message, goals (including current ability and schedule), experience, equipment, plans, recent workouts, and recent chat are sent to Fireworks AI for coaching. Do not include names, contact details, medical records, or other identifying information.</Body>
         <View style={sharedStyles.row}><Body>I agree to this data sharing</Body><Switch accessibilityLabel="Consent to coaching data sharing" value={consent} onValueChange={setConsent} disabled={busy} /></View>
         {!childProfile && <View style={sharedStyles.row}><Body>I am an adult under my local law</Body><Switch accessibilityLabel="Confirm adult eligibility" value={adult} onValueChange={setAdult} disabled={busy} /></View>}
         {childProfile && <Body>A parent must also enable coaching, consent to data sharing, and confirm eligibility. Child coaching may not be available yet.</Body>}
         <Field label="Goals" value={goals} onChangeText={setGoals} maxLength={1000} multiline />
+        <Body>You can include your current comfortable activity and the days you have available. Bloom uses recent completed workouts too; do not exercise through pain.</Body>
         <Field label="Equipment (comma separated)" value={equipment} onChangeText={setEquipment} maxLength={1000} />
         <Label>Experience</Label>
         {(['beginner', 'intermediate', 'experienced'] as const).map((choice) => <Button key={choice} label={`${experience === choice ? '✓ ' : ''}${choice}`} secondary onPress={() => setExperience(choice)} disabled={busy} />)}
@@ -104,6 +106,8 @@ export default function CoachScreen() {
         {settings?.sharing_consent && <><Field label="Message the coach" value={prompt} onChangeText={setPrompt} maxLength={2000} multiline editable={!busy && (!pending || pending.kind === 'chat')} />
         <Button label={pending?.kind === 'chat' ? 'Retry message' : 'Send message'} onPress={() => void send('chat', prompt)} busy={busy} disabled={!prompt.trim() || Boolean(pending && pending.kind !== 'chat')} />
         <Button label={pending?.kind === 'weekly' ? 'Retry weekly review' : 'Review my recent workouts'} secondary onPress={() => void send('weekly', 'Please review my recent workouts and suggest a balanced next step.')} disabled={busy || Boolean(pending && pending.kind !== 'weekly')} />
+        <Button label="Rearrange a missed session" secondary onPress={() => void send('chat', 'I missed a planned session. Help me consider a smaller or rearranged next step. Ask about obstacles without blame, include room for recovery, and prioritize comfortable, safe movement.')} disabled={busy || Boolean(pending)} />
+        <Button label="Plan a smaller week with recovery" secondary onPress={() => void send('chat', 'Suggest a flexible, smaller workout week from my current plans and recent completed sessions. Explain the changes and leave planned recovery days. Do not change any plan unless I approve a proposal.')} disabled={busy || Boolean(pending)} />
         {pending && <Button label="Start a new request" secondary onPress={() => setPending(null)} disabled={busy} />}</>}
       </Panel>}
       {proposals.length > 0 && <><Label>Workout proposals</Label>{proposals.map((proposal) => <CoachProposalCard key={proposal.id} proposal={proposal} catalog={catalog} canApprove={!childProfile} busy={busy} onDecision={(approve) => void decide(proposal.id, approve)} />)}</>}

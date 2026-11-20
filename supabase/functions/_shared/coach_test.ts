@@ -53,6 +53,20 @@ Deno.test('internal model references do not appear in user-facing text', async (
     'Proposal leaked an internal reference');
 });
 
+Deno.test('exercise coaching receives only explicitly shared, sanitized memory', async () => {
+  let received: unknown;
+  const test = setup({
+    begin: async () => ({ status: 'pending', context: { is_child: false, goals: 'Move more', experience: 'beginner', equipment: [],
+      plans: [], recent_workouts: [], catalog: [], conversation: [],
+      shared_memory: [{ domain: 'read', summary: 'Prefers short sessions.' }, { domain: 'unknown', summary: 'Must be dropped.' },
+        { domain: 'study', summary: 'a'.repeat(1300) }] } }),
+    generate: async ({ context }) => { received = context.shared_memory; return { reply: 'Try a gentle walk.', proposal: null }; },
+  });
+  const response = await test.handler(request());
+  assert(response.status === 200 && JSON.stringify(received) === JSON.stringify([{ domain: 'read', summary: 'Prefers short sessions.' }]),
+    'Exercise provider received unshared or oversized memory');
+});
+
 Deno.test('pain and identifying details never reach the provider', async () => {
   const pain = setup();
   assert((await pain.handler(request('My knee hurts and I have pain'))).status === 200, 'Pain response failed');

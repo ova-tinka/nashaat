@@ -36,6 +36,15 @@ Deno.serve(coachHandler({
   async begin(token, id, kind, prompt) {
     const { data, error } = await userClient(token).rpc('bloom_begin_coach_request', { p_request_id: id, p_kind: kind, p_prompt: prompt });
     if (error || !data || typeof data.status !== 'string') throw new Error('Coaching request unavailable');
+    if (data.status === 'pending' && data.context && typeof data.context === 'object'
+      && !((data.context as Record<string, unknown>).is_child === true && !minorsApproved)) {
+      const { data: sharedMemory, error: memoryError } = await userClient(token).rpc('bloom_growth_ai_memory_context', { p_module_id: 'exercise' });
+      if (memoryError || !Array.isArray(sharedMemory)) {
+        await admin.rpc('bloom_fail_coach_request', { p_request_id: id });
+        throw new Error('Could not prepare opted-in memory');
+      }
+      data.context = { ...(data.context as Record<string, unknown>), shared_memory: sharedMemory };
+    }
     return data;
   },
   async finish(id, message, proposal) {

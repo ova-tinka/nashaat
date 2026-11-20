@@ -10,6 +10,13 @@ test('the default Tauri policy is restrictive when no build override is supplied
   assert.doesNotMatch(csp, /unsafe-eval|script-src[^;]*unsafe-inline/);
 });
 
+test('allows React Native Web runtime styles without weakening script CSP', () => {
+  assert.deepEqual(config.app.security.dangerousDisableAssetCspModification, ['style-src']);
+  assert.match(config.app.security.csp, /style-src 'self' 'unsafe-inline'/);
+  assert.match(config.app.security.csp, /script-src 'self'/);
+  assert.doesNotMatch(config.app.security.csp, /unsafe-eval|script-src[^;]*unsafe-inline/);
+});
+
 test('production CSP allows only the configured secure service origin', () => {
   const csp = createCsp('https://example.supabase.co', false);
   assert.match(csp, /connect-src 'self' ipc: http:\/\/ipc\.localhost https:\/\/example\.supabase\.co wss:\/\/example\.supabase\.co/);

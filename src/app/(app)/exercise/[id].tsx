@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Linking, View } from 'react-native';
 import { Body, Button, ErrorText, Eyebrow, Heading, Label, Panel, Screen, sharedStyles } from '../../../components/bloom-ui';
 import { loadExercise, type Exercise } from '../../../lib/bloom';
-import { colors } from '../../../theme';
+import { useBloomTheme } from '../../../lib/theme-context';
 
 function safeMediaUrl(value: string | null) {
   if (!value) return null;
@@ -23,6 +23,7 @@ function measurementLabel(exercise: Exercise) {
 }
 
 export default function ExerciseDetailScreen() {
+  const { theme } = useBloomTheme();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [loading, setLoading] = useState(true);
@@ -58,9 +59,9 @@ export default function ExerciseDetailScreen() {
 
   const mediaUrl = safeMediaUrl(exercise?.media_link ?? null);
 
-  return <Screen>
+  return <Screen safeAreaTop={false}>
     <Button label="Back to exercise library" secondary onPress={() => router.back()} />
-    {loading && <ActivityIndicator color={colors.accent} />}
+    {loading && <ActivityIndicator color={theme.colors.action} />}
     {!loading && error && <Panel><ErrorText>{error}</ErrorText><Button label="Try again" onPress={() => void load()} /></Panel>}
     {!loading && exercise && <>
       <View style={sharedStyles.column}><Eyebrow>{exercise.muscle_group || 'Exercise'}</Eyebrow><Heading>{exercise.name}</Heading><Body>{measurementLabel(exercise)} · use a comfortable range and steady movement.</Body></View>

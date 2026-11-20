@@ -29,6 +29,6 @@ test('system extension version advances beyond the installed version and stays s
   assert.match(metadata.bloomFilterVersion, /^\d+(?:\.\d+){0,2}$/);
   assert.equal(plistValue('CFBundleShortVersionString'), metadata.bloomFilterVersion);
   assert.equal(plistValue('CFBundleVersion'), metadata.bloomFilterVersion);
-  assert.equal(metadata.version, '0.1.0');
+  assert.equal(metadata.version, '0.1.1');
   assert.ok(compareVersions(metadata.bloomFilterVersion, '1.1.0') > 0);
 });

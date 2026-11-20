@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const bloomDir = path.resolve(__dirname, '..');
-const projectDir = path.resolve(bloomDir, '..');
+const projectDir = bloomDir;
 const team = process.env.BLOOM_TEAM_ID || 'SSYR69RTPK';
 const identity = process.env.APPLE_SIGNING_IDENTITY || 'Developer ID Application: Ayham Dwairy (SSYR69RTPK)';
 

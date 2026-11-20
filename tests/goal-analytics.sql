@@ -15,6 +15,9 @@ insert into public.bloom_household_members(household_id, user_id, role) values
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000021', true);
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000023', true);
+select public.bloom_set_child_module_assignments('00000000-0000-0000-0000-000000000021', array['exercise']::text[]);
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000021', true);
 
 do $$
 declare

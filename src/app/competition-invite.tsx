@@ -4,9 +4,10 @@ import { ActivityIndicator, View } from 'react-native';
 import { Body, Button, ErrorText, Eyebrow, Field, Heading, Label, Panel, Screen, sharedStyles } from '../components/bloom-ui';
 import { useAuth } from '../lib/auth';
 import { acceptCompetitionLink, loadSocialProfile, saveSocialProfile, type SocialProfile } from '../lib/competitions';
-import { colors } from '../theme';
+import { useBloomTheme } from '../lib/theme-context';
 
 export default function CompetitionInviteScreen() {
+  const { theme } = useBloomTheme();
   const { code } = useLocalSearchParams<{ code?: string }>();
   const { session, loading, profileId, profileLoading, profileError, childProfile } = useAuth();
   const [socialState, setSocialState] = useState<{ profileId: string; value: SocialProfile | null } | null>(null);
@@ -33,7 +34,7 @@ export default function CompetitionInviteScreen() {
   }
   return <Screen>
     <View style={sharedStyles.column}><Eyebrow>Competition invitation</Eyebrow><Heading>Move together</Heading><Body>Results use display names and self-reported workouts.</Body></View>
-    {(loading || profileLoading) && <ActivityIndicator color={colors.accent} />}
+    {(loading || profileLoading) && <ActivityIndicator color={theme.colors.action} />}
     {profileError && <ErrorText>{profileError}</ErrorText>}{error && <ErrorText>{error}</ErrorText>}
     {!loading && !session && <Panel><Label>Sign in first</Label><Body>After signing in, open the invitation link again.</Body><Button label="Sign in" onPress={() => router.replace('/sign-in')} /></Panel>}
     {session && !profileLoading && profileId && !joined && <Panel><Label>Join competition</Label>

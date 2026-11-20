@@ -10,6 +10,7 @@ select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000171
 select set_config('bloom.coach_house', public.bloom_create_household('Coach family')::text, true);
 select set_config('bloom.coach_child', public.bloom_create_child_profile(current_setting('bloom.coach_house')::uuid, 'Child',
   '17000000-0000-0000-0000-000000000172')::text, true);
+select * from public.bloom_set_child_module_assignments(current_setting('bloom.coach_child')::uuid, array['exercise']::text[]);
 select public.bloom_authorize_child_provisioning(current_setting('bloom.coach_child')::uuid);
 reset role;
 insert into auth.users(id, raw_app_meta_data) values (current_setting('bloom.coach_child')::uuid,

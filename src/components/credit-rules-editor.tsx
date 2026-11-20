@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Body, Button, ErrorText, Eyebrow, Field, Label, Panel } from './bloom-ui';
 import type { CreditSettings } from '../lib/bloom';
 
-export function CreditRulesEditor({ settings, onSave }: { settings: CreditSettings; onSave: (rules: Omit<CreditSettings, 'credits_enabled'>) => Promise<void> }) {
+export function CreditRulesEditor({ settings, onSave, subjectLabel = 'your profile' }: { settings: CreditSettings; onSave: (rules: Omit<CreditSettings, 'credits_enabled'>) => Promise<void>; subjectLabel?: string }) {
   const [mode, setMode] = useState(settings.credit_mode);
   const [timezone, setTimezone] = useState(settings.credit_timezone);
   const [earningStrategy, setEarningStrategy] = useState(settings.earning_strategy);
@@ -16,8 +16,9 @@ export function CreditRulesEditor({ settings, onSave }: { settings: CreditSettin
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [pendingRules, setPendingRules] = useState<Omit<CreditSettings, 'credits_enabled'> | null>(null);
 
-  async function save() {
+  function review() {
     setError(null); setSaved(false);
     const parse = (value: string, integer: boolean, max: number) => {
       if (!value.trim()) return null;
@@ -38,12 +39,21 @@ export function CreditRulesEditor({ settings, onSave }: { settings: CreditSettin
       if (earningStrategy === 'goal_analytics' && (workoutTarget === null || creditTarget === null)) throw new Error('Set both a weekly workout target and a weekly credit goal.');
       if (mode === 'super_hard' && cap === null) throw new Error('Set a daily cap for super hard mode.');
       if (!timezone.trim()) throw new Error('Enter a time zone.');
-      setSaving(true);
-      await onSave({ credit_mode: mode, credit_timezone: timezone.trim(), earning_strategy: earningStrategy, reps_per_award: repsValue,
+      setPendingRules({ credit_mode: mode, credit_timezone: timezone.trim(), earning_strategy: earningStrategy, reps_per_award: repsValue,
         rep_award_minutes: repReward, exercise_minutes_per_award: timeValue,
         time_award_minutes: timeReward, super_daily_cap_minutes: cap,
         weekly_workout_target: workoutTarget, weekly_credit_target_minutes: creditTarget });
-      setSaved(true);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not save earning rules. Check the time zone and try again.');
+    }
+  }
+
+  async function confirmSave() {
+    if (!pendingRules) return;
+    setSaving(true); setError(null);
+    try {
+      await onSave(pendingRules);
+      setPendingRules(null); setSaved(true);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not save earning rules. Check the time zone and try again.');
     } finally { setSaving(false); }
@@ -71,7 +81,11 @@ export function CreditRulesEditor({ settings, onSave }: { settings: CreditSettin
     <Field label="Week time zone" value={timezone} onChangeText={setTimezone} autoCapitalize="none" autoCorrect={false} placeholder="Asia/Qatar" />
     <Button label="Use this device’s time zone" secondary onPress={() => setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC')} disabled={saving} />
     <Body>Credits expire at Sunday midnight in this time zone. Easy time runs from reservation until you finish or the access window expires; Hard modes use countdown sessions.</Body>
-    {error && <ErrorText>{error}</ErrorText>}{saved && <Body>Earning rules saved.</Body>}
-    <Button label="Save earning rules" onPress={() => void save()} busy={saving} />
+    {error && <ErrorText>{error}</ErrorText>}{saved && <Body>Earning rules saved for {subjectLabel}.</Body>}
+    {pendingRules ? <>
+      <Body>Apply these earning rules to {subjectLabel}? They change how future workouts can earn screen-time credits. The server confirms the saved settings.</Body>
+      <Button label="Confirm earning rules" onPress={() => void confirmSave()} busy={saving} />
+      <Button label="Keep editing" variant="secondary" onPress={() => setPendingRules(null)} disabled={saving} />
+    </> : <Button label="Review earning rules" onPress={review} busy={saving} disabled={saving} />}
   </Panel>;
 }

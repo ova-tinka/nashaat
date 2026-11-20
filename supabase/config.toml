@@ -438,3 +438,33 @@ entrypoint = "./functions/bloom-coach/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/bloom-coach/*.html" ]
+
+[functions.bloom-growth-ai]
+enabled = true
+verify_jwt = true
+import_map = "./functions/bloom-growth-ai/deno.json"
+entrypoint = "./functions/bloom-growth-ai/index.ts"
+
+[functions.bloom-study-tutor]
+enabled = true
+verify_jwt = true
+import_map = "./functions/bloom-study-tutor/deno.json"
+entrypoint = "./functions/bloom-study-tutor/index.ts"
+
+[functions.bloom-read-reflection]
+enabled = true
+verify_jwt = true
+import_map = "./functions/bloom-read-reflection/deno.json"
+entrypoint = "./functions/bloom-read-reflection/index.ts"
+
+[functions.bloom-mock-exam-assess]
+enabled = true
+verify_jwt = true
+import_map = "./functions/bloom-mock-exam-assess/deno.json"
+entrypoint = "./functions/bloom-mock-exam-assess/index.ts"
+
+[functions.bloom-study-document-help]
+enabled = true
+verify_jwt = true
+import_map = "./functions/bloom-study-document-help/deno.json"
+entrypoint = "./functions/bloom-study-document-help/index.ts"

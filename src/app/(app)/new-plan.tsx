@@ -4,7 +4,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 
 import { Body, Button, ErrorText, Eyebrow, Field, Heading, Label, Panel, Screen, sharedStyles } from '../../components/bloom-ui';
 import { createPlan, createPlanForUser, loadCatalog, loadWorkoutPlan, SCHEDULE_DAYS, updatePlan, updatePlanForUser, type Exercise } from '../../lib/bloom';
 import { useBloom } from '../../lib/bloom-context';
-import { colors } from '../../theme';
+import { useBloomTheme } from '../../lib/theme-context';
 
 type Selection = { exercise: Exercise; sets: string; target: string; extra: string };
 
@@ -15,6 +15,7 @@ function isTimed(exercise: Exercise) {
 export default function NewPlanScreen() {
   const { childId, exerciseId, planId } = useLocalSearchParams<{ childId?: string; exerciseId?: string; planId?: string }>();
   const { refresh } = useBloom();
+  const { theme } = useBloomTheme();
   const [title, setTitle] = useState('');
   const [query, setQuery] = useState('');
   const [catalog, setCatalog] = useState<Exercise[]>([]);
@@ -93,31 +94,31 @@ export default function NewPlanScreen() {
     finally { setSaving(false); }
   }
 
-  return <Screen>
+  return <Screen safeAreaTop={false}>
     <View style={sharedStyles.column}><Eyebrow>Workout builder</Eyebrow><Heading>{planId ? 'Edit a plan' : 'Create a plan'}</Heading><Body>Choose exercises and set a target for each one.</Body></View>
     <Button label={childId ? 'Back to family' : 'Back to workouts'} secondary onPress={() => childId ? router.back() : router.replace('/workouts')} />
     <Panel><Field label="Plan name" value={title} onChangeText={setTitle} placeholder="e.g. Full body" maxLength={100} /></Panel>
     <Panel><Eyebrow>Weekly schedule</Eyebrow><Body>Choose the days you plan to do this workout. Unselected days remain rest or flexible days.</Body><View style={styles.days}>{SCHEDULE_DAYS.map(({ label, iso }) => {
       const selectedDay = scheduledDays.includes(iso);
-      return <Pressable key={iso} accessibilityRole="checkbox" accessibilityState={{ checked: selectedDay }} onPress={() => toggleDay(iso)} style={[styles.dayChoice, selectedDay && styles.dayChoiceSelected]}><Text style={[styles.dayLabel, selectedDay && styles.dayLabelSelected]}>{label}</Text></Pressable>;
+      return <Pressable key={iso} accessibilityRole="checkbox" accessibilityState={{ checked: selectedDay }} onPress={() => toggleDay(iso)} style={[styles.dayChoice, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }, selectedDay && { borderColor: theme.colors.action, backgroundColor: theme.colors.action }]}><Text style={[styles.dayLabel, { color: theme.colors.ink }, selectedDay && { color: theme.colors.onAction }]}>{label}</Text></Pressable>;
     })}</View></Panel>
     {selected.length > 0 && <Panel><Eyebrow>Selected · {selected.length}</Eyebrow>
-      {selected.map(({ exercise, sets, target, extra }) => <View key={exercise.id} style={styles.selected}>
-        <View style={sharedStyles.row}><View style={sharedStyles.grow}><Label>{exercise.name}</Label></View><Pressable accessibilityRole="button" onPress={() => toggle(exercise)}><Text style={styles.remove}>Remove</Text></Pressable></View>
+      {selected.map(({ exercise, sets, target, extra }) => <View key={exercise.id} style={[styles.selected, { borderBottomColor: theme.colors.border }]}>
+        <View style={sharedStyles.row}><View style={sharedStyles.grow}><Label>{exercise.name}</Label></View><Pressable accessibilityRole="button" onPress={() => toggle(exercise)}><Text style={[styles.remove, { color: theme.colors.dangerText }]}>Remove</Text></Pressable></View>
         {exercise.description && <Body>{exercise.description}</Body>}
         {(exercise.instructions ?? []).map((instruction, index) => <Body key={`${exercise.id}-instruction-${index}`}>{index + 1}. {instruction}</Body>)}
-        <View style={styles.inputs}><View style={styles.inputGroup}><Text style={styles.inputLabel}>Sets</Text><TextInput accessibilityLabel={`${exercise.name} sets`} value={sets} onChangeText={(value) => update(exercise.id, 'sets', value)} keyboardType="number-pad" style={styles.input} /></View><View style={styles.inputGroup}><Text style={styles.inputLabel}>{isTimed(exercise) ? 'Seconds per set' : 'Reps per set'}</Text><TextInput accessibilityLabel={`${exercise.name} ${isTimed(exercise) ? 'seconds' : 'repetitions'} per set`} value={target} onChangeText={(value) => update(exercise.id, 'target', value)} keyboardType="number-pad" style={styles.input} /></View></View>
-        {(exercise.measurement_type === 'reps_weight' || exercise.measurement_type === 'time_distance') && <View style={styles.inputGroup}><Text style={styles.inputLabel}>{exercise.measurement_type === 'reps_weight' ? 'Weight in kg (optional)' : 'Distance in km (optional)'}</Text><TextInput accessibilityLabel={`${exercise.name} ${exercise.measurement_type === 'reps_weight' ? 'weight in kilograms' : 'distance in kilometres'}`} value={extra} onChangeText={(value) => update(exercise.id, 'extra', value)} keyboardType="decimal-pad" style={styles.input} /></View>}
+        <View style={styles.inputs}><View style={styles.inputGroup}><Text style={[styles.inputLabel, { color: theme.colors.inkMuted }]}>Sets</Text><TextInput accessibilityLabel={`${exercise.name} sets`} value={sets} onChangeText={(value) => update(exercise.id, 'sets', value)} keyboardType="number-pad" style={[styles.input, { color: theme.colors.ink, backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]} /></View><View style={styles.inputGroup}><Text style={[styles.inputLabel, { color: theme.colors.inkMuted }]}>{isTimed(exercise) ? 'Seconds per set' : 'Reps per set'}</Text><TextInput accessibilityLabel={`${exercise.name} ${isTimed(exercise) ? 'seconds' : 'repetitions'} per set`} value={target} onChangeText={(value) => update(exercise.id, 'target', value)} keyboardType="number-pad" style={[styles.input, { color: theme.colors.ink, backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]} /></View></View>
+        {(exercise.measurement_type === 'reps_weight' || exercise.measurement_type === 'time_distance') && <View style={styles.inputGroup}><Text style={[styles.inputLabel, { color: theme.colors.inkMuted }]}>{exercise.measurement_type === 'reps_weight' ? 'Weight in kg (optional)' : 'Distance in km (optional)'}</Text><TextInput accessibilityLabel={`${exercise.name} ${exercise.measurement_type === 'reps_weight' ? 'weight in kilograms' : 'distance in kilometres'}`} value={extra} onChangeText={(value) => update(exercise.id, 'extra', value)} keyboardType="decimal-pad" style={[styles.input, { color: theme.colors.ink, backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]} /></View>}
       </View>)}
     </Panel>}
     <Panel><Eyebrow>Exercise library</Eyebrow><Field label="Search exercises" value={query} onChangeText={setQuery} placeholder="Search by name" autoCapitalize="none" />
-      {loading && <ActivityIndicator color={colors.accent} />}
+      {loading && <ActivityIndicator color={theme.colors.action} />}
       {!loading && matching.length === 0 && <Body>No exercises found.</Body>}
       {matching.slice(0, 40).map((exercise) => {
         const added = selected.some((item) => item.exercise.id === exercise.id);
-        return <Pressable key={exercise.id} accessibilityRole="checkbox" accessibilityState={{ checked: added }} onPress={() => toggle(exercise)} style={styles.catalogRow}>
+        return <Pressable key={exercise.id} accessibilityRole="checkbox" accessibilityState={{ checked: added }} onPress={() => toggle(exercise)} style={[styles.catalogRow, { borderBottomColor: theme.colors.border }]}>
           <View style={sharedStyles.grow}><Label>{exercise.name}</Label><Body>{exercise.muscle_group || (isTimed(exercise) ? 'Timed exercise' : 'Repetition exercise')}</Body>{exercise.description && <Body>{exercise.description}</Body>}</View>
-          <Text style={[styles.choice, added && styles.choiceActive]}>{added ? 'Added' : 'Add'}</Text>
+          <Text style={[styles.choice, { color: added ? theme.colors.successText : theme.colors.action }]}>{added ? 'Added' : 'Add'}</Text>
         </Pressable>;
       })}
       {matching.length > 40 && <Body>Showing the first 40 results. Search to narrow the list.</Body>}
@@ -128,18 +129,15 @@ export default function NewPlanScreen() {
 }
 
 const styles = StyleSheet.create({
-  selected: { gap: 10, paddingBottom: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-  remove: { color: colors.danger, fontWeight: '700', padding: 8 },
+  selected: { gap: 10, paddingBottom: 14, borderBottomWidth: StyleSheet.hairlineWidth },
+  remove: { fontWeight: '700', padding: 8 },
   inputs: { flexDirection: 'row', gap: 12 },
   days: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  dayChoice: { minWidth: 48, minHeight: 42, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: 10, backgroundColor: colors.background },
-  dayChoiceSelected: { borderColor: colors.accent, backgroundColor: colors.accent },
-  dayLabel: { color: colors.text, fontSize: 13, fontWeight: '700' },
-  dayLabelSelected: { color: colors.background },
+  dayChoice: { minWidth: 48, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderRadius: 10 },
+  dayLabel: { fontSize: 13, fontWeight: '700' },
   inputGroup: { flex: 1, gap: 6 },
-  inputLabel: { color: colors.body, fontSize: 12 },
-  input: { minHeight: 44, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 12, color: colors.text, backgroundColor: colors.background, fontSize: 16 },
-  catalogRow: { minHeight: 55, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 9, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-  choice: { color: colors.accent, fontWeight: '800', padding: 8 },
-  choiceActive: { color: colors.reward },
+  inputLabel: { fontSize: 12 },
+  input: { minHeight: 44, borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, fontSize: 16 },
+  catalogRow: { minHeight: 55, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 9, borderBottomWidth: StyleSheet.hairlineWidth },
+  choice: { fontWeight: '800', padding: 8 },
 });

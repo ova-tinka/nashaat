@@ -51,7 +51,17 @@ function anonymize(context: Context) {
     }) };
   });
   return { context: { is_child: context.is_child, goals: context.goals, experience: context.experience,
-    equipment: context.equipment, plans: cleanPlans, recent_workouts: context.recent_workouts, catalog, conversation: context.conversation }, exercises, plans };
+    equipment: context.equipment, plans: cleanPlans, recent_workouts: context.recent_workouts, catalog,
+    conversation: context.conversation, shared_memory: cleanSharedMemory(context.shared_memory) }, exercises, plans };
+}
+
+function cleanSharedMemory(value: unknown) {
+  return array(value).slice(0, 4).flatMap((entry) => {
+    const item = object(entry);
+    if (!item || !['exercise', 'study', 'read', 'tasks'].includes(String(item.domain))
+      || typeof item.summary !== 'string' || item.summary.length > 1200) return [];
+    return [{ domain: item.domain, summary: item.summary }];
+  });
 }
 
 function normalizeOutput(output: unknown, maps: ReturnType<typeof anonymize>, child: boolean): { message: string; proposal: Item | null } {

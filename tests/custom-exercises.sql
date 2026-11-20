@@ -10,6 +10,9 @@ select set_config('bloom.custom_house', public.bloom_create_household('Family'):
 select set_config('bloom.custom_invite', public.bloom_create_child_invite(current_setting('bloom.custom_house')::uuid), true);
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000102', true);
 select public.bloom_accept_child_invite(current_setting('bloom.custom_invite'));
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101', true);
+select public.bloom_set_child_module_assignments('00000000-0000-0000-0000-000000000102', array['exercise']::text[]);
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000102', true);
 select set_config('bloom.custom_id', public.bloom_create_custom_exercise('Private move', 'My notes', 'reps_only')::text, true);
 select set_config('bloom.custom_plan', public.bloom_create_workout_plan('Private plan', jsonb_build_array(
   jsonb_build_object('exercise_id', current_setting('bloom.custom_id'), 'sets', 1, 'target', 10)))::text, true);

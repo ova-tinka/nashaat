@@ -1,6 +1,9 @@
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { createCsp } = require('./desktop-csp.cjs');
+const { loadProjectEnv } = require('@expo/env');
+
+loadProjectEnv(path.resolve(__dirname, '..'), { silent: true });
 
 const [mode, ...args] = process.argv.slice(2);
 if (!['build', 'dev'].includes(mode)) throw new Error('Expected desktop build or dev.');

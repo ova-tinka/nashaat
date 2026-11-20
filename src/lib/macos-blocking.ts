@@ -1,6 +1,7 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { Platform } from 'react-native';
 import type { UsageAccess } from '../../modules/bloom-blocking/src/BloomBlocking.types';
+import { isMacTauriWebView } from './platform-capabilities';
 export { parseMacCreditMarker, type MacCreditMarker } from './mac-credit-marker';
 
 type FilterResult = { ok: boolean; status?: string; domains?: string[]; apps?: string[]; installedApps?: { apps: { id: string; name: string }[]; truncated: boolean }; managedApps?: string[]; managedDomains?: string[]; managedRuleAccountId?: string; appEnabled?: boolean; appConfigured?: boolean; appService?: string; websiteUsageAvailable?: boolean; websiteProviderHealthy?: boolean; websitePolicyBrokerStatus?: string; accessibilityTrusted?: boolean; browserName?: string; browserAddressStatus?: string; browserAutomationStatus?: string; supportedBrowsers?: string[]; browserHideFailed?: boolean; appHideFailed?: boolean; selectedAppId?: string; selectedAppName?: string; error?: string; elapsedMillis?: number; boot?: number; remainingMillis?: number; usage?: UsageAccess | null };
@@ -9,7 +10,8 @@ export type MacCreditTargets = { websites: boolean; apps: boolean };
 export type MacUsageRequest = { sessionId?: string; userId: string; kind?: 'easy' | 'countdown'; requestId?: string; deviceKey?: string; requestedMillis?: number; accessToken?: string };
 
 export function isMacDesktop() {
-  return Platform.OS === 'web' && isTauri();
+  if (Platform.OS !== 'web' || !isTauri() || typeof navigator === 'undefined') return false;
+  return isMacTauriWebView(navigator.platform, navigator.userAgent);
 }
 
 export function macCreditMarker(userId: string) { return `bloom-mac-active:${userId}`; }

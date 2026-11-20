@@ -20,6 +20,7 @@ create role anon nologin;
 create role authenticated nologin;
 create role service_role nologin bypassrls;
 create schema auth;
+create schema storage;
 create table auth.users (id uuid primary key, raw_app_meta_data jsonb not null default '{}'::jsonb,
   email text, email_confirmed_at timestamptz, is_anonymous boolean default false);
 create table public.profiles (id uuid primary key references auth.users(id) on delete cascade, first_name text, last_name text,
@@ -27,6 +28,16 @@ create table public.profiles (id uuid primary key references auth.users(id) on d
 create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
 grant usage on schema auth, public to authenticated, anon;
 grant execute on function auth.uid() to authenticated, anon;
+create table storage.buckets (id text primary key, name text not null, public boolean not null default false,
+  file_size_limit bigint, allowed_mime_types text[]);
+create table storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text not null, name text not null);
+alter table storage.objects enable row level security;
+create function storage.foldername(p_name text) returns text[] language sql immutable as $$
+  select regexp_split_to_array(p_name, '/')
+$$;
+grant usage on schema storage to authenticated, anon;
+grant execute on function storage.foldername(text) to authenticated, anon;
+grant select, insert, delete on storage.objects to authenticated;
 create table public.exercises (id uuid primary key, name text unique not null, description text, instructions text[] not null default '{}', media_link text, measurement_type text not null, is_system boolean not null default true);
 alter table public.exercises enable row level security;
 create policy "Exercise catalog is publicly readable" on public.exercises for select to anon, authenticated using (true);
@@ -66,6 +77,8 @@ docker exec -i "$bloom_test_container" psql -q -v ON_ERROR_STOP=1 -U postgres -d
 docker exec -i "$bloom_test_container" psql -q -v ON_ERROR_STOP=1 -U postgres -d postgres \
   < "$bloom_dir/tests/households.sql" >/dev/null
 docker exec -i "$bloom_test_container" psql -q -v ON_ERROR_STOP=1 -U postgres -d postgres \
+  < "$bloom_dir/tests/child-module-assignments.sql" >/dev/null
+docker exec -i "$bloom_test_container" psql -q -v ON_ERROR_STOP=1 -U postgres -d postgres \
   < "$bloom_dir/tests/website-rules.sql" >/dev/null
 docker exec -i "$bloom_test_container" psql -q -v ON_ERROR_STOP=1 -U postgres -d postgres \
   < "$bloom_dir/tests/enforced-countdowns.sql" >/dev/null
@@ -91,6 +104,16 @@ docker exec -i "$bloom_test_container" psql -q -v ON_ERROR_STOP=1 -U postgres -d
   < "$bloom_dir/tests/ai-coaching.sql" >/dev/null
 docker exec -i "$bloom_test_container" psql -q -v ON_ERROR_STOP=1 -U postgres -d postgres \
   < "$bloom_dir/tests/competitions.sql" >/dev/null
+docker exec -i "$bloom_test_container" psql -q -v ON_ERROR_STOP=1 -U postgres -d postgres \
+  < "$bloom_dir/tests/device-registry.sql" >/dev/null
+docker exec -i "$bloom_test_container" psql -q -v ON_ERROR_STOP=1 -U postgres -d postgres \
+  < "$bloom_dir/tests/growth-modules.sql" >/dev/null
+docker exec -i "$bloom_test_container" psql -q -v ON_ERROR_STOP=1 -U postgres -d postgres \
+  < "$bloom_dir/tests/selected-growth-scope.sql" >/dev/null
+docker exec -i "$bloom_test_container" psql -q -v ON_ERROR_STOP=1 -U postgres -d postgres \
+  < "$bloom_dir/tests/mock-exams-documents.sql" >/dev/null
+docker exec -i "$bloom_test_container" psql -q -v ON_ERROR_STOP=1 -U postgres -d postgres \
+  < "$bloom_dir/tests/read-reflection-memory.sql" >/dev/null
 python3 "$bloom_dir/tests/credit-concurrency.py" "$bloom_test_container"
 python3 "$bloom_dir/tests/profile-concurrency.py" "$bloom_test_container"
 python3 "$bloom_dir/tests/competition-concurrency.py" "$bloom_test_container"

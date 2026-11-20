@@ -5,7 +5,7 @@ import type { BlockingStatus, UsageAccess } from '../../modules/bloom-blocking/s
 import { Body, Button, ErrorText, Eyebrow, Label, Panel } from './bloom-ui';
 import { formatDiagnosticFailure, loadDatabaseDiagnostics, type DatabaseDiagnostics as DatabaseDiagnosticsSnapshot, type DiagnosticRead } from '../lib/database-diagnostics';
 import { isMacDesktop, macosFilter } from '../lib/macos-blocking';
-import { colors } from '../theme';
+import { useBloomTheme } from '../lib/theme-context';
 
 type MacFilterStatus = {
   status?: string;
@@ -96,6 +96,7 @@ function duration(milliseconds: number | null | undefined) {
 }
 
 export function DatabaseDiagnostics({ userId }: { userId: string }) {
+  const { theme } = useBloomTheme();
   const [database, setDatabase] = useState<DatabaseDiagnosticsSnapshot | null>(null);
   const [device, setDevice] = useState<DeviceDiagnostics | null>(null);
   const [loading, setLoading] = useState(false);
@@ -152,7 +153,7 @@ export function DatabaseDiagnostics({ userId }: { userId: string }) {
       ? <View style={{ gap: 5 }}>{rows.map((row, index) => <Body key={`${row.platform}-${row.target_type}-${row.target_identifier}-${index}`}>{row.enabled ? 'Enabled' : 'Disabled'} · {row.platform} {row.target_type}: {row.target_identifier} · added {timestamp(row.created_at)}</Body>)}{rows.length === 100 && <Body>Showing the latest 100 rules.</Body>}</View>
       : <Body>No rules were returned (up to 100 checked across platforms).</Body>} />
 
-    <View style={{ height: 1, backgroundColor: colors.border }} />
+    <View style={{ height: 1, backgroundColor: theme.colors.border }} />
     <Eyebrow>Device enforcement · {device?.platform ?? 'pending'}</Eyebrow>
     {device?.unavailable && <Body>{device.unavailable}</Body>}
     {device?.blocking && <Section title="Blocking service" result={device.blocking} render={(value) => value

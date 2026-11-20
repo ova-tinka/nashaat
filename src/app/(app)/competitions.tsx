@@ -7,12 +7,13 @@ import { localCompetitionDate, parseCompetitionDate } from '../../lib/competitio
 import { acceptCompetitionLink, acceptFriendInvite, competitionResults, createCompetitionLink, inviteFriend, joinPublicCompetition,
   loadCompetitionHome, publishCompetition, removeFriend, respondFriend, saveCompetition, saveSocialProfile, searchPeople, sendFriendRequest,
   type Competition, type CompetitionResult, type Person } from '../../lib/competitions';
-import { colors } from '../../theme';
+import { useBloomTheme } from '../../lib/theme-context';
 
 type Home = Awaited<ReturnType<typeof loadCompetitionHome>>;
 function initialDate(days: number) { const date = new Date(); date.setDate(date.getDate() + days); date.setHours(9, 0, 0, 0); return localCompetitionDate(date); }
 
 export default function CompetitionsScreen() {
+  const { theme } = useBloomTheme();
   const { profileId, childProfile } = useAuth();
   const [home, setHome] = useState<Home | null>(null);
   const [name, setName] = useState('');
@@ -83,10 +84,10 @@ export default function CompetitionsScreen() {
     finally { setBusy(false); }
   }
 
-  return <Screen>
+  return <Screen safeAreaTop={false}>
     <View style={sharedStyles.column}><Eyebrow>Move together</Eyebrow><Heading>Competitions</Heading><Body>Workouts and active minutes are self-reported. Events award recognition and winner badges only.</Body></View>
     <Button label="Back to profile" secondary onPress={() => router.replace('/settings')} disabled={busy} />
-    {loading && <ActivityIndicator color={colors.accent} />}{error && <ErrorText>{error}</ErrorText>}{notice && <Body>{notice}</Body>}
+    {loading && <ActivityIndicator color={theme.colors.action} />}{error && <ErrorText>{error}</ErrorText>}{notice && <Body>{notice}</Body>}
     {home && <>
       <Panel><Label>Display name and search</Label><Body>Save a display name before creating a private competition. Results use that name; search is optional.{childProfile ? ' A parent must also opt in before you appear in search.' : ''}</Body>
         <Field label="Display name" value={name} onChangeText={setName} maxLength={60} />
@@ -130,7 +131,7 @@ export default function CompetitionsScreen() {
           {event.status === 'published' && !ended && invited && !membership && <Button label="Accept friend invitation" onPress={() => void run(() => acceptFriendInvite(event.id), childProfile ? 'Request sent to your parent.' : 'Joined competition.')} busy={busy} />}
           {event.status === 'published' && owner && event.visibility === 'private' && !ended && <>
             <Button label="Create invitation link" secondary onPress={() => void run(async () => { setLink({ id: event.id, value: await createCompetitionLink(event.id) }); })} disabled={busy} />
-            {link?.id === event.id && <><Text selectable style={{ color: colors.text }}>{link.value}</Text><Button label="Share link" secondary onPress={() => { void Share.share({ message: link.value }).catch(() => setError('Could not open sharing. You can select and copy the link.')); }} disabled={busy} /></>}
+            {link?.id === event.id && <><Text selectable style={{ color: theme.colors.ink }}>{link.value}</Text><Button label="Share link" secondary onPress={() => { void Share.share({ message: link.value }).catch(() => setError('Could not open sharing. You can select and copy the link.')); }} disabled={busy} /></>}
             {home.friends.filter((friend) => friend.status === 'accepted').map((friend) => <Button key={friend.id} label={`Invite ${friend.display_name}`} secondary onPress={() => void run(() => inviteFriend(event.id, friend.profile_id), 'Invitation sent in Bloom.')} disabled={busy} />)}
           </>}
           {event.status === 'published' && <Button label="View results" secondary onPress={() => void showResults(event.id)} disabled={busy} />}

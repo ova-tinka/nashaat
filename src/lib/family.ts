@@ -1,6 +1,22 @@
 import { supabase } from './supabase';
 import type { CreditSettings, WorkoutAnalytics, WorkoutPlan } from './bloom';
 import { canonicalWebsiteDomain, MAX_IOS_ALWAYS_WEBSITE_DOMAINS } from './website-domain';
+import { loadChildCoaching } from './coach';
+import { loadChildCompetitions } from './competitions';
+import { loadChildModuleAssignments } from './module-assignments';
+import type { ModuleKey } from '../theme';
+
+export type ChildGrowthActivity = {
+  id: string;
+  moduleId: 'study' | 'read';
+  type: 'study_session' | 'reading_progress';
+  title: string;
+  occurredAt: string;
+  durationSeconds: number | null;
+  progressPercent: number | null;
+  currentPage: number | null;
+  pageCount: number | null;
+};
 
 export type FamilyMember = { user_id: string; role: 'parent' | 'child'; display_name: string };
 export type ManagedChildProfile = { profile_id: string; household_id: string; display_name: string };
@@ -96,7 +112,7 @@ export async function loadWebsiteRules(userId: string): Promise<WebsiteRule[]> {
 
 export async function loadChild(childId: string) {
   const db = client();
-  const [settings, balance, plans, rules, websiteRules, workoutAnalytics, planProgress] = await Promise.all([
+  const [settings, balance, plans, rules, websiteRules, workoutAnalytics, planProgress, growthActivity] = await Promise.all([
     db.from('bloom_settings').select('credits_enabled,credit_mode,credit_timezone,earning_strategy,reps_per_award,rep_award_minutes,exercise_minutes_per_award,time_award_minutes,super_daily_cap_minutes,weekly_workout_target,weekly_credit_target_minutes').eq('user_id', childId).maybeSingle(),
     db.rpc('bloom_parent_child_balance', { p_child_id: childId }),
     db.from('bloom_workout_plans').select('id,title,created_at,scheduled_days,bloom_plan_exercises(position,sets,target_reps,target_seconds,target_weight_kg,target_distance_km,exercise:exercises(id,name,measurement_type,description,instructions,media_link))').eq('user_id', childId).order('created_at', { ascending: false }),
@@ -104,10 +120,55 @@ export async function loadChild(childId: string) {
     db.from('bloom_website_rules').select('id,user_id,domain,scope,created_by').eq('user_id', childId).order('scope').order('created_at'),
     db.rpc('bloom_workout_analytics', { p_user_id: childId }),
     db.rpc('bloom_weekly_plan_progress', { p_user_id: childId }),
+    db.rpc('bloom_parent_child_growth_activity', { p_child_id: childId }),
   ]);
-  for (const result of [settings, balance, plans, rules, websiteRules, workoutAnalytics, planProgress]) if (result.error) throw result.error;
+  for (const result of [settings, balance, plans, rules, websiteRules, workoutAnalytics, planProgress, growthActivity]) if (result.error) throw result.error;
   if (!settings.data) throw new Error('The child needs to open Bloom before settings can be managed.');
-  return { settings: settings.data as CreditSettings, balance: Number(balance.data ?? 0), plans: (plans.data ?? []) as unknown as WorkoutPlan[], rules: (rules.data ?? []) as ChildRule[], websiteRules: (websiteRules.data ?? []) as WebsiteRule[], workoutAnalytics: { ...(workoutAnalytics.data as WorkoutAnalytics), ...(planProgress.data as Pick<WorkoutAnalytics, 'planned_workouts' | 'completed_planned_workouts' | 'scheduled_days' | 'rest_days' | 'missed_planned_workouts'>) } };
+  const activity = (growthActivity.data ?? []) as Record<string, unknown>[];
+  return {
+    settings: settings.data as CreditSettings,
+    balance: Number(balance.data ?? 0),
+    plans: (plans.data ?? []) as unknown as WorkoutPlan[],
+    rules: (rules.data ?? []) as ChildRule[],
+    websiteRules: (websiteRules.data ?? []) as WebsiteRule[],
+    growthActivity: activity.map((row) => ({
+      id: String(row.id), moduleId: row.module_id as 'study' | 'read',
+      type: row.activity_type as ChildGrowthActivity['type'], title: String(row.title), occurredAt: String(row.occurred_at),
+      durationSeconds: row.duration_seconds == null ? null : Number(row.duration_seconds),
+      progressPercent: row.progress_percent == null ? null : Number(row.progress_percent),
+      currentPage: row.current_page == null ? null : Number(row.current_page), pageCount: row.page_count == null ? null : Number(row.page_count),
+    })) as ChildGrowthActivity[],
+    workoutAnalytics: { ...(workoutAnalytics.data as WorkoutAnalytics), ...(planProgress.data as Pick<WorkoutAnalytics, 'planned_workouts' | 'completed_planned_workouts' | 'scheduled_days' | 'rest_days' | 'missed_planned_workouts'>) },
+  };
+}
+
+export async function loadFamilyChildSummary(childId: string): Promise<{
+  modules: ModuleKey[];
+  balance: number;
+  analytics: WorkoutAnalytics;
+  pendingCoaching: number;
+  pendingCompetitions: number;
+}> {
+  const db = client();
+  const [balance, analytics, planProgress, assignments, coaching, competitions] = await Promise.all([
+    db.rpc('bloom_parent_child_balance', { p_child_id: childId }),
+    db.rpc('bloom_workout_analytics', { p_user_id: childId }),
+    db.rpc('bloom_weekly_plan_progress', { p_user_id: childId }),
+    loadChildModuleAssignments(childId),
+    loadChildCoaching(childId),
+    loadChildCompetitions(childId),
+  ]);
+  for (const result of [balance, analytics, planProgress]) if (result.error) throw result.error;
+  if (!analytics.data || !planProgress.data) throw new Error('Family summary is unavailable.');
+  const proposals = coaching.proposals.filter((proposal) => proposal.status === 'pending');
+  return {
+    modules: assignments.filter((assignment) => assignment.assigned).map((assignment) => assignment.module_id),
+    balance: Number(balance.data ?? 0),
+    analytics: { ...(analytics.data as WorkoutAnalytics), ...(planProgress.data as Pick<WorkoutAnalytics,
+      'planned_workouts' | 'completed_planned_workouts' | 'scheduled_days' | 'rest_days' | 'missed_planned_workouts'>) },
+    pendingCoaching: proposals.length,
+    pendingCompetitions: competitions.requests.length,
+  };
 }
 
 export async function adjustChildCredit(childId: string, requestId: string, minutes: number, reason: string) {

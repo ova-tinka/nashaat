@@ -18,6 +18,7 @@ type BloomState = {
   blockingRulesSyncError: string | null;
   blockingRulesSyncedAt: number | null;
   blockingRulesSyncStatus: string | null;
+  dataConfirmedAt: number | null;
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
@@ -39,6 +40,7 @@ export function BloomProvider({ userId, children }: PropsWithChildren<{ userId: 
   const [blockingRulesSync, setBlockingRulesSync] = useState<{ userId: string; error: string | null; syncedAt: number | null; status: string | null }>({ userId, error: null, syncedAt: null, status: null });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastConfirmedAt, setLastConfirmedAt] = useState<{ userId: string; at: number } | null>(null);
   const refreshVersion = useRef(0);
 
   const refresh = useCallback(async () => {
@@ -55,6 +57,7 @@ export function BloomProvider({ userId, children }: PropsWithChildren<{ userId: 
       setCreditBalance(data.creditBalance);
       setWorkoutAnalytics(data.workoutAnalytics);
       setSubscription(data.subscription);
+      setLastConfirmedAt({ userId, at: Date.now() });
     } catch {
       if (version === refreshVersion.current) setError('Could not load your Bloom data. Check your connection and try again.');
     } finally {
@@ -133,6 +136,7 @@ export function BloomProvider({ userId, children }: PropsWithChildren<{ userId: 
     blockingRulesSyncError: blockingRulesSync.userId === userId ? blockingRulesSync.error : null,
     blockingRulesSyncedAt: blockingRulesSync.userId === userId ? blockingRulesSync.syncedAt : null,
     blockingRulesSyncStatus: blockingRulesSync.userId === userId ? blockingRulesSync.status : null,
+    dataConfirmedAt: lastConfirmedAt?.userId === userId ? lastConfirmedAt.at : null,
     loading, error, refresh, setCreditsEnabled: changeCredits, saveCreditRules }}>{children}</BloomContext.Provider>;
 }
 

@@ -2,12 +2,14 @@ import type { Session } from '@supabase/supabase-js';
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type PropsWithChildren } from 'react';
 import { AppState, Platform } from 'react-native';
 import { supabase } from './supabase';
+import { loadMyModuleAssignments } from './module-assignments';
+import type { ModuleKey } from '../theme';
 
-type ProfileState = { accountId: string; profileId: string | null; managedChild: boolean; childProfile: boolean; error: string | null };
+type ProfileState = { accountId: string; profileId: string | null; managedChild: boolean; childProfile: boolean; assignedModules: ModuleKey[]; error: string | null };
 type AuthState = { session: Session | null; loading: boolean; configured: boolean; profileId: string | null;
-  managedChild: boolean; childProfile: boolean; profileLoading: boolean; profileError: string | null; refreshProfile: () => Promise<void> };
+  managedChild: boolean; childProfile: boolean; assignedModules: ModuleKey[]; profileLoading: boolean; profileError: string | null; refreshProfile: () => Promise<void> };
 const AuthContext = createContext<AuthState>({ session: null, loading: true, configured: false, profileId: null,
-  managedChild: false, childProfile: false, profileLoading: false, profileError: null, refreshProfile: async () => {} });
+  managedChild: false, childProfile: false, assignedModules: [], profileLoading: false, profileError: null, refreshProfile: async () => {} });
 
 export function AuthProvider({ children }: PropsWithChildren) {
   const [session, setSession] = useState<Session | null>(null);
@@ -58,19 +60,27 @@ export function AuthProvider({ children }: PropsWithChildren) {
     try {
       const { data, error } = await supabase.rpc('bloom_current_profile');
       if (error || typeof data?.profile_id !== 'string' || typeof data?.managed_child !== 'boolean' || typeof data?.child_profile !== 'boolean') throw new Error('Profile unavailable');
-      if (profileVersion.current === version) setProfile({ accountId, profileId: data.profile_id, managedChild: data.managed_child, childProfile: data.child_profile, error: null });
+      const assignedModules = data.child_profile ? await loadMyModuleAssignments() : [];
+      if (profileVersion.current === version) setProfile({ accountId, profileId: data.profile_id, managedChild: data.managed_child, childProfile: data.child_profile, assignedModules, error: null });
     } catch {
-      if (profileVersion.current === version) setProfile({ accountId, profileId: null, managedChild: false, childProfile: false, error: 'Could not load your Bloom profile. Check your connection and try again.' });
+      if (profileVersion.current === version) setProfile({ accountId, profileId: null, managedChild: false, childProfile: false, assignedModules: [], error: 'Could not load your Bloom profile. Check your connection and try again.' });
     } finally { if (profileVersion.current === version) setProfileBusy(false); }
   }, [accountId]);
 
   // Profile identity may differ from the Auth account after email linking.
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void refreshProfile(); return () => { profileVersion.current += 1; }; }, [refreshProfile]);
+  useEffect(() => {
+    if (!accountId || Platform.OS === 'web') return;
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void refreshProfile();
+    });
+    return () => subscription.remove();
+  }, [accountId, refreshProfile]);
   const current = profile?.accountId === accountId ? profile : null;
 
   return <AuthContext.Provider value={{ session, loading, configured: Boolean(supabase), profileId: current?.profileId ?? null,
-    managedChild: current?.managedChild ?? false, childProfile: current?.childProfile ?? false, profileLoading: Boolean(accountId && (!current || profileBusy)),
+    managedChild: current?.managedChild ?? false, childProfile: current?.childProfile ?? false, assignedModules: current?.assignedModules ?? [], profileLoading: Boolean(accountId && (!current || profileBusy)),
     profileError: current?.error ?? null, refreshProfile }}>{children}</AuthContext.Provider>;
 }
 

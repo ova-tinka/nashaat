@@ -13,6 +13,7 @@ select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000161
 select set_config('bloom.convert_house', public.bloom_create_household('Conversion family')::text, true);
 select set_config('bloom.convert_child', public.bloom_create_child_profile(current_setting('bloom.convert_house')::uuid, 'Child',
   '16000000-0000-0000-0000-000000000161')::text, true);
+select * from public.bloom_set_child_module_assignments(current_setting('bloom.convert_child')::uuid, array['exercise']::text[]);
 select public.bloom_authorize_child_provisioning(current_setting('bloom.convert_child')::uuid);
 reset role;
 insert into auth.users(id, raw_app_meta_data) values (current_setting('bloom.convert_child')::uuid,

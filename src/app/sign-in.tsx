@@ -1,14 +1,16 @@
 import { Redirect } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
-import { Body, Button, ErrorText, Eyebrow, Field, Heading, Panel, Screen, sharedStyles } from '../components/bloom-ui';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { Body, BloomWordmark, Button, ErrorText, Eyebrow, Field, Heading, Panel, Screen, sharedStyles, useIsDesktopLayout } from '../components/bloom-ui';
 import { useAuth } from '../lib/auth';
 import { createTransientSupabaseClient, supabase } from '../lib/supabase';
 import { getSavedChild, restoreChildSession } from '../lib/profile-switch';
-import { colors } from '../theme';
+import { useBloomTheme } from '../lib/theme-context';
 
 export default function SignInScreen() {
+  const { theme } = useBloomTheme();
   const { session, loading, configured } = useAuth();
+  const desktop = useIsDesktopLayout();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [signingUp, setSigningUp] = useState(false);
@@ -27,7 +29,7 @@ export default function SignInScreen() {
     return () => { active = false; };
   }, []);
 
-  if (loading) return <Screen><ActivityIndicator color={colors.accent} /></Screen>;
+  if (loading) return <Screen><ActivityIndicator color={theme.colors.action} /></Screen>;
   if (session) return <Redirect href="/" />;
 
   async function submit() {
@@ -101,34 +103,61 @@ export default function SignInScreen() {
   }
 
   return <Screen>
-    <View style={sharedStyles.column}><Eyebrow>Bloom</Eyebrow><Heading>Make time for what matters.</Heading><Body>Build a workout routine and earn time for the things you value.</Body></View>
-    {!configured ? <Panel><ErrorText>Bloom cannot connect yet. Check the app configuration.</ErrorText></Panel> : linking ? <Panel>
-      <Eyebrow>Link child email account</Eyebrow>
-      <Body>Use a new email account with no existing Bloom activity. A parent provides the link code.</Body>
-      <Field label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" autoComplete="email" keyboardType="email-address" />
-      <Field label="Password" value={password} onChangeText={setPassword} secureTextEntry autoComplete="new-password" />
-      <Field label="Parent link code" value={linkCode} onChangeText={setLinkCode} autoCapitalize="none" autoCorrect={false} maxLength={64} />
-      {error && <ErrorText>{error}</ErrorText>}{message && <Body>{message}</Body>}
-      <Button label="Create new email account" secondary onPress={() => void createLinkAccount()} disabled={busy} />
-      <Button label="Link and sign in" onPress={() => void linkAccount()} busy={busy} />
-      <Button label="Back to sign in" secondary onPress={() => { setLinking(false); setLinkCode(''); setError(null); setMessage(null); }} disabled={busy} />
-    </Panel> : pairing ? <Panel>
-      <Eyebrow>Child device</Eyebrow>
-      <Body>Enter the one-use code provided by your parent. Codes expire after 10 minutes.</Body>
-      <Field label="Pairing code" value={pairingCode} onChangeText={setPairingCode} autoCapitalize="none" autoCorrect={false} maxLength={64} />
-      {error && <ErrorText>{error}</ErrorText>}
-      <Button label="Pair child device" onPress={() => void pairDevice()} busy={busy} />
-      <Button label="Back to sign in" secondary onPress={() => { setPairing(false); setPairingCode(''); setError(null); }} disabled={busy} />
-    </Panel> : <Panel>
-      <Eyebrow>{signingUp ? 'Create your account' : 'Welcome back'}</Eyebrow>
-      <Field label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" autoComplete="email" keyboardType="email-address" />
-      <Field label="Password" value={password} onChangeText={setPassword} secureTextEntry autoComplete={signingUp ? 'new-password' : 'current-password'} />
-      {error && <ErrorText>{error}</ErrorText>}{message && <Body>{message}</Body>}
-      <Button label={signingUp ? 'Create account' : 'Sign in'} onPress={() => void submit()} busy={busy} />
-      <Button label={signingUp ? 'Already have an account? Sign in' : 'New to Bloom? Create an account'} secondary onPress={() => { setSigningUp(!signingUp); setError(null); setMessage(null); }} />
-      <Button label="Pair child device" secondary onPress={() => { setPairing(true); setError(null); setMessage(null); }} disabled={busy} />
-      <Button label="Link child email account" secondary onPress={() => { setLinking(true); setError(null); setMessage(null); }} disabled={busy} />
-      {hasSavedChild && <Button label="Restore child profile" secondary onPress={() => void restoreChild()} disabled={busy} />}
-    </Panel>}
+    <View style={[sharedStyles.column, desktop && styles.desktopLayout]}>
+      <View style={[sharedStyles.column, desktop && styles.desktopHero]}>
+        <BloomWordmark size={34} />
+        <Heading>Make time for what matters.</Heading>
+        <Body>Exercise, study, reading, and tasks in one calm space to grow.</Body>
+      </View>
+      <View style={desktop ? styles.desktopForm : undefined}>
+        {!configured ? <Panel><ErrorText>Bloom cannot connect yet. Check the app configuration.</ErrorText></Panel> : linking ? <Panel>
+          <Eyebrow>Link child email account</Eyebrow>
+          <Body>Use a new email account with no existing Bloom activity. A parent provides the link code.</Body>
+          <Field label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" autoComplete="email" keyboardType="email-address" />
+          <Field label="Password" value={password} onChangeText={setPassword} secureTextEntry autoComplete="new-password" />
+          <Field label="Parent link code" value={linkCode} onChangeText={setLinkCode} autoCapitalize="none" autoCorrect={false} maxLength={64} />
+          {error && <ErrorText>{error}</ErrorText>}{message && <Body>{message}</Body>}
+          <Button label="Create new email account" secondary onPress={() => void createLinkAccount()} disabled={busy} />
+          <Button label="Link and sign in" onPress={() => void linkAccount()} busy={busy} />
+          <Button label="Back to sign in" secondary onPress={() => { setLinking(false); setLinkCode(''); setError(null); setMessage(null); }} disabled={busy} />
+        </Panel> : pairing ? <Panel>
+          <Eyebrow>Child device</Eyebrow>
+          <Body>Enter the one-use code provided by your parent. Codes expire after 10 minutes.</Body>
+          <Field label="Pairing code" value={pairingCode} onChangeText={setPairingCode} autoCapitalize="none" autoCorrect={false} maxLength={64} />
+          {error && <ErrorText>{error}</ErrorText>}
+          <Button label="Pair child device" onPress={() => void pairDevice()} busy={busy} />
+          <Button label="Back to sign in" secondary onPress={() => { setPairing(false); setPairingCode(''); setError(null); }} disabled={busy} />
+        </Panel> : <Panel>
+          <Eyebrow>{signingUp ? 'Create your account' : 'Welcome back'}</Eyebrow>
+          <Field label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" autoComplete="email" keyboardType="email-address" />
+          <Field label="Password" value={password} onChangeText={setPassword} secureTextEntry autoComplete={signingUp ? 'new-password' : 'current-password'} />
+          {error && <ErrorText>{error}</ErrorText>}{message && <Body>{message}</Body>}
+          <Button label={signingUp ? 'Create account' : 'Sign in'} onPress={() => void submit()} busy={busy} />
+          <Button label={signingUp ? 'Already have an account? Sign in' : 'New to Bloom? Create an account'} secondary onPress={() => { setSigningUp(!signingUp); setError(null); setMessage(null); }} />
+          <Button label="Pair child device" secondary onPress={() => { setPairing(true); setError(null); }} disabled={busy} />
+          <Button label="Link child email account" secondary onPress={() => { setLinking(true); setError(null); setMessage(null); }} disabled={busy} />
+          {hasSavedChild && <Button label="Restore child profile" secondary onPress={() => void restoreChild()} disabled={busy} />}
+        </Panel>}
+      </View>
+    </View>
   </Screen>;
 }
+
+const styles = StyleSheet.create({
+  desktopLayout: {
+    minHeight: 520,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 56,
+  },
+  desktopHero: {
+    flex: 1,
+    maxWidth: 480,
+    gap: 18,
+  },
+  desktopForm: {
+    flex: 1,
+    maxWidth: 560,
+  },
+});

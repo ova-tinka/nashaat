@@ -401,7 +401,7 @@ export function MacosFocus() {
   const brokerNeedsApproval = websitePolicyBrokerStatus === 'needsApproval';
   const brokerUnavailable = websitePolicyBrokerStatus !== 'active';
 
-  return <Screen>
+  return <Screen safeAreaTop={false}>
     <View style={sharedStyles.column}><Eyebrow>Focus</Eyebrow><Heading>Make space to focus.</Heading><Body>Set up protection on this Mac and use the screen time you earn.</Body></View>
     {message && <Body>{message}</Body>}{error && <ErrorText>{error}</ErrorText>}
     {blockingRulesSyncError && <ErrorText>{blockingRulesSyncError}</ErrorText>}

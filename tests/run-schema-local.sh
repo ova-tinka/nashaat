@@ -41,6 +41,7 @@ create role anon nologin;
 create role authenticated nologin;
 create role service_role nologin bypassrls;
 create schema auth;
+create schema storage;
 create table auth.users (id uuid primary key, raw_app_meta_data jsonb not null default '{}'::jsonb,
   email text, email_confirmed_at timestamptz, is_anonymous boolean default false);
 create table public.profiles (id uuid primary key references auth.users(id) on delete cascade, first_name text, last_name text,
@@ -48,6 +49,16 @@ create table public.profiles (id uuid primary key references auth.users(id) on d
 create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
 grant usage on schema auth, public to authenticated, anon;
 grant execute on function auth.uid() to authenticated, anon;
+create table storage.buckets (id text primary key, name text not null, public boolean not null default false,
+  file_size_limit bigint, allowed_mime_types text[]);
+create table storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text not null, name text not null);
+alter table storage.objects enable row level security;
+create function storage.foldername(p_name text) returns text[] language sql immutable as $$
+  select regexp_split_to_array(p_name, '/')
+$$;
+grant usage on schema storage to authenticated, anon;
+grant execute on function storage.foldername(text) to authenticated, anon;
+grant select, insert, delete on storage.objects to authenticated;
 create table public.exercises (id uuid primary key, name text unique not null, description text, instructions text[] not null default '{}', media_link text, measurement_type text not null, is_system boolean not null default true);
 alter table public.exercises enable row level security;
 create policy "Exercise catalog is publicly readable" on public.exercises for select to anon, authenticated using (true);
@@ -65,9 +76,13 @@ done < <(find "$bloom_root/supabase/migrations" -maxdepth 1 -type f -iname '*blo
 
 bloom_fixture_count=0
 bloom_fixtures=(schema.sql credit-rules.sql goal-analytics.sql workout-plan-editing.sql weekly-planning.sql \
-  product-outcomes.sql credit-sessions.sql households.sql website-rules.sql enforced-countdowns.sql actual-usage.sql cross-device-sync.sql \
+  product-outcomes.sql credit-sessions.sql households.sql child-module-assignments.sql website-rules.sql enforced-countdowns.sql actual-usage.sql cross-device-sync.sql \
   workout-session-timer.sql custom-exercises.sql profile-identity.sql managed-child-profiles.sql child-device-pairing.sql \
-  parent-device-pin.sql profile-account-conversion.sql ai-coaching.sql)
+  parent-device-pin.sql profile-account-conversion.sql ai-coaching.sql device-registry.sql)
+bloom_fixtures+=(growth-modules.sql)
+bloom_fixtures+=(selected-growth-scope.sql)
+bloom_fixtures+=(mock-exams-documents.sql)
+bloom_fixtures+=(read-reflection-memory.sql)
 if [[ "${BLOOM_SKIP_PUBLIC_COMPETITIONS:-0}" != "1" ]]; then
   bloom_fixtures+=(competitions.sql)
 fi

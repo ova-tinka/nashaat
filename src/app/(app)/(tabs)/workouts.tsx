@@ -4,9 +4,10 @@ import { ActivityIndicator, View } from 'react-native';
 import { Body, Button, ErrorText, Eyebrow, Heading, Label, Panel, Screen, sharedStyles } from '../../../components/bloom-ui';
 import { deletePlan, formatScheduledDays, startWorkout } from '../../../lib/bloom';
 import { useBloom } from '../../../lib/bloom-context';
-import { colors } from '../../../theme';
+import { useBloomTheme } from '../../../lib/theme-context';
 
 export default function WorkoutsScreen() {
+  const { theme } = useBloomTheme();
   const { plans, activeWorkout, loading, error, refresh } = useBloom();
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -34,10 +35,10 @@ export default function WorkoutsScreen() {
     finally { setStartingId(null); }
   }
 
-  return <Screen>
+  return <Screen safeAreaTop={false}>
     <View style={sharedStyles.column}><Eyebrow>Exercise</Eyebrow><Heading>Your workouts</Heading><Body>Plan your sessions and adjust them as your routine changes.</Body></View>
     <Button label="Create a workout plan" onPress={() => router.push('/new-plan')} />
-    {loading && <ActivityIndicator color={colors.accent} />}
+    {loading && <ActivityIndicator color={theme.colors.action} />}
     {error && <Panel><ErrorText>{error}</ErrorText><Button label="Try again" secondary onPress={() => void refresh()} /></Panel>}
     {actionError && <ErrorText>{actionError}</ErrorText>}
     {!loading && !error && plans.length === 0 && <Panel><Label>No workout plans yet</Label><Body>Choose exercises and create your first plan.</Body></Panel>}

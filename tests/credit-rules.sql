@@ -25,6 +25,12 @@ declare
   v_expiry timestamptz;
   v_local timestamp;
 begin
+  if not bloom_private.has_module_access(bloom_private.current_profile_id(), 'exercise') then
+    raise exception 'Personal profiles must retain Exercise access without a child assignment';
+  end if;
+  if position('bloom_private.current_profile_id()' in pg_get_functiondef('public.bloom_create_workout_plan(text,jsonb)'::regprocedure)) = 0 then
+    raise exception 'The personal workout wrapper must target the active Bloom profile';
+  end if;
   insert into public.bloom_settings(user_id, credit_timezone) values (auth.uid(), 'Asia/Qatar');
   begin
     update public.bloom_settings set reps_per_award = 10 where user_id = auth.uid();

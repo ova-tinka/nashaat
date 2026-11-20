@@ -30,6 +30,9 @@ do $$
 declare v_plan uuid; v_session uuid;
 begin
   perform public.bloom_accept_child_invite(current_setting('bloom.sync_invite'));
+  perform set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000071', true);
+  perform public.bloom_set_child_module_assignments('00000000-0000-0000-0000-000000000072', array['exercise']::text[]);
+  perform set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000072', true);
   insert into public.bloom_settings(user_id, credit_mode, credit_timezone)
     values (auth.uid(), 'easy', 'UTC');
   -- Device A creates a workout. Device B later observes and completes it.

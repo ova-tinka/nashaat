@@ -28,6 +28,9 @@ begin
   if v_house <> current_setting('bloom.test_house')::uuid or public.bloom_accept_child_invite(current_setting('bloom.test_invite')) <> v_house then
     raise exception 'Invitation was not retry-safe';
   end if;
+  perform set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000041', true);
+  perform public.bloom_set_child_module_assignments('00000000-0000-0000-0000-000000000042', array['exercise']::text[]);
+  perform set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000042', true);
   insert into public.bloom_settings(user_id) values (auth.uid());
   v_plan := public.bloom_create_workout_plan('Child plan', '[{"exercise_id":"10000000-0000-0000-0000-000000000041","sets":1,"target":10}]'::jsonb);
   perform set_config('bloom.test_child_plan', v_plan::text, true);

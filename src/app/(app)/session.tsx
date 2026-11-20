@@ -5,7 +5,7 @@ import { ActivityIndicator, StyleSheet, Text, TextInput, View } from 'react-nati
 import { Body, Button, ErrorText, Eyebrow, Heading, Label, Panel, Screen, sharedStyles } from '../../components/bloom-ui';
 import { cancelWorkout, completeWorkout, loadWorkout, setWorkoutTimer, type ExerciseResult, type SessionExercise, type WorkoutSession } from '../../lib/bloom';
 import { useBloom } from '../../lib/bloom-context';
-import { colors } from '../../theme';
+import { useBloomTheme } from '../../lib/theme-context';
 
 type Entry = { sets: string; value: string; extra: string; timerStartedAt: number | null; timerElapsed: number };
 type Draft = Record<string, Entry>;
@@ -30,6 +30,7 @@ function readDraft(raw: string | null, exercises: SessionExercise[]): Draft {
 export default function WorkoutSessionScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const { refresh } = useBloom();
+  const { theme } = useBloomTheme();
   const [session, setSession] = useState<WorkoutSession | null>(null);
   const [draft, setDraft] = useState<Draft>({});
   const [draftReady, setDraftReady] = useState(false);
@@ -157,9 +158,9 @@ export default function WorkoutSessionScreen() {
     finally { setSaving(false); }
   }
 
-  return <Screen>
+  return <Screen safeAreaTop={false}>
     <View style={sharedStyles.column}><Eyebrow>Workout session</Eyebrow><Heading>{session?.status === 'completed' ? 'Workout saved' : 'Your workout'}</Heading></View>
-    {loading && <ActivityIndicator color={colors.accent} />}
+    {loading && <ActivityIndicator color={theme.colors.action} />}
     {!loading && !session && <Panel><ErrorText>{error ?? 'Workout session not found.'}</ErrorText><Button label="Try again" onPress={() => void load()} /><Button label="Back to workouts" secondary onPress={() => router.replace('/workouts')} /></Panel>}
     {session?.status === 'completed' && <Panel><Label>Your workout is recorded.</Label><Body>{!session.credits_enabled_at_completion ? 'Screen-time credits were turned off for this workout.' : Number(session.credits_earned_minutes) > 0 ? `You earned ${Number(session.credits_earned_minutes).toLocaleString(undefined, { maximumFractionDigits: 4 })} minutes of screen time.` : 'No screen-time credits were earned. Review your earning strategy in Profile.'}</Body><Button label="Back to workouts" onPress={() => router.replace('/workouts')} /></Panel>}
     {session?.status === 'cancelled' && <Panel><Label>This workout was cancelled.</Label><Button label="Back to workouts" onPress={() => router.replace('/workouts')} /></Panel>}
@@ -178,9 +179,9 @@ export default function WorkoutSessionScreen() {
           <Label>{exercise.name}</Label><Body>Planned: {exercise.sets} × {timed(exercise) ? `${exercise.target_seconds} seconds` : `${exercise.target_reps} reps`}{exercise.target_weight_kg !== null ? ` · ${exercise.target_weight_kg} kg` : ''}{exercise.target_distance_km !== null ? ` · ${exercise.target_distance_km} km` : ''}</Body>
           {exercise.description && <Body>{exercise.description}</Body>}
           {(exercise.instructions ?? []).map((instruction, index) => <Body key={`${exercise.exercise_id}-instruction-${index}`}>{index + 1}. {instruction}</Body>)}
-          <View style={styles.inputs}><View style={styles.inputGroup}><Text style={styles.inputLabel}>Sets completed</Text><TextInput accessibilityLabel={`${exercise.name} sets completed`} value={entry.sets} onChangeText={(value) => update(exercise.exercise_id, 'sets', value)} keyboardType="number-pad" style={styles.input} /></View><View style={styles.inputGroup}><Text style={styles.inputLabel}>{timed(exercise) ? 'Seconds per set' : 'Reps per set'}</Text><TextInput accessibilityLabel={`${exercise.name} ${timed(exercise) ? 'seconds' : 'repetitions'} completed`} value={entry.timerStartedAt !== null ? String(seconds) : entry.value} onChangeText={(value) => update(exercise.exercise_id, 'value', value)} editable={entry.timerStartedAt === null} keyboardType="number-pad" style={styles.input} /></View></View>
+          <View style={styles.inputs}><View style={styles.inputGroup}><Text style={[styles.inputLabel, { color: theme.colors.inkMuted }]}>Sets completed</Text><TextInput accessibilityLabel={`${exercise.name} sets completed`} value={entry.sets} onChangeText={(value) => update(exercise.exercise_id, 'sets', value)} keyboardType="number-pad" style={[styles.input, { color: theme.colors.ink, backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]} /></View><View style={styles.inputGroup}><Text style={[styles.inputLabel, { color: theme.colors.inkMuted }]}>{timed(exercise) ? 'Seconds per set' : 'Reps per set'}</Text><TextInput accessibilityLabel={`${exercise.name} ${timed(exercise) ? 'seconds' : 'repetitions'} completed`} value={entry.timerStartedAt !== null ? String(seconds) : entry.value} onChangeText={(value) => update(exercise.exercise_id, 'value', value)} editable={entry.timerStartedAt === null} keyboardType="number-pad" style={[styles.input, { color: theme.colors.ink, backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]} /></View></View>
           {timed(exercise) && <Button label={entry.timerStartedAt === null ? 'Start timer' : 'Pause timer'} secondary onPress={() => toggleTimer(exercise.exercise_id)} />}
-          {(exercise.measurement_type === 'reps_weight' || exercise.measurement_type === 'time_distance') && <View style={styles.inputGroup}><Text style={styles.inputLabel}>{exercise.measurement_type === 'reps_weight' ? 'Weight in kg (optional)' : 'Distance in km (optional)'}</Text><TextInput accessibilityLabel={`${exercise.name} ${exercise.measurement_type === 'reps_weight' ? 'weight' : 'distance'}`} value={entry.extra} onChangeText={(value) => update(exercise.exercise_id, 'extra', value)} keyboardType="decimal-pad" style={styles.input} /></View>}
+          {(exercise.measurement_type === 'reps_weight' || exercise.measurement_type === 'time_distance') && <View style={styles.inputGroup}><Text style={[styles.inputLabel, { color: theme.colors.inkMuted }]}>{exercise.measurement_type === 'reps_weight' ? 'Weight in kg (optional)' : 'Distance in km (optional)'}</Text><TextInput accessibilityLabel={`${exercise.name} ${exercise.measurement_type === 'reps_weight' ? 'weight' : 'distance'}`} value={entry.extra} onChangeText={(value) => update(exercise.exercise_id, 'extra', value)} keyboardType="decimal-pad" style={[styles.input, { color: theme.colors.ink, backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]} /></View>}
         </Panel>;
       })}
       {draftError && <ErrorText>{draftError}</ErrorText>}{error && <ErrorText>{error}</ErrorText>}
@@ -194,6 +195,6 @@ export default function WorkoutSessionScreen() {
 const styles = StyleSheet.create({
   inputs: { flexDirection: 'row', gap: 12 },
   inputGroup: { flex: 1, gap: 6 },
-  inputLabel: { color: colors.body, fontSize: 12 },
-  input: { minHeight: 44, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 12, color: colors.text, backgroundColor: colors.background, fontSize: 16 },
+  inputLabel: { fontSize: 12 },
+  input: { minHeight: 44, borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, fontSize: 16 },
 });

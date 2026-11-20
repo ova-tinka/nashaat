@@ -2,11 +2,11 @@
   "expo": {
     "name": "Bloom",
     "slug": "bloom-exercise",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "bloomexercise",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "light",
     "ios": {
       "appleTeamId": "SSYR69RTPK",
       "bundleIdentifier": "com.focusflow.focusFlowFlutter",
@@ -35,13 +35,14 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#15110E",
+          "backgroundColor": "#F8FAFF",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }
       ],
       "./plugins/with-bloom-blocking",
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true

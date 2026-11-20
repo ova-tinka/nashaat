@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { calculateExerciseRecords, type ExerciseAchievement, type ExercisePersonalBest, type ExerciseStreak } from './exercise-records';
 
 export type Measurement = 'reps_weight' | 'reps_only' | 'time_only' | 'time_distance';
 export type Exercise = {
@@ -74,6 +75,16 @@ export type WorkoutAnalytics = {
   missed_planned_workouts: number;
   history: WorkoutHistoryItem[];
 };
+export type CreditLedgerEntry = {
+  id: string;
+  amount_minutes: number;
+  entry_type: 'earned' | 'spent' | 'expired' | 'adjustment';
+  expires_at: string | null;
+  created_at: string;
+  workout_session_id: string | null;
+  growth_module_id: 'study' | 'read' | 'tasks' | null;
+  growth_source_type: 'session' | 'task' | null;
+};
 export const SCHEDULE_DAYS = [
   { label: 'Sun', iso: 7 }, { label: 'Mon', iso: 1 }, { label: 'Tue', iso: 2 },
   { label: 'Wed', iso: 3 }, { label: 'Thu', iso: 4 }, { label: 'Fri', iso: 5 }, { label: 'Sat', iso: 6 },
@@ -115,10 +126,20 @@ export type ExerciseResult = {
   weight_kg?: number;
   distance_km?: number;
 };
+export type { ExerciseAchievement, ExercisePersonalBest, ExerciseStreak } from './exercise-records';
 
 function client() {
   if (!supabase) throw new Error('Bloom is not configured.');
   return supabase;
+}
+
+export async function loadExercisePersonalBests(userId: string, timeZone = 'UTC'): Promise<{ bests: ExercisePersonalBest[]; achievements: ExerciseAchievement[]; streak: ExerciseStreak }> {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) throw new Error('Invalid profile.');
+  const { data, error } = await client().from('bloom_workout_sessions')
+    .select('completed_at,plan_snapshot,exercise_results')
+    .eq('user_id', userId).eq('status', 'completed').order('completed_at', { ascending: false }).limit(1000);
+  if (error) throw error;
+  return calculateExerciseRecords((data ?? []).reverse(), timeZone);
 }
 
 export async function loadCatalog(targetUserId?: string): Promise<Exercise[]> {
@@ -188,6 +209,14 @@ export async function loadBloomData(userId: string) {
     subscription: subscription.data as Subscription | null,
     workoutAnalytics: { ...(analytics.data as WorkoutAnalytics), ...(planProgress.data as Pick<WorkoutAnalytics, 'planned_workouts' | 'completed_planned_workouts' | 'scheduled_days' | 'rest_days' | 'missed_planned_workouts'>) },
   };
+}
+
+export async function loadCreditLedger(): Promise<CreditLedgerEntry[]> {
+  const { data, error } = await client().from('bloom_credit_ledger')
+    .select('id,amount_minutes,entry_type,expires_at,created_at,workout_session_id,growth_module_id,growth_source_type')
+    .order('created_at', { ascending: false }).limit(100);
+  if (error) throw error;
+  return (data ?? []).map((row) => ({ ...row, amount_minutes: Number(row.amount_minutes) })) as CreditLedgerEntry[];
 }
 
 export async function startWorkout(planId: string): Promise<string> {
