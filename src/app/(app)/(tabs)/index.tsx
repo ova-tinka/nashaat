@@ -5,8 +5,8 @@ import { loadCreditLedger } from '../../../lib/bloom';
 import { useAuth } from '../../../lib/auth';
 import { loadDevices, type BloomDevice } from '../../../lib/devices';
 import { useBloom } from '../../../lib/bloom-context';
-import { buildDailyCreditTotals, summarizeWeeklyGoals, type DailyCreditTotal } from '../../../lib/home-dashboard';
-import { loadGrowthOverview, loadWeeklyPillarActuals, loadWeeklyPillarGoals, type GrowthOverview } from '../../../lib/growth-modules';
+import { buildDailyScreenTimeTotals, summarizeWeeklyGoals, type DailyScreenTimeTotal } from '../../../lib/home-dashboard';
+import { loadWeeklyPillarActuals, loadWeeklyPillarGoals } from '../../../lib/growth-modules';
 
 type LoadState<T> = { profileId: string | null; data: T | null; loading: boolean; error: string | null };
 
@@ -17,9 +17,8 @@ export default function HomeScreen() {
   const { profileId } = useAuth();
   const requestVersion = useRef(0);
   const [weeklyState, setWeeklyState] = useState<LoadState<ReturnType<typeof summarizeWeeklyGoals>>>(initialLoadState);
-  const [creditState, setCreditState] = useState<LoadState<DailyCreditTotal[]>>(initialLoadState);
+  const [creditState, setCreditState] = useState<LoadState<DailyScreenTimeTotal[]>>(initialLoadState);
   const [deviceState, setDeviceState] = useState<LoadState<BloomDevice[]>>(initialLoadState);
-  const [overviewState, setOverviewState] = useState<LoadState<GrowthOverview[]>>(initialLoadState);
 
   const refresh = useCallback(async () => {
     if (!profileId) return;
@@ -28,7 +27,6 @@ export default function HomeScreen() {
     setWeeklyState({ profileId, data: null, loading: true, error: null });
     setCreditState({ profileId, data: null, loading: true, error: null });
     setDeviceState({ profileId, data: null, loading: true, error: null });
-    setOverviewState({ profileId, data: null, loading: true, error: null });
 
     await Promise.all([
       Promise.all([loadWeeklyPillarGoals(), loadWeeklyPillarActuals()]).then(([goals, actuals]) => {
@@ -38,7 +36,7 @@ export default function HomeScreen() {
       }),
       loadCreditLedger().then((entries) => {
         const timezone = creditSettings?.credit_timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
-        const totals = buildDailyCreditTotals(entries, new Date(), timezone);
+        const totals = buildDailyScreenTimeTotals(entries, new Date(), timezone);
         if (isCurrent()) setCreditState({ profileId, data: totals, loading: false, error: null });
       }).catch(() => {
         if (isCurrent()) setCreditState({ profileId, data: null, loading: false, error: 'Could not load recent credit history. Please try again.' });
@@ -47,11 +45,6 @@ export default function HomeScreen() {
         if (isCurrent()) setDeviceState({ profileId, data: devices, loading: false, error: null });
       }).catch(() => {
         if (isCurrent()) setDeviceState({ profileId, data: null, loading: false, error: 'Could not load connected devices. Please try again.' });
-      }),
-      loadGrowthOverview().then((overview) => {
-        if (isCurrent()) setOverviewState({ profileId, data: overview, loading: false, error: null });
-      }).catch(() => {
-        if (isCurrent()) setOverviewState({ profileId, data: null, loading: false, error: 'Could not load activity summaries.' });
       }),
     ]);
   }, [creditSettings?.credit_timezone, profileId]);
@@ -64,7 +57,6 @@ export default function HomeScreen() {
   const profileWeekly = weeklyState.profileId === profileId ? weeklyState : initialLoadState;
   const profileCredits = creditState.profileId === profileId ? creditState : initialLoadState;
   const profileDevices = deviceState.profileId === profileId ? deviceState : initialLoadState;
-  const profileOverview = overviewState.profileId === profileId ? overviewState : initialLoadState;
 
   return <HomeDashboard
     weeklySummary={profileWeekly.data}
@@ -76,7 +68,6 @@ export default function HomeScreen() {
     devices={profileDevices.data}
     devicesLoading={profileDevices.loading}
     devicesError={profileDevices.error}
-    growthOverview={profileOverview.data}
     onRefresh={() => void refresh()}
   />;
 }

@@ -1,30 +1,26 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router, type Href } from 'expo-router';
-import { useState } from 'react';
 import { ActivityIndicator, ImageBackground, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Body, Button, ErrorText, Eyebrow, Label, Panel, Screen, useIsDesktopLayout } from './bloom-ui';
 import { bloomHomeImage, bloomPillarImages } from '../assets/bloom-images';
-import { isDeviceStale } from '../lib/device-utils';
 import type { BloomDevice } from '../lib/devices';
 import { useAuth } from '../lib/auth';
 import { useBloom } from '../lib/bloom-context';
 import { useBloomTheme } from '../lib/theme-context';
 import { moduleManifest } from '../lib/module-manifest';
 import { useModuleVisibility } from '../lib/module-visibility';
-import type { DailyCreditTotal, WeeklyGoalSummary } from '../lib/home-dashboard';
-import type { GrowthOverview } from '../lib/growth-modules';
+import type { DailyScreenTimeTotal, WeeklyGoalSummary } from '../lib/home-dashboard';
 
 export type HomeDashboardProps = {
   weeklySummary: WeeklyGoalSummary | null;
   weeklyLoading: boolean;
   weeklyError: string | null;
-  creditHistory: DailyCreditTotal[] | null;
+  creditHistory: DailyScreenTimeTotal[] | null;
   creditHistoryLoading: boolean;
   creditHistoryError: string | null;
   devices: BloomDevice[] | null;
   devicesLoading: boolean;
   devicesError: string | null;
-  growthOverview: GrowthOverview[] | null;
   onRefresh: () => void;
 };
 
@@ -45,7 +41,6 @@ export function HomeDashboard({
   devices,
   devicesLoading,
   devicesError,
-  growthOverview,
   onRefresh,
 }: HomeDashboardProps) {
   const { activeWorkout, creditsEnabled, creditBalance, dataConfirmedAt, loading, error, refresh } = useBloom();
@@ -56,9 +51,6 @@ export function HomeDashboard({
   const pillars = moduleManifest.filter((module) => module.available && visibleModules.includes(module.id)
     && (!childProfile || assignedModules.includes(module.id)));
   const walletError = error && !dataConfirmedAt ? error : null;
-  const confirmedAtLabel = dataConfirmedAt
-    ? new Date(dataConfirmedAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
-    : null;
 
   return <Screen safeAreaTop={false}>
     <View style={styles.content}>
@@ -81,26 +73,21 @@ export function HomeDashboard({
 
       <View style={[styles.primaryColumns, desktop && styles.desktopColumns]}>
         <View style={desktop && styles.desktopColumn}>
-          <WeeklyGoalsPanel summary={weeklySummary} loading={weeklyLoading} error={weeklyError} onRetry={onRefresh} />
+          <BalancePanel available={creditBalance} enabled={creditsEnabled} loading={loading} error={walletError} onRefresh={refresh} />
         </View>
         <View style={desktop && styles.desktopColumn}>
-          <ScreenTimePanel
-            available={creditBalance}
-            enabled={creditsEnabled}
-            loading={loading}
-            error={walletError}
-            confirmedAtLabel={confirmedAtLabel}
-            onRefresh={refresh}
-          />
+          <WeeklyGoalsPanel summary={weeklySummary} visiblePillars={pillars.map((pillar) => pillar.id)} loading={weeklyLoading} error={weeklyError} onRetry={onRefresh} />
         </View>
       </View>
 
+      <WeeklyScreenTimePanel totals={creditHistory} loading={creditHistoryLoading} error={creditHistoryError} onRetry={onRefresh} />
+
       <View style={[styles.secondaryColumns, desktop && styles.desktopColumns]}>
         <View style={desktop && styles.desktopColumn}>
-          <CreditTrendsPanel totals={creditHistory} loading={creditHistoryLoading} error={creditHistoryError} onRetry={onRefresh} />
+          <ByDevicePanel devices={devices} loading={devicesLoading} error={devicesError} onRetry={onRefresh} />
         </View>
         <View style={desktop && styles.desktopColumn}>
-          <DevicesPanel devices={devices} loading={devicesLoading} error={devicesError} onRetry={onRefresh} />
+          <InsightsPanel summary={weeklySummary} loading={weeklyLoading} error={weeklyError} />
         </View>
       </View>
 
@@ -126,51 +113,41 @@ export function HomeDashboard({
         <Button label="Choose your pillars" variant="secondary" onPress={() => router.push('/settings')} />
       </Panel>}
 
-      {growthOverview && growthOverview.length > 0 && <PillarOverview rows={growthOverview} />}
-      {activeWorkout && <Panel>
-        <Eyebrow>Continue Exercise</Eyebrow>
-        <Label>Your workout is ready when you are.</Label>
-        <Button label="Resume workout" onPress={() => router.push({ pathname: '/session', params: { id: activeWorkout.id } })} />
-      </Panel>}
-      <View style={styles.secondaryLinks}>
-        <SecondaryLink icon="insights" title="Progress" route="/progress" />
-        <SecondaryLink icon="history" title="Activity history" route="/activity" />
-        <SecondaryLink icon="devices" title="Connected devices" route="/devices" />
-      </View>
     </View>
   </Screen>;
 }
 
-function WeeklyGoalsPanel({ summary, loading, error, onRetry }: {
+function WeeklyGoalsPanel({ summary, visiblePillars, loading, error, onRetry }: {
   summary: WeeklyGoalSummary | null;
+  visiblePillars: (typeof moduleManifest)[number]['id'][];
   loading: boolean;
   error: string | null;
   onRetry: () => void;
 }) {
   const { theme } = useBloomTheme();
+  const goals = summary?.goals.filter((goal) => visiblePillars.includes(goal.module_id)) ?? [];
+  const completedCount = goals.filter((goal) => goal.complete).length;
 
   return <Panel>
     <View style={styles.panelHeading}>
-      <Eyebrow>This week</Eyebrow>
-      <Text accessibilityRole="header" style={[styles.panelTitle, { color: theme.colors.ink }]}>Your weekly goals</Text>
+      <Eyebrow>Pillars · this week</Eyebrow>
+      <Text accessibilityRole="header" style={[styles.panelTitle, { color: theme.colors.ink }]}>{goals.length > 0 ? `${completedCount} of ${goals.length} complete` : 'Your weekly goals'}</Text>
     </View>
     {loading ? <ActivityIndicator color={theme.colors.action} /> : error ? <>
       <Body>Your weekly goals could not be loaded.</Body>
       <Button label="Try again" variant="secondary" onPress={onRetry} />
-    </> : summary && summary.totalCount > 0 ? <View style={styles.goalsLayout}>
-      <GoalProgressRing percent={summary.percent} completed={summary.completedCount} total={summary.totalCount} />
-      <View style={styles.goalsList}>
-        {summary.goals.map((goal) => {
+    </> : goals.length > 0 ? <View style={styles.goalsList}>
+        {goals.map((goal) => {
           const module = moduleManifest.find((entry) => entry.id === goal.module_id)!;
           const moduleColors = theme.modules[goal.module_id];
           const progress = Math.min(100, Math.round(goal.actualValue / goal.target_count * 100));
           return <View key={goal.module_id} style={styles.goalRow}>
-            <View style={[styles.goalIcon, { backgroundColor: moduleColors.surface }]}>
-              <MaterialIcons name={module.icon} size={17} color={moduleColors.deep} />
-            </View>
             <View style={styles.goalCopy}>
               <View style={styles.goalHeading}>
-                <Text style={[styles.goalName, { color: theme.colors.ink }]} numberOfLines={1}>{module.name}</Text>
+                <View style={styles.goalTitleRow}>
+                  <MaterialIcons name={module.icon} size={15} color={moduleColors.deep} />
+                  <Text style={[styles.goalName, { color: theme.colors.ink }]} numberOfLines={1}>{module.name}</Text>
+                </View>
                 <Text style={[styles.goalTarget, { color: goal.complete ? moduleColors.deep : theme.colors.inkMuted }]}>{formatGoalValue(goal.actualValue)}/{formatGoalValue(goal.target_count)} {goalUnit(goal.unit)}</Text>
               </View>
               <View accessible accessibilityRole="progressbar" accessibilityLabel={`${module.name} weekly goal`}
@@ -182,108 +159,69 @@ function WeeklyGoalsPanel({ summary, loading, error, onRetry }: {
           </View>;
         })}
       </View>
-    </View> : <>
+    : <>
       <Body>Your weekly plan is ready to shape around the days that work for you.</Body>
       <Button label="Set a weekly goal" variant="secondary" onPress={() => router.push('/progress')} />
     </>}
   </Panel>;
 }
 
-function GoalProgressRing({ percent, completed, total }: { percent: number; completed: number; total: number }) {
-  const { theme } = useBloomTheme();
-  const segmentCount = 64;
-  const activeSegments = Math.round(percent / 100 * segmentCount);
-  const center = 70;
-  const radius = 61;
-  return <View accessible accessibilityRole="progressbar" accessibilityLabel="Weekly goals completed"
-    accessibilityValue={{ min: 0, max: total, now: completed }} style={styles.goalRing}>
-    {Array.from({ length: segmentCount }, (_, index) => {
-      const rotation = index / segmentCount * 360 - 90;
-      const radians = rotation * Math.PI / 180;
-      return <View key={index} style={[styles.ringSegment, {
-        left: center + Math.cos(radians) * radius - 2,
-        top: center + Math.sin(radians) * radius - 5,
-        transform: [{ rotate: `${rotation + 90}deg` }],
-        backgroundColor: index < activeSegments ? theme.colors.action : theme.colors.surfaceSoft,
-      }]} />;
-    })}
-    <View style={styles.goalRingCenter}>
-      <Text style={[styles.goalPercent, { color: theme.colors.ink }]}>{percent}</Text>
-      <Text style={[styles.goalRingLabel, { color: theme.colors.inkMuted }]}>{completed} of {total} goals</Text>
-    </View>
-  </View>;
-}
-
-function ScreenTimePanel({ available, enabled, loading, error, confirmedAtLabel, onRefresh }: {
+function BalancePanel({ available, enabled, loading, error, onRefresh }: {
   available: number;
   enabled: boolean;
   loading: boolean;
   error: string | null;
-  confirmedAtLabel: string | null;
   onRefresh: () => Promise<void>;
 }) {
   const { theme } = useBloomTheme();
-  const [retrying, setRetrying] = useState(false);
-
-  async function refreshWallet() {
-    setRetrying(true);
-    try { await onRefresh(); } finally { setRetrying(false); }
-  }
-
   return <Panel>
     <View style={styles.panelHeading}>
-      <Eyebrow>Screen time</Eyebrow>
-      <Text accessibilityRole="header" style={[styles.panelTitle, { color: theme.colors.ink }]}>Available to use</Text>
+      <Eyebrow>Screen-time balance</Eyebrow>
+      <Text accessibilityRole="header" style={[styles.panelTitle, { color: theme.colors.ink }]}>This week</Text>
     </View>
     {loading ? <View style={styles.inlineStatus}><ActivityIndicator color={theme.colors.action} /><Body>Connecting to Bloom.</Body></View>
       : error ? <>
         <ErrorText>{error}</ErrorText>
-        {confirmedAtLabel && <Body>Last confirmed at {confirmedAtLabel}.</Body>}
-        <Button label="Try again" variant="secondary" busy={retrying} onPress={() => void refreshWallet()} />
+        <Button label="Retry" variant="secondary" onPress={() => void onRefresh()} />
       </> : enabled ? <>
         <View style={styles.balanceRow}>
-          <Text accessibilityLabel={`${formatCreditAmount(available)} screen-time minutes`} style={[styles.balanceAmount, { color: theme.colors.ink }]}>{formatCreditAmount(available)}</Text>
-          <Text style={[styles.balanceUnit, { color: theme.colors.inkMuted }]}>min</Text>
+          <Text accessibilityLabel={`${formatCreditDuration(available)} of screen time available in your balance`} style={[styles.balanceAmount, { color: theme.colors.ink }]}>{formatCreditHours(available)}</Text>
+          <Text style={[styles.balanceUnit, { color: theme.colors.inkMuted }]}>h</Text>
         </View>
-        <View style={styles.balanceStatus}>
-          <MaterialIcons name="verified" size={16} color={theme.colors.successText} />
-          <Text style={[styles.statusText, { color: theme.colors.inkMuted }]}>{confirmedAtLabel ? `Confirmed at ${confirmedAtLabel}` : 'Balance confirmed by Bloom'}</Text>
-        </View>
+        <Text style={[styles.balanceNote, { color: theme.colors.inkMuted }]}>Available for screen time</Text>
       </> : <>
-        <Text style={[styles.creditsOff, { color: theme.colors.ink } ]}>Screen-time credits are off.</Text>
-        <Body>Credits remain available to review in your ledger.</Body>
+        <Text style={[styles.creditsOff, { color: theme.colors.ink }]}>Credits are off</Text>
       </>}
-    <View style={[styles.panelActions, { borderTopColor: theme.colors.border }]}>
-      <SecondaryLink icon="history" title="Credit history" route="/credit-history" />
-      <SecondaryLink icon="do-not-disturb-on" title="Focus settings" route="/focus" />
-    </View>
   </Panel>;
 }
 
-function CreditTrendsPanel({ totals, loading, error, onRetry }: {
-  totals: DailyCreditTotal[] | null;
+function WeeklyScreenTimePanel({ totals, loading, error, onRetry }: {
+  totals: DailyScreenTimeTotal[] | null;
   loading: boolean;
   error: string | null;
   onRetry: () => void;
 }) {
   const { theme } = useBloomTheme();
-  const weeklyTotal = totals?.reduce((total, day) => total + day.minutes, 0) ?? 0;
+  const weekMinutes = totals?.reduce((total, day) => total + day.minutes, 0) ?? 0;
   const peak = Math.max(0, ...(totals?.map((day) => day.minutes) ?? []));
 
   return <Panel>
-    <View style={styles.panelHeading}>
-      <Eyebrow>Screen-time credits</Eyebrow>
-      <Text accessibilityRole="header" style={[styles.panelTitle, { color: theme.colors.ink }]}>Earned this week</Text>
+    <View style={styles.screenTimeHeader}>
+      <View style={styles.panelHeading}>
+        <Eyebrow>Screen time</Eyebrow>
+        <Text accessibilityRole="header" style={[styles.panelTitle, { color: theme.colors.ink }]}>This week</Text>
+      </View>
+      {!loading && !error && totals && <Text accessibilityLabel={`${formatCreditDuration(weekMinutes)} screen time used this week`} style={[styles.trendAmount, { color: theme.colors.ink }]}>{formatCreditDuration(weekMinutes)}</Text>}
     </View>
     {loading ? <ActivityIndicator color={theme.colors.action} /> : error || !totals ? <>
-      <Body>Your weekly credit activity is temporarily unavailable.</Body>
+      <Body>Screen-time activity is temporarily unavailable.</Body>
       <Button label="Try again" variant="secondary" onPress={onRetry} />
     </> : <>
-      <Text accessibilityLabel={`${formatCreditDuration(weeklyTotal)} of screen-time credits earned during the last seven days`} style={[styles.trendAmount, { color: theme.colors.ink }]}>{formatCreditDuration(weeklyTotal)}</Text>
-      <View accessibilityLabel="Screen-time credits earned in each of the last seven calendar days" style={styles.chart}>
+      <View accessibilityLabel="Screen time used on each of the last seven days, in minutes" style={styles.chart}>
         {totals.map((day) => {
-          const barHeight = day.minutes <= 0 ? 2 : Math.max(9, Math.round((day.minutes / (peak || 1)) * 72));
+          const barHeight = day.minutes <= 0 ? 2 : Math.max(9, Math.round((day.minutes / (peak || 1)) * 84));
           return <View key={day.dateKey} style={styles.chartDay}>
+            <Text style={[styles.chartValue, { color: theme.colors.inkMuted }]}>{day.minutes > 0 ? formatCompactDuration(day.minutes) : '—'}</Text>
             <View style={[styles.chartArea, { backgroundColor: theme.colors.surfaceSoft }]}>
               <View style={[styles.chartBar, {
                 height: barHeight,
@@ -295,10 +233,13 @@ function CreditTrendsPanel({ totals, loading, error, onRetry }: {
         })}
       </View>
     </>}
+    <View style={[styles.panelActions, { borderTopColor: theme.colors.border }]}>
+      <SecondaryLink icon="history" title="Screen-time history" route="/credit-history" />
+    </View>
   </Panel>;
 }
 
-function DevicesPanel({ devices, loading, error, onRetry }: {
+function ByDevicePanel({ devices, loading, error, onRetry }: {
   devices: BloomDevice[] | null;
   loading: boolean;
   error: string | null;
@@ -307,16 +248,16 @@ function DevicesPanel({ devices, loading, error, onRetry }: {
   const { theme } = useBloomTheme();
   return <Panel>
     <View style={styles.panelHeading}>
-      <Eyebrow>Your devices</Eyebrow>
-      <Text accessibilityRole="header" style={[styles.panelTitle, { color: theme.colors.ink }]}>Last check-in</Text>
+      <Eyebrow>By device</Eyebrow>
+      <Text accessibilityRole="header" style={[styles.panelTitle, { color: theme.colors.ink }]}>Usage hours</Text>
     </View>
     {loading ? <ActivityIndicator color={theme.colors.action} /> : error || !devices ? <>
-      <Body>Connected device reports are temporarily unavailable.</Body>
+      <Body>Connected devices are temporarily unavailable.</Body>
       <Button label="Try again" variant="secondary" onPress={onRetry} />
-    </> : devices.length > 0 ? devices.slice(0, 3).map((device) => {
-      const stale = isDeviceStale(device.last_seen_at);
-      return <Pressable key={device.device_id} accessibilityRole="button"
-        accessibilityLabel={`${device.display_name}. ${stale ? 'The last report is over a day old.' : 'Recently checked in.'} Review connected devices.`}
+    </> : devices.length > 0 ? <>
+      <Body>Bloom does not report screen-time hours by device yet.</Body>
+      {devices.slice(0, 3).map((device) => <Pressable key={device.device_id} accessibilityRole="button"
+        accessibilityLabel={`${device.display_name}. Per-device screen-time totals are not available yet.`}
         onPress={() => router.push({ pathname: '/device-detail', params: { deviceId: device.device_id } })}
         style={styles.deviceRow}>
         <View style={[styles.deviceIcon, { backgroundColor: theme.colors.surfaceSoft }]}>
@@ -324,14 +265,35 @@ function DevicesPanel({ devices, loading, error, onRetry }: {
         </View>
         <View style={styles.deviceCopy}>
           <Text style={[styles.deviceName, { color: theme.colors.ink }]} numberOfLines={1}>{device.display_name}</Text>
-          <Text style={[styles.deviceDetail, { color: theme.colors.inkMuted }]}>{stale ? 'Last report over a day ago' : `Last seen ${formatDeviceTime(device.last_seen_at)}`}</Text>
+          <Text style={[styles.deviceDetail, { color: theme.colors.inkMuted }]}>Hours not reported</Text>
         </View>
-        <MaterialIcons name="chevron-right" size={19} color={theme.colors.inkSubtle} />
-      </Pressable>;
-    }) : <Body>Your devices will appear here after their first check-in.</Body>}
+        <Text style={[styles.unknownHours, { color: theme.colors.inkMuted }]}>—</Text>
+      </Pressable>)}
+    </> : <Body>Your devices will appear here after their first check-in.</Body>}
     <View style={[styles.panelActions, { borderTopColor: theme.colors.border }]}>
       <SecondaryLink icon="devices" title="Manage devices" route="/devices" />
     </View>
+  </Panel>;
+}
+
+function InsightsPanel({ summary, loading, error }: { summary: WeeklyGoalSummary | null; loading: boolean; error: string | null }) {
+  const { theme } = useBloomTheme();
+  const { childProfile, assignedModules } = useAuth();
+  const { visibleModules } = useModuleVisibility();
+  const goals = summary?.goals.filter((goal) => visibleModules.includes(goal.module_id)
+    && (!childProfile || assignedModules.includes(goal.module_id))) ?? [];
+  const completed = goals.filter((goal) => goal.complete).length;
+  const nextGoal = goals.find((goal) => !goal.complete);
+  return <Panel>
+    <View style={styles.panelHeading}>
+      <Eyebrow>Insight</Eyebrow>
+      <Text accessibilityRole="header" style={[styles.panelTitle, { color: theme.colors.ink }]}>Your week</Text>
+    </View>
+    {loading ? <ActivityIndicator color={theme.colors.action} /> : error ? <Body>Your weekly insight is temporarily unavailable.</Body>
+      : goals.length > 0 ? <>
+        <Text style={[styles.insightMetric, { color: theme.colors.ink }]}>{completed} of {goals.length}</Text>
+        <Body>{nextGoal ? `${moduleName(nextGoal.module_id)} is ready for your next step.` : 'Every active weekly goal is complete.'}</Body>
+      </> : <Body>Set a weekly pillar goal to see a progress insight here.</Body>}
   </Panel>;
 }
 
@@ -355,45 +317,7 @@ function PillarCard({ moduleId }: { moduleId: (typeof moduleManifest)[number]['i
   </Pressable>;
 }
 
-function PillarOverview({ rows }: { rows: GrowthOverview[] }) {
-  const { theme } = useBloomTheme();
-  const { childProfile, assignedModules } = useAuth();
-  const { visibleModules } = useModuleVisibility();
-  const modules = moduleManifest.filter((module) => visibleModules.includes(module.id)
-    && (!childProfile || assignedModules.includes(module.id)));
-  const visibleRows = modules.flatMap((module) => {
-    const row = rows.find((item) => item.module_id === module.id);
-    return row ? [row] : [];
-  });
-
-  if (visibleRows.length === 0) return null;
-  return <Panel>
-    <View style={styles.panelHeading}>
-      <Eyebrow>Across Bloom</Eyebrow>
-      <Text accessibilityRole="header" style={[styles.panelTitle, { color: theme.colors.ink }]}>Your activity</Text>
-    </View>
-    <View style={styles.overviewRows}>
-      {visibleRows.map((row) => {
-        const module = moduleManifest.find((item) => item.id === row.module_id)!;
-        const growthText = row.module_id === 'study' ? `${row.minutes_this_week} min focused this week`
-          : row.module_id === 'read' ? `${row.active_items} ${row.active_items === 1 ? 'book' : 'books'} in progress`
-            : `${row.active_items} ${row.active_items === 1 ? 'task' : 'tasks'} to do`;
-        return <View key={row.module_id} style={styles.overviewRow}>
-          <View style={[styles.goalIcon, { backgroundColor: theme.modules[row.module_id].surface }]}>
-            <MaterialIcons name={module.icon} size={17} color={theme.modules[row.module_id].deep} />
-          </View>
-          <View style={styles.deviceCopy}>
-            <Text style={[styles.deviceName, { color: theme.colors.ink }]}>{module.name}</Text>
-            <Text style={[styles.deviceDetail, { color: theme.colors.inkMuted }]}>{growthText}</Text>
-          </View>
-          {row.module_id === 'tasks' && row.due_today > 0 && <Text style={[styles.deviceDetail, { color: theme.colors.inkMuted }]}>{row.due_today} due today</Text>}
-        </View>;
-      })}
-    </View>
-  </Panel>;
-}
-
-function SecondaryLink({ icon, title, route }: { icon: 'insights' | 'history' | 'devices' | 'do-not-disturb-on'; title: string; route: Href }) {
+function SecondaryLink({ icon, title, route }: { icon: 'history' | 'devices'; title: string; route: Href }) {
   const { theme } = useBloomTheme();
   return <Pressable accessibilityRole="button" accessibilityLabel={title} onPress={() => router.push(route)}
     style={({ pressed }) => [styles.quickLink, pressed && styles.pressed]}>
@@ -410,13 +334,6 @@ function deviceIcon(platform: BloomDevice['platform']): 'phone-iphone' | 'phone-
   return 'devices';
 }
 
-function formatDeviceTime(value: string) {
-  const date = new Date(value);
-  return Number.isFinite(date.getTime())
-    ? date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
-    : 'Time unavailable';
-}
-
 function formatGoalValue(value: number) {
   return value.toLocaleString(undefined, { maximumFractionDigits: 1 });
 }
@@ -427,8 +344,16 @@ function goalUnit(unit: WeeklyGoalSummary['goals'][number]['unit']) {
   return unit;
 }
 
-function formatCreditAmount(value: number) {
-  return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+function moduleName(moduleId: WeeklyGoalSummary['goals'][number]['module_id']) {
+  return moduleManifest.find((module) => module.id === moduleId)?.name ?? 'Your next pillar';
+}
+
+function formatCreditHours(minutes: number) {
+  return (minutes / 60).toLocaleString(undefined, { maximumFractionDigits: 1 });
+}
+
+function formatCompactDuration(minutes: number) {
+  return minutes >= 60 ? `${formatCreditHours(minutes)}h` : `${Math.round(minutes)}m`;
 }
 
 function formatCreditDuration(value: number) {
@@ -454,6 +379,7 @@ const styles = StyleSheet.create({
   desktopColumns: { flexDirection: 'row', alignItems: 'stretch' },
   desktopColumn: { flex: 1, minWidth: 0 },
   panelHeading: { gap: 2 },
+  goalTitleRow: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 5 },
   panelTitle: { fontSize: 18, lineHeight: 24, fontWeight: '700', letterSpacing: -0.3 },
   goalsLayout: { flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 5 },
   goalRing: { width: 140, height: 140, alignItems: 'center', justifyContent: 'center' },
@@ -473,6 +399,8 @@ const styles = StyleSheet.create({
   balanceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 7 },
   balanceAmount: { fontSize: 40, lineHeight: 47, fontWeight: '700', letterSpacing: -1, fontVariant: ['tabular-nums'] },
   balanceUnit: { fontSize: 16, fontWeight: '600' },
+  balanceNote: { fontSize: 13, lineHeight: 19, fontWeight: '500' },
+  screenTimeHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   balanceStatus: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 22 },
   statusText: { fontSize: 12, lineHeight: 17 },
   creditsOff: { fontSize: 19, lineHeight: 26, fontWeight: '600' },
@@ -483,6 +411,7 @@ const styles = StyleSheet.create({
   trendAmount: { fontSize: 30, lineHeight: 37, fontWeight: '700', letterSpacing: -0.65, fontVariant: ['tabular-nums'] },
   chart: { minHeight: 105, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 8, paddingTop: 8 },
   chartDay: { flex: 1, minWidth: 0, alignItems: 'center', gap: 7 },
+  chartValue: { minHeight: 14, fontSize: 10, lineHeight: 14, fontWeight: '500', fontVariant: ['tabular-nums'] },
   chartArea: { width: '100%', maxWidth: 32, height: 70, alignItems: 'center', justifyContent: 'flex-end', overflow: 'hidden', borderTopLeftRadius: 9, borderTopRightRadius: 9 },
   chartBar: { width: '78%', borderTopLeftRadius: 8, borderTopRightRadius: 8 },
   chartLabel: { fontSize: 11, lineHeight: 15, fontWeight: '500' },
@@ -491,6 +420,8 @@ const styles = StyleSheet.create({
   deviceCopy: { flex: 1, minWidth: 0, gap: 1 },
   deviceName: { fontSize: 14, lineHeight: 20, fontWeight: '600' },
   deviceDetail: { fontSize: 12, lineHeight: 17 },
+  unknownHours: { fontSize: 17, lineHeight: 22, fontWeight: '700' },
+  insightMetric: { fontSize: 29, lineHeight: 36, fontWeight: '700', letterSpacing: -0.6, fontVariant: ['tabular-nums'] },
   pillarsSection: { gap: 11, paddingTop: 1 },
   sectionHeading: { minHeight: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   sectionTitle: { flex: 1, gap: 2 },
