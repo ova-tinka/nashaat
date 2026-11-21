@@ -38,7 +38,7 @@ export default function WorkoutsScreen() {
   return <Screen safeAreaTop={false}>
     <View style={sharedStyles.column}><Eyebrow>Exercise</Eyebrow><Heading>Your workouts</Heading><Body>Plan your sessions and adjust them as your routine changes.</Body></View>
     <Button label="Create a workout plan" onPress={() => router.push('/new-plan')} />
-    {loading && <ActivityIndicator color={theme.colors.action} />}
+    {loading && <ActivityIndicator color={theme.modules.exercise.deep} />}
     {error && <Panel><ErrorText>{error}</ErrorText><Button label="Try again" secondary onPress={() => void refresh()} /></Panel>}
     {actionError && <ErrorText>{actionError}</ErrorText>}
     {!loading && !error && plans.length === 0 && <Panel><Label>No workout plans yet</Label><Body>Choose exercises and create your first plan.</Body></Panel>}

@@ -171,8 +171,8 @@ export default function FamilyScreen() {
           return <View key={member.user_id} style={[sharedStyles.column, styles.memberCard, { borderColor: theme.colors.border }]}>
             <View style={styles.memberHeader}>
               <Label>{member.display_name}{isSelf ? ' · you' : ''}</Label>
-              <View style={[styles.roleBadge, { backgroundColor: member.role === 'parent' ? theme.modules.read.surface : theme.colors.surfaceSoft }]}>
-                <Text style={[styles.roleText, { color: member.role === 'parent' ? theme.modules.read.deep : theme.colors.inkMuted }]}>{member.role === 'parent' ? 'Guardian' : 'Child account'}</Text>
+              <View style={[styles.roleBadge, { backgroundColor: member.role === 'parent' ? theme.colors.surfaceTinted : theme.colors.surfaceSoft }]}>
+                <Text style={[styles.roleText, { color: member.role === 'parent' ? theme.colors.action : theme.colors.inkMuted }]}>{member.role === 'parent' ? 'Guardian' : 'Child account'}</Text>
               </View>
             </View>
             {myRole === 'parent' && member.role === 'child' && <FamilyChildOverview childId={member.user_id} name={member.display_name} state={childSummaries[member.user_id]} />}

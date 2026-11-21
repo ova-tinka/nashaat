@@ -82,14 +82,15 @@ export default function NewPlanScreen() {
   const activeFilterCount = Number(typeFilter !== 'all') + Number(muscleFilter !== null);
 
   function toggle(exercise: Exercise) {
+    const alreadySelected = selected.some((item) => item.exercise.id === exercise.id);
+    if (!alreadySelected && selected.length >= 50) {
+      setError('A plan can contain up to 50 exercises.');
+      return;
+    }
     setError(null);
     setSelected((current) => {
       if (current.some((item) => item.exercise.id === exercise.id)) {
         return current.filter((item) => item.exercise.id !== exercise.id);
-      }
-      if (current.length >= 50) {
-        setError('A plan can contain up to 50 exercises.');
-        return current;
       }
       return [...current, initialSelection(exercise)];
     });
@@ -250,7 +251,7 @@ export default function NewPlanScreen() {
             </View>
             {(exercise.measurement_type === 'reps_weight' || exercise.measurement_type === 'time_distance') && <NumberStepper
               label={exercise.measurement_type === 'reps_weight' ? 'Weight' : 'Distance'} value={extra} onChange={(value) => update(exercise.id, 'extra', value)}
-              unit={exercise.measurement_type === 'reps_weight' ? 'kg' : 'km'} min={0} max={1000} step={exercise.measurement_type === 'reps_weight' ? 2.5 : 0.1} decimals={1} optional />}
+              unit={exercise.measurement_type === 'reps_weight' ? 'kg' : 'km'} min={exercise.measurement_type === 'reps_weight' ? 0 : 0.1} max={1000} step={exercise.measurement_type === 'reps_weight' ? 2.5 : 0.1} decimals={1} optional />}
           </View>
         </View>)}
       </View>}
@@ -373,7 +374,7 @@ function NumberStepper({ label, value, onChange, unit, min, max, step, decimals,
   function adjust(direction: -1 | 1) {
     if (optional && !value.trim() && direction < 0) return;
     const current = Number(value);
-    const base = Number.isFinite(current) && value.trim() ? current : min;
+    const base = Number.isFinite(current) && value.trim() ? current : min - (optional ? step : 0);
     const next = Math.max(min, Math.min(max, base + step * direction));
     onChange(String(Number(next.toFixed(decimals))));
   }

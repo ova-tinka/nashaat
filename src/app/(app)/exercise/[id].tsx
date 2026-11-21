@@ -62,7 +62,7 @@ export default function ExerciseDetailScreen() {
 
   return <Screen safeAreaTop={false}>
     <Button label="Back to exercise library" secondary onPress={() => router.back()} />
-    {loading && <ActivityIndicator color={theme.colors.action} />}
+    {loading && <ActivityIndicator color={theme.modules.exercise.deep} />}
     {!loading && error && <Panel><ErrorText>{error}</ErrorText><Button label="Try again" onPress={() => void load()} /></Panel>}
     {!loading && exercise && <>
       <ExerciseArtwork exercise={exercise} size="large" />
