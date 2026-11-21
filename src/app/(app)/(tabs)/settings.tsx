@@ -144,7 +144,7 @@ export default function SettingsScreen() {
           </View>
           <Body>Unlock selected apps using screen-time credits. {blockingStatus ? `${blockingStatus.appCount + blockingStatus.websiteCount + blockingStatus.categoryCount} apps, sites, or categories selected.` : 'Device selection status is unavailable.'}</Body>
           <Body>{Math.round(creditBalance * 100) / 100} minutes in your shared balance. Credit earning rules are directly below.</Body>
-          <Body>Credit access currently follows a timed reservation; Easy reservations continue during idle time or while another Focus rule blocks the app.</Body>
+          <Body>Credit sessions currently consume their timed amount, including idle time or time when another Focus rule blocks the app.</Body>
           <Button label={blockingStatus?.active ? 'Pause Earned Access' : 'Enable Earned Access'} onPress={() => void toggleEarnedAccess()} busy={blockingBusy} disabled={blockingBusy || !blockingStatus || (!blockingStatus.active && blockingStatus.appCount + blockingStatus.websiteCount + blockingStatus.categoryCount === 0)} />
           <FocusSettingLink title="Choose apps and websites" icon="apps" section="apps" />
           <FocusSettingLink title="Device permissions and rules" icon="rule" section="rules" />
