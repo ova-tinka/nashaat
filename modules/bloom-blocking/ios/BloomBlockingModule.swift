@@ -1165,9 +1165,7 @@ private enum BloomScheduledFocusStore {
     lock.lock(); defer { lock.unlock() }
     guard let defaults = try? defaults(), let accountId = defaults.string(forKey: accountKey),
           let routines = try? load(accountId, defaults: defaults) else { return }
-    let names = routines.filter(\.enabled).flatMap { routine in
-      routine.days.map { monitorName(accountId, routine.id, $0) }
-    }
+    let names = routines.filter(\.enabled).map { monitorName(accountId, $0.id) }
     center.stopMonitoring(names)
     for routine in routines where routine.enabled { try? register(routine, accountId: accountId) }
     reconcile(routines, accountId: accountId)

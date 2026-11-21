@@ -17,12 +17,6 @@ export default function ProfileScreen() {
       <Body>{childProfile ? 'Child profile' : 'Personal profile'}</Body>
     </Panel>
     <Panel>
-      <Eyebrow>Family Space · Optional</Eyebrow>
-      <Label>{childProfile ? 'Your guardian manages family connections' : 'Manage a family space'}</Label>
-      <Body>{childProfile ? 'Family members and supervision permissions are handled by your guardian.' : 'Create a family, connect a child account, or manage an existing household. Personal Mode stays separate.'}</Body>
-      {!childProfile && <Button label="Open Family Space" variant="secondary" onPress={() => router.push('/family' as Href)} />}
-    </Panel>
-    <Panel>
       <Label>Account and privacy</Label>
       <Body>Manage privacy, sign-in, and profile access.</Body>
       <Button label="Open account" variant="secondary" onPress={() => router.push('/account' as Href)} />
