@@ -7,6 +7,7 @@ export type Exercise = {
   name: string;
   description: string | null;
   muscle_group: string | null;
+  muscle_groups: string[] | null;
   measurement_type: Measurement;
   instructions: string[] | null;
   media_link: string | null;
@@ -108,7 +109,7 @@ export type SessionExercise = {
   media_link?: string | null;
 };
 
-const EXERCISE_FIELDS = 'id,name,description,muscle_group,measurement_type,instructions,media_link,bloom_owner_user_id';
+const EXERCISE_FIELDS = 'id,name,description,muscle_group,muscle_groups,measurement_type,instructions,media_link,bloom_owner_user_id';
 export type WorkoutSession = ActiveWorkout & {
   plan_title_snapshot: string | null;
   status: 'in_progress' | 'completed' | 'cancelled';

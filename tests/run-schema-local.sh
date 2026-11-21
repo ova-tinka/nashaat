@@ -59,7 +59,7 @@ $$;
 grant usage on schema storage to authenticated, anon;
 grant execute on function storage.foldername(text) to authenticated, anon;
 grant select, insert, delete on storage.objects to authenticated;
-create table public.exercises (id uuid primary key, name text unique not null, description text, instructions text[] not null default '{}', media_link text, measurement_type text not null, is_system boolean not null default true);
+create table public.exercises (id uuid primary key, name text unique not null, description text, muscle_group text, muscle_groups text[] not null default '{}', instructions text[] not null default '{}', media_link text, measurement_type text not null, is_system boolean not null default true);
 alter table public.exercises enable row level security;
 create policy "Exercise catalog is publicly readable" on public.exercises for select to anon, authenticated using (true);
 grant select on public.exercises to anon, authenticated;

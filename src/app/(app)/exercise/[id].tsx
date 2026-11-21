@@ -66,7 +66,7 @@ export default function ExerciseDetailScreen() {
     {!loading && error && <Panel><ErrorText>{error}</ErrorText><Button label="Try again" onPress={() => void load()} /></Panel>}
     {!loading && exercise && <>
       <ExerciseArtwork exercise={exercise} size="large" />
-      <View style={sharedStyles.column}><Eyebrow>{exercise.muscle_group || 'Exercise'}</Eyebrow><Heading>{exercise.name}</Heading><Body>{measurementLabel(exercise)} · use a comfortable range and steady movement.</Body></View>
+      <View style={sharedStyles.column}><Eyebrow>{exercise.muscle_groups?.length ? exercise.muscle_groups.join(' · ') : exercise.muscle_group || 'Exercise'}</Eyebrow><Heading>{exercise.name}</Heading><Body>{measurementLabel(exercise)} · use a comfortable range and steady movement.</Body></View>
       {exercise.description && <Panel><Eyebrow>About this exercise</Eyebrow><Body>{exercise.description}</Body></Panel>}
       <Panel><Eyebrow>Instructions</Eyebrow>
         {exercise.instructions?.length ? exercise.instructions.map((instruction, index) => <View key={`${exercise.id}-${index}`} style={sharedStyles.row}>

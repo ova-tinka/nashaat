@@ -15,11 +15,33 @@ declare
   v_session_retry uuid;
   v_source_device uuid := '90000000-0000-0000-0000-000000000201';
   v_duration integer;
+  v_artwork text;
   v_completed timestamptz;
   v_session_count integer;
 begin
   v_subject := public.bloom_create_growth_item('study', 'subject', 'Biology', 'Cell structure', null, 240,
     '90000000-0000-0000-0000-000000000181');
+  v_artwork := public.bloom_set_study_subject_artwork(v_subject, 'biology', false);
+  if v_artwork <> 'biology' then raise exception 'Study subject artwork was not saved'; end if;
+  v_artwork := public.bloom_set_study_subject_artwork(v_subject, 'history', true);
+  if v_artwork <> 'biology' then raise exception 'Legacy artwork migration overwrote a server choice'; end if;
+  v_artwork := public.bloom_set_study_subject_artwork(v_subject, 'history', false);
+  if v_artwork <> 'history' then raise exception 'Study subject artwork could not be changed'; end if;
+  if not exists (select 1 from public.bloom_growth_items where id = v_subject and artwork_id = 'history') then
+    raise exception 'Study subject artwork was not stored on the shared subject record';
+  end if;
+  begin
+    perform public.bloom_set_study_subject_artwork(v_subject, 'unknown-artwork', false);
+    raise exception 'Invalid Study artwork was accepted';
+  exception when sqlstate '22023' then null;
+  end;
+  perform set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000182', true);
+  begin
+    perform public.bloom_set_study_subject_artwork(v_subject, 'biology', false);
+    raise exception 'A different profile changed Study subject artwork';
+  exception when insufficient_privilege then null;
+  end;
+  perform set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000181', true);
   v_subject_retry := public.bloom_create_growth_item('study', 'subject', 'Biology', 'Cell structure', null, 240,
     '90000000-0000-0000-0000-000000000181');
   if v_subject is distinct from v_subject_retry then raise exception 'Item retry created a duplicate subject'; end if;
@@ -61,6 +83,10 @@ begin
     or has_table_privilege('authenticated', 'public.bloom_growth_items', 'UPDATE')
     or has_table_privilege('authenticated', 'public.bloom_growth_sessions', 'INSERT') then
     raise exception 'Clients can bypass validated growth-module RPCs';
+  end if;
+  if has_function_privilege('anon', 'public.bloom_set_study_subject_artwork(uuid,text,boolean)', 'EXECUTE')
+    or not has_function_privilege('authenticated', 'public.bloom_set_study_subject_artwork(uuid,text,boolean)', 'EXECUTE') then
+    raise exception 'Study subject artwork RPC privileges are not profile-scoped';
   end if;
   if (select count(*) from public.bloom_growth_sessions where profile_id = bloom_private.current_profile_id()) <> 2 then
     raise exception 'Idempotent Study session produced duplicate rows';

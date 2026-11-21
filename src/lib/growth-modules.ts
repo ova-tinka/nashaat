@@ -28,6 +28,7 @@ export type GrowthItem = {
   genre: string;
   page_count: number | null;
   current_page: number | null;
+  artwork_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -102,34 +103,47 @@ function client() {
   return supabase;
 }
 
+export class GrowthDataQueryError extends Error {
+  constructor(readonly resource: string, readonly code: string | null = null) {
+    super(`Growth data query failed for ${resource}`);
+    this.name = 'GrowthDataQueryError';
+  }
+}
+
+function growthQuery<T extends { error: { code?: string } | null }>(resource: string, query: PromiseLike<T>): Promise<T> {
+  return Promise.resolve(query).then((result) => {
+    if (result.error) throw new GrowthDataQueryError(resource, result.error.code ?? null);
+    return result;
+  }, () => { throw new GrowthDataQueryError(resource); });
+}
+
 export async function loadGrowthModule(profileId: string, moduleId: GrowthModuleId): Promise<GrowthModuleData> {
   const db = client();
   const [items, sessions, records, studyPlan, studyPlanChanges, taskFocusSessions, recordAttachments] = await Promise.all([
-    db.from('bloom_growth_items')
-      .select('id,parent_id,module_id,item_type,title,notes,state,due_date,target_minutes,progress_percent,priority,postponed_until,reading_status,reading_kind,author,genre,page_count,current_page,completed_at,created_at,updated_at')
-      .eq('profile_id', profileId).eq('module_id', moduleId).order('updated_at', { ascending: false }),
+    growthQuery('bloom_growth_items', db.from('bloom_growth_items')
+      .select('id,parent_id,module_id,item_type,title,notes,state,due_date,target_minutes,progress_percent,priority,postponed_until,reading_status,reading_kind,author,genre,page_count,current_page,artwork_id,completed_at,created_at,updated_at')
+      .eq('profile_id', profileId).eq('module_id', moduleId).order('updated_at', { ascending: false })),
     moduleId === 'tasks'
       ? Promise.resolve({ data: [], error: null })
-      : db.from('bloom_growth_sessions')
+      : growthQuery('bloom_growth_sessions', db.from('bloom_growth_sessions')
         .select('id,module_id,item_id,source_device_id,source_device_name,request_id,status,started_at,completed_at,duration_seconds')
-        .eq('profile_id', profileId).eq('module_id', moduleId).order('started_at', { ascending: false }).limit(50),
-    db.from('bloom_growth_records')
+        .eq('profile_id', profileId).eq('module_id', moduleId).order('started_at', { ascending: false }).limit(50)),
+    growthQuery('bloom_growth_records', db.from('bloom_growth_records')
       .select('id,module_id,item_id,kind,title,body,metadata,scheduled_at,score,created_at,updated_at')
-      .eq('profile_id', profileId).eq('module_id', moduleId).order('created_at', { ascending: false }).limit(100),
+      .eq('profile_id', profileId).eq('module_id', moduleId).order('created_at', { ascending: false }).limit(100)),
     moduleId === 'study'
-      ? db.from('bloom_study_plan_slots').select('id,item_id,day_of_week,target_minutes').eq('profile_id', profileId).order('day_of_week')
+      ? growthQuery('bloom_study_plan_slots', db.from('bloom_study_plan_slots').select('id,item_id,day_of_week,target_minutes').eq('profile_id', profileId).order('day_of_week'))
       : Promise.resolve({ data: [], error: null }),
     moduleId === 'study'
-      ? db.from('bloom_study_plan_changes').select('item_id,original_date,action,moved_to_date').eq('profile_id', profileId).order('original_date')
+      ? growthQuery('bloom_study_plan_changes', db.from('bloom_study_plan_changes').select('item_id,original_date,action,moved_to_date').eq('profile_id', profileId).order('original_date'))
       : Promise.resolve({ data: [], error: null }),
     moduleId === 'tasks'
-      ? db.from('bloom_task_focus_sessions').select('id,task_id,request_id,status,started_at,completed_at,duration_seconds').eq('profile_id', profileId).order('started_at', { ascending: false }).limit(30)
+      ? growthQuery('bloom_task_focus_sessions', db.from('bloom_task_focus_sessions').select('id,task_id,request_id,status,started_at,completed_at,duration_seconds').eq('profile_id', profileId).order('started_at', { ascending: false }).limit(30))
       : Promise.resolve({ data: [], error: null }),
     moduleId === 'study'
-      ? db.from('bloom_growth_record_attachments').select('record_id,document_id').eq('profile_id', profileId)
+      ? growthQuery('bloom_growth_record_attachments', db.from('bloom_growth_record_attachments').select('record_id,document_id').eq('profile_id', profileId))
       : Promise.resolve({ data: [], error: null }),
   ]);
-  for (const result of [items, sessions, records, studyPlan, studyPlanChanges, taskFocusSessions, recordAttachments]) if (result.error) throw result.error;
   return {
     items: (items.data ?? []).map((item) => ({ ...item, progress_percent: Number(item.progress_percent) })) as GrowthItem[],
     sessions: (sessions.data ?? []) as GrowthSession[],
@@ -143,20 +157,18 @@ export async function loadGrowthModule(profileId: string, moduleId: GrowthModule
 }
 
 export async function loadReadSessionsSince(profileId: string, startedAfter: string): Promise<GrowthSession[]> {
-  const { data, error } = await client().from('bloom_growth_sessions')
+  const { data } = await growthQuery('bloom_growth_sessions', client().from('bloom_growth_sessions')
     .select('id,module_id,item_id,source_device_id,source_device_name,request_id,status,started_at,completed_at,duration_seconds')
     .eq('profile_id', profileId).eq('module_id', 'read').gte('started_at', startedAfter)
-    .order('started_at', { ascending: false }).limit(1000);
-  if (error) throw error;
+    .order('started_at', { ascending: false }).limit(1000));
   return (data ?? []).map((session) => ({ ...session,
     duration_seconds: session.duration_seconds == null ? null : Number(session.duration_seconds) })) as GrowthSession[];
 }
 
 export async function loadGrowthDocuments(moduleId: 'study' | 'read'): Promise<GrowthDocument[]> {
-  const { data, error } = await client().from('bloom_growth_documents')
+  const { data } = await growthQuery('bloom_growth_documents', client().from('bloom_growth_documents')
     .select('id,profile_id,module_id,item_id,title,file_name,format,mime_type,byte_size,storage_path,created_at')
-    .eq('module_id', moduleId).order('created_at', { ascending: false }).limit(100);
-  if (error) throw error;
+    .eq('module_id', moduleId).order('created_at', { ascending: false }).limit(100));
   return (data ?? []).map((document) => ({ ...document, byte_size: Number(document.byte_size) })) as GrowthDocument[];
 }
 
@@ -282,9 +294,8 @@ export async function loadGrowthOverview(): Promise<GrowthOverview[]> {
 }
 
 export async function loadWeeklyPillarGoals(): Promise<WeeklyPillarGoal[]> {
-  const { data, error } = await client().from('bloom_weekly_pillar_goals')
-    .select('profile_id,module_id,target_count,unit,active_days,updated_at').order('module_id');
-  if (error) throw error;
+  const { data } = await growthQuery('bloom_weekly_pillar_goals', client().from('bloom_weekly_pillar_goals')
+    .select('profile_id,module_id,target_count,unit,active_days,updated_at').order('module_id'));
   return (data ?? []).map((goal) => ({ ...goal, target_count: Number(goal.target_count),
     active_days: (goal.active_days as number[]).map(Number) })) as WeeklyPillarGoal[];
 }
@@ -308,15 +319,13 @@ export async function saveWeeklyPillarGoals(goals: Pick<WeeklyPillarGoal, 'modul
 export async function loadGrowthRewards(profileId: string) {
   const db = client();
   const [rules, events] = await Promise.all([
-    db.from('bloom_growth_reward_rules')
+    growthQuery('bloom_growth_reward_rules', db.from('bloom_growth_reward_rules')
       .select('profile_id,module_id,enabled,reward_minutes,daily_cap_minutes,weekly_cap_minutes,minimum_session_minutes,require_parent_approval,updated_at')
-      .eq('profile_id', profileId),
-    db.from('bloom_growth_reward_events')
+      .eq('profile_id', profileId)),
+    growthQuery('bloom_growth_reward_events', db.from('bloom_growth_reward_events')
       .select('id,profile_id,module_id,source_type,source_id,requested_minutes,status,awarded_minutes,created_at')
-      .eq('profile_id', profileId).order('created_at', { ascending: false }).limit(30),
+      .eq('profile_id', profileId).order('created_at', { ascending: false }).limit(30)),
   ]);
-  if (rules.error) throw rules.error;
-  if (events.error) throw events.error;
   return {
     rules: (rules.data ?? []).map((rule) => ({ ...rule,
       reward_minutes: Number(rule.reward_minutes), daily_cap_minutes: Number(rule.daily_cap_minutes),
