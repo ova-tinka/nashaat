@@ -55,3 +55,19 @@ test('returning to an account reapplies its rules and rechecks health', async ()
   }
   assert.deepEqual(applied, ['a', 'b', 'a']);
 });
+
+test('sign-out waits for a native write already in progress', async () => {
+  const started = deferred();
+  const finish = deferred();
+  const coordinator = createBlockingRulesCoordinator();
+  const sync = coordinator.sync('owner', async () => 'rules', async () => { started.resolve(); await finish.promise; return 'ok'; });
+  await started.promise;
+  let drained = false;
+  const drain = coordinator.cancelAndWait('owner').then(() => { drained = true; });
+  await Promise.resolve();
+  assert.equal(drained, false);
+  finish.resolve();
+  await drain;
+  assert.equal(drained, true);
+  assert.equal(await sync, null);
+});

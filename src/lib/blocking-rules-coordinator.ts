@@ -21,5 +21,9 @@ export function createBlockingRulesCoordinator() {
     cancel(scope: string) {
       if (activeScope === scope) { generation += 1; activeScope = null; }
     },
+    async cancelAndWait(scope: string) {
+      if (activeScope === scope) { generation += 1; activeScope = null; }
+      await writes;
+    },
   };
 }

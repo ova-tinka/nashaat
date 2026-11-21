@@ -3,10 +3,12 @@ insert into auth.users(id, email, email_confirmed_at) values
  ('00000000-0000-0000-0000-000000000161', 'parent@example.invalid', now()),
  ('00000000-0000-0000-0000-000000000162', 'new@example.invalid', now()),
  ('00000000-0000-0000-0000-000000000163', 'used@example.invalid', now()),
- ('00000000-0000-0000-0000-000000000164', 'unverified@example.invalid', null);
+ ('00000000-0000-0000-0000-000000000164', 'unverified@example.invalid', null),
+ ('00000000-0000-0000-0000-000000000165', 'memory@example.invalid', now());
 insert into public.profiles(id) values
  ('00000000-0000-0000-0000-000000000161'), ('00000000-0000-0000-0000-000000000162'),
- ('00000000-0000-0000-0000-000000000163'), ('00000000-0000-0000-0000-000000000164');
+ ('00000000-0000-0000-0000-000000000163'), ('00000000-0000-0000-0000-000000000164'),
+ ('00000000-0000-0000-0000-000000000165');
 insert into public.bloom_settings(user_id) values ('00000000-0000-0000-0000-000000000163');
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000161', true);
@@ -45,6 +47,14 @@ do $$ begin
   begin
     perform public.bloom_accept_child_account_link(current_setting('bloom.convert_code'));
     raise exception using errcode = 'P0002', message = 'Existing account data was overwritten';
+  exception when raise_exception then if sqlerrm <> 'Use a new account with no existing activity' then raise; end if; end;
+end $$;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000165', true);
+select public.bloom_save_growth_memory(false, '{}'::text[], '{}'::jsonb);
+do $$ begin
+  begin
+    perform public.bloom_accept_child_account_link(current_setting('bloom.convert_code'));
+    raise exception using errcode = 'P0002', message = 'Saved memory preference was overwritten';
   exception when raise_exception then if sqlerrm <> 'Use a new account with no existing activity' then raise; end if; end;
 end $$;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000162', true);

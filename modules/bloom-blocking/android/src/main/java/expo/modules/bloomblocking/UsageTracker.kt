@@ -56,14 +56,15 @@ internal object UsageTracker {
       check(prefs.edit().putLong(USED, used).putLong(SINCE, -1).putBoolean(CLOSED, true).commit()) { "Could not close screen-time session." }
     }
     return State(session, user, budget, used, (budget - used).coerceAtLeast(0),
-      if (bootMatches) (expiry - now).coerceAtLeast(0) else 0, closed, !closed && start >= 0, now)
+      if (bootMatches) (expiry - now).coerceAtLeast(0) else 0, closed,
+      UsageAccounting.isTracking(closed, prefs.getLong(SINCE, -1), now), now)
   }
 
   @Synchronized fun setTracking(context: Context, tracking: Boolean): State? {
     val state = state(context) ?: return null
     if (state.closed) return state
     val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-    if (state.tracking == tracking && (!tracking || state.observedAt - prefs.getLong(SINCE, -1) < 1000)) return state
+    if (state.tracking == tracking) return state
     check(prefs.edit().putLong(USED, state.used).putLong(SINCE, if (tracking) state.observedAt else -1).commit()) { "Could not update screen-time usage." }
     return state(context)
   }

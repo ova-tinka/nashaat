@@ -8,9 +8,18 @@ export type BlockingStatus = {
   serviceConnected?: boolean;
   serviceHealth?: 'connected' | 'stopped' | 'serviceUnavailable' | 'permissionRequired';
   supportedBrowsers?: string[];
+  scheduledActiveCount?: number;
+  scheduleError?: boolean;
+  manualFocusActive?: boolean;
+  manualFocusError?: boolean;
 };
 
-export type AppCandidate = { id: string; name: string };
+export type IosManualFocus = { appCount: number; websiteCount: number; categoryCount: number; active: boolean };
+export type IosFocusRoutineSelection = { appCount: number; websiteCount: number; categoryCount: number };
+
+export type AppAccessDecision = { blocked: boolean; reasons: string[]; enforceable: boolean };
+
+export type AppCandidate = { id: string; name: string; icon?: string };
 
 export type ManagedTargets = { apps: string[]; websites: string[]; accountId?: string | null };
 export type SafariContentBlockerState = { bundled: boolean; stateAvailable: boolean; enabled: boolean };

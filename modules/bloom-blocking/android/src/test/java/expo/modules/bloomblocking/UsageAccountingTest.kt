@@ -10,6 +10,14 @@ class UsageAccountingTest {
     assertEquals(9000L, UsageAccounting.used(1000, 10000, 20000, 10000, true))
   }
 
+  @Test fun foregroundStatusIsIndependentOfTheReservationClock() {
+    assertEquals(false, UsageAccounting.isTracking(false, -1, 1000))
+    assertEquals(true, UsageAccounting.isTracking(false, 500, 1000))
+    assertEquals(false, UsageAccounting.isTracking(false, 1500, 1000))
+    assertEquals(false, UsageAccounting.isTracking(true, 500, 1000))
+    assertEquals(500L, UsageAccounting.used(500, 1000, 5000, 5000, true))
+  }
+
   @Test fun respectsBudgetExpiryAndReboot() {
     assertEquals(8000L, UsageAccounting.used(1000, 9000, 20000, 10000, true))
     assertEquals(3000L, UsageAccounting.used(1000, 9000, 4000, 10000, true))

@@ -1,7 +1,8 @@
 import { randomUUID } from 'expo-crypto';
 import { router, useFocusEffect, useLocalSearchParams, type Href } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Switch, View } from 'react-native';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { ActivityIndicator, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { Body, Button, ErrorText, Eyebrow, Field, Heading, Label, Panel, Screen, sharedStyles, useIsDesktopLayout } from '../../../components/bloom-ui';
 import { CreditRulesEditor } from '../../../components/credit-rules-editor';
 import { GrowthRewardControls } from '../../../components/growth-reward-controls';
@@ -109,16 +110,28 @@ export default function FamilyChildScreen() {
   const assignedNames = moduleManifest.filter((module) => moduleDraft.includes(module.id)).map((module) => module.name);
 
   return <Screen safeAreaTop={false}>
-    <View style={sharedStyles.column}><Eyebrow>Family</Eyebrow><Heading>{name || 'Child settings'}</Heading><Body>Manage module access, workouts, Study and reading activity, screen-time settings, and credit rules.</Body></View>
-    <Button label="Back to family" secondary onPress={() => router.back()} />
+    <View style={styles.headerRow}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Back to Family Space" accessibilityHint="Returns to the family overview." onPress={() => router.back()}
+        style={({ pressed }) => [styles.backButton, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }, pressed && { opacity: 0.8 }]}>
+        <MaterialIcons name="arrow-back" size={21} color={theme.colors.ink} />
+      </Pressable>
+      <View style={sharedStyles.grow}><Eyebrow>Family Space · Child profile</Eyebrow><Heading>{name || 'Child settings'}</Heading></View>
+    </View>
+    <Body>Manage access and approved activity for this child profile.</Body>
     {loading && <ActivityIndicator color={theme.colors.action} />}
     {error && <ErrorText>{error}</ErrorText>}
     {child && <>
       {!desktop && <View accessibilityRole="tablist" style={styles.sectionTabs}>
         {([
           ['overview', 'Overview'], ['modules', 'Modules'], ['limits', 'Limits'], ['activity', 'Activity'],
-        ] as const).map(([key, label]) => <Button key={key} label={label} variant={section === key ? 'primary' : 'secondary'}
-          accessibilityLabel={`${label} section${section === key ? ', selected' : ''}`} onPress={() => setSection(key)} />)}
+        ] as const).map(([key, label]) => {
+          const selected = section === key;
+          return <Pressable key={key} accessibilityRole="tab" accessibilityState={{ selected }}
+            accessibilityLabel={`${label} section${selected ? ', selected' : ''}`} onPress={() => setSection(key)}
+            style={[styles.sectionTab, { borderColor: selected ? theme.colors.action : theme.colors.border, backgroundColor: selected ? theme.colors.surfaceTinted : theme.colors.surface }]}>
+            <Text style={[styles.sectionTabText, { color: selected ? theme.colors.action : theme.colors.inkMuted }]}>{label}</Text>
+          </Pressable>;
+        })}
       </View>}
       <View style={[styles.workspace, desktop && styles.desktopWorkspace]}>
       <View style={[styles.column, desktop && styles.desktopColumn]}>
@@ -239,9 +252,13 @@ function WeeklyActivitySummary({ analytics }: { analytics: WorkoutAnalytics }) {
 }
 
 const styles = StyleSheet.create({
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  backButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderRadius: 15 },
   workspace: { gap: 16 },
   desktopWorkspace: { flexDirection: 'row', alignItems: 'flex-start' },
   column: { flex: 1, gap: 16 },
   desktopColumn: { minWidth: 320 },
-  sectionTabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  sectionTabs: { flexDirection: 'row', gap: 7 },
+  sectionTab: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderRadius: 14, paddingHorizontal: 5 },
+  sectionTabText: { fontSize: 12, fontWeight: '700' },
 });

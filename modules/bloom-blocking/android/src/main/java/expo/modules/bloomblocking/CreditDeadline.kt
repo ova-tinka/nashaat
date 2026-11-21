@@ -8,6 +8,9 @@ internal object CreditDeadline {
     return if (adjusted > 0 && nowElapsed <= Long.MAX_VALUE - adjusted) nowElapsed + adjusted else 0
   }
 
+  /** Older, unbound countdowns retain their previous behavior until they expire. */
+  fun accountMatches(owner: String?, activeAccount: String?): Boolean = owner == null || owner == activeAccount
+
   fun remainingMillis(deadline: Long, bootAtStart: Int, bootNow: Int, elapsedNow: Long): Long {
     if (deadline <= 0 || elapsedNow < 0 || bootAtStart < 0 || bootNow < 0 || bootAtStart != bootNow) return 0
     return (deadline - elapsedNow).coerceAtLeast(0)

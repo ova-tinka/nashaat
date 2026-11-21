@@ -11,6 +11,7 @@ import { isFamilySpaceRoute, moduleForPath } from '../lib/route-access';
 import { moduleManifest } from '../lib/module-manifest';
 import { useBloomTheme } from '../lib/theme-context';
 import { useModuleVisibility } from '../lib/module-visibility';
+import { showNavigationItem } from '../lib/module-visibility-state';
 import { bloomHomeImage } from '../assets/bloom-images';
 
 export function BloomDesktopNavigation() {
@@ -49,7 +50,7 @@ export function BloomDesktopNavigation() {
       </>}
       <Text style={[styles.groupLabel, styles.modulesLabel, { color: theme.colors.inkSubtle }]}>{compact ? '•' : 'ACCOUNT'}</Text>
       <View style={styles.navigation}>
-        <RailAction title="Settings" icon="settings" compact={compact} selected={pathname === '/settings' || pathname === '/profile-switch'} onPress={() => router.replace('/settings' as Href)} />
+        <RailAction title="Settings" icon="settings" compact={compact} selected={pathname === '/settings' || pathname === '/profile-switch'} onPress={() => router.replace('/(app)/(tabs)/settings' as Href)} />
       </View>
     </ScrollView>
     {!compact && <Text style={[styles.footer, { color: theme.colors.inkMuted }]}>{childProfile ? 'CHILD VIEW' : 'MY SPACE'}</Text>}
@@ -68,11 +69,9 @@ export function BloomBottomNavigation() {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const activeModule = moduleForPath(pathname);
-  const items = mobilePrimaryRoutes.filter((item) => item.moduleId === null || (
-    moduleManifest.some((module) => module.id === item.moduleId && module.available)
-    && visibleModules.includes(item.moduleId)
-    && (!childProfile || assignedModules.includes(item.moduleId))
-  ));
+  const items = mobilePrimaryRoutes.filter((item) => showNavigationItem(item.moduleId,
+    item.moduleId === null || moduleManifest.some((module) => module.id === item.moduleId && module.available),
+    visibleModules, childProfile, assignedModules));
 
   return <View pointerEvents="box-none" style={[styles.dockFrame, { paddingBottom: Math.max(insets.bottom + 4, 12) }]}>
     <View style={[styles.dock, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]} accessibilityRole="tablist">
@@ -96,7 +95,7 @@ export function BloomBottomNavigation() {
 }
 
 export function BloomAppHeader() {
-  const { childProfile, managedChild } = useAuth();
+  const { childProfile } = useAuth();
   const { error: bloomError, loading, blockingRulesSyncError } = useBloom();
   const { theme } = useBloomTheme();
   const { width } = useWindowDimensions();
@@ -113,7 +112,7 @@ export function BloomAppHeader() {
   const [noticesFocused, setNoticesFocused] = useState(false);
   const wide = width >= 850 && (isMacDesktop() || Platform.OS === 'web');
   const familyRoute = isFamilySpaceRoute(pathname);
-  const currentSpace = childProfile ? 'Child View' : familyRoute ? 'Family Space' : 'My Space';
+  const currentSpace = childProfile ? 'Child profile' : familyRoute ? 'Family Space' : 'My profile';
   const notice = blockingRulesSyncError ?? (!loading ? bloomError : null);
 
   useEffect(() => {
@@ -139,8 +138,10 @@ export function BloomAppHeader() {
 
   function go(href: Href, replace = false) {
     closeSpaceSelector(false);
-    if (replace) router.replace(href);
-    else router.push(href);
+    requestAnimationFrame(() => {
+      if (replace) router.replace(href);
+      else router.push(href);
+    });
   }
 
   function openSpaceSelector() {
@@ -174,7 +175,10 @@ export function BloomAppHeader() {
   return <>
     <View style={[styles.header, { paddingTop: Platform.OS === 'web' ? 0 : insets.top, backgroundColor: theme.colors.canvas }]}>
       <View style={styles.headerInner}>
-        <BloomWordmark size={32} />
+        <View style={styles.brandBlock}>
+          <BloomWordmark size={32} />
+          {moduleForPath(pathname) === 'exercise' && <Text style={[styles.brandSubtitle, { color: theme.modules.exercise.deep }]}>Exercise</Text>}
+        </View>
         <View style={styles.headerSpacer} />
         <Pressable
           ref={noticeTriggerRef}
@@ -191,8 +195,8 @@ export function BloomAppHeader() {
         <Pressable
           accessibilityRole="button"
           ref={spaceTriggerRef}
-          accessibilityLabel={`Current space: ${currentSpace}. Open profile and spaces.`}
-          accessibilityHint="Opens your personal, family, and profile settings."
+          accessibilityLabel={`Current profile: ${currentSpace}. Open profile menu.`}
+          accessibilityHint="Opens My profile, Family Space, and Settings."
           accessibilityState={{ expanded: open }}
           onFocus={() => setSpaceFocused(true)}
           onBlur={() => setSpaceFocused(false)}
@@ -208,28 +212,15 @@ export function BloomAppHeader() {
         <View style={[styles.sheet, wide && styles.popover, wide && (popoverPlacement ? { position: 'absolute', top: popoverPlacement.top, left: popoverPlacement.left } : styles.popoverFallback), { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
           <View style={styles.sheetHeading}>
             <View style={styles.sheetTitle}>
-              <Label>Choose a space</Label>
-              <Body>Personal and family data stay in their own space.</Body>
+              <Label>Profile</Label>
             </View>
             <Pressable accessibilityRole="button" accessibilityLabel="Close" hitSlop={10} onPress={() => closeSpaceSelector()} style={styles.closeButton}>
               <MaterialIcons name="close" size={22} color={theme.colors.inkMuted} />
             </Pressable>
           </View>
-          {childProfile ? <>
-            <SpaceOption title="Child View" message="This profile shows the child’s own Bloom activity." icon="person" selected onPress={() => closeSpaceSelector()} />
-            {managedChild && <SpaceOption title="Switch to parent" message="A parent PIN is required to restore the parent session on this device." icon="lock-outline" onPress={() => go('/profile-switch' as Href)} />}
-          </> : <>
-            <SpaceOption title="My Space" message="Your personal activities and progress." icon="person-outline" selected={!familyRoute} onPress={() => familyRoute ? go('/', true) : closeSpaceSelector()} />
-            <SpaceOption title="Family Space" message="Set up, join, or manage your family." icon="diversity-3" selected={familyRoute} onPress={() => go('/family' as Href, true)} />
-            <SpaceOption title="Progress" message="Review your week and your plan." icon="insights" onPress={() => go('/progress' as Href)} />
-            <SpaceOption title="Activity history" message="See completed activity across Bloom." icon="history" onPress={() => go('/activity' as Href)} />
-            <SpaceOption title="Connected devices" message="Review each device’s latest report." icon="devices" onPress={() => go('/devices' as Href)} />
-            <SpaceOption title="Settings" message="Choose which pillars appear in navigation." icon="settings" onPress={() => go('/settings' as Href)} />
-            <Pressable accessibilityRole="button" onPress={() => go('/profile-switch' as Href)} style={styles.profileLink}>
-              <Text style={[styles.profileLinkText, { color: theme.colors.action }]}>Profile switching and PIN</Text>
-              <MaterialIcons name="arrow-forward" size={17} color={theme.colors.action} style={I18nManager.isRTL ? styles.directionalArrow : undefined} />
-            </Pressable>
-          </>}
+          <SpaceOption title="My profile" icon="person-outline" selected={pathname === '/profile'} onPress={() => go('/profile' as Href, true)} />
+          <SpaceOption title="Family Space" message={childProfile ? 'Available in parent profile' : undefined} icon="diversity-3" selected={familyRoute} disabled={childProfile} onPress={() => go('/family' as Href, true)} />
+          <SpaceOption title="Settings" icon="settings" selected={pathname === '/settings'} onPress={() => go('/(app)/(tabs)/settings' as Href, true)} />
         </View>
       </View>
     </Modal>
@@ -256,19 +247,21 @@ export function BloomAppHeader() {
   </>;
 }
 
-function SpaceOption({ title, message, icon, selected = false, onPress }: {
+function SpaceOption({ title, message, icon, selected = false, disabled = false, onPress }: {
   title: string;
-  message: string;
+  message?: string;
   icon: ComponentProps<typeof MaterialIcons>['name'];
   selected?: boolean;
+  disabled?: boolean;
   onPress: () => void;
 }) {
   const { theme } = useBloomTheme();
   const [focused, setFocused] = useState(false);
   return <Pressable
     accessibilityRole="button"
-    accessibilityLabel={`${title}. ${message}`}
-    accessibilityState={{ selected }}
+    accessibilityLabel={message ? `${title}. ${message}` : title}
+    accessibilityState={{ selected, disabled }}
+    disabled={disabled}
     onFocus={() => setFocused(true)}
     onBlur={() => setFocused(false)}
     onPress={onPress}
@@ -276,13 +269,13 @@ function SpaceOption({ title, message, icon, selected = false, onPress }: {
       backgroundColor: selected ? theme.colors.surfaceTinted : theme.colors.surface,
       borderColor: focused ? theme.colors.focusRing : selected ? theme.colors.action : theme.colors.border,
       borderWidth: focused ? 2 : 1,
-    }, pressed && styles.pressed]}>
+    }, disabled && styles.disabledOption, pressed && styles.pressed]}>
     <View style={[styles.optionIcon, { backgroundColor: theme.colors.surfaceSoft }]}>
       <MaterialIcons name={icon} size={20} color={theme.colors.action} />
     </View>
     <View style={styles.optionCopy}>
       <Text style={[styles.optionTitle, { color: theme.colors.ink }]}>{title}</Text>
-      <Text style={[styles.optionMessage, { color: theme.colors.inkMuted }]}>{message}</Text>
+      {message && <Text style={[styles.optionMessage, { color: theme.colors.inkMuted }]}>{message}</Text>}
     </View>
     {selected && <MaterialIcons name="check-circle" size={20} color={theme.colors.action} />}
   </Pressable>;
@@ -291,6 +284,8 @@ function SpaceOption({ title, message, icon, selected = false, onPress }: {
 const styles = StyleSheet.create({
   header: {},
   headerInner: { minHeight: 72, width: '100%', maxWidth: 1280, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 22, paddingVertical: 8 },
+  brandBlock: { alignItems: 'flex-start', justifyContent: 'center' },
+  brandSubtitle: { marginStart: 40, marginTop: -1, fontSize: 12, lineHeight: 15, fontWeight: '700', letterSpacing: 0.2 },
   avatarButton: { width: 46, height: 46, overflow: 'hidden', borderRadius: 17 },
   avatarImage: { width: '100%', height: '100%' },
   noticeBadge: { position: 'absolute', top: 7, right: 8, width: 11, height: 11, borderRadius: 6, borderWidth: 2 },
@@ -315,9 +310,7 @@ const styles = StyleSheet.create({
   optionCopy: { flex: 1, gap: 2 },
   optionTitle: { fontSize: 15, lineHeight: 20, fontWeight: '700' },
   optionMessage: { fontSize: 12, lineHeight: 17 },
-  profileLink: { minHeight: 44, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 5 },
-  profileLinkText: { fontSize: 13, fontWeight: '700' },
-  directionalArrow: { transform: [{ scaleX: -1 }] },
+  disabledOption: { opacity: 0.6 },
   sidebar: { width: 244, borderEndWidth: 1, paddingHorizontal: 14, paddingTop: 22, paddingBottom: 18 },
   compact: { width: 88, paddingHorizontal: 8 },
   sidebarScroll: { paddingTop: 8, paddingBottom: 16 },

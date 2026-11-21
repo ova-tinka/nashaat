@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import BloomBlocking from '../../modules/bloom-blocking/src/BloomBlockingModule';
+import { finishBlockingRulesSync } from './blocking-rules-sync';
 import { isMacDesktop, macCreditMarker, macUsageKey, macosFilter, type MacCreditTargets } from './macos-blocking';
 
 // Close account-bound access before replacing or ending an Auth session.
@@ -26,5 +27,10 @@ export async function closeDeviceAccess(userId: string) {
     const usage = BloomBlocking.getUsageAccess();
     if (usage?.userId === userId) await BloomBlocking.closeUsageAccess(userId);
     await BloomBlocking.endCreditAccess();
+    if (Platform.OS === 'android' || Platform.OS === 'ios') {
+      await finishBlockingRulesSync(userId, Platform.OS);
+      // Older native builds have no independent Manual Focus account state.
+      if (typeof BloomBlocking.clearFocusAccount === 'function') await BloomBlocking.clearFocusAccount(userId);
+    }
   }
 }

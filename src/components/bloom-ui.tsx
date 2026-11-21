@@ -1,10 +1,12 @@
 import type { ComponentProps, PropsWithChildren } from 'react';
 import { createContext, useContext, useState } from 'react';
+import { usePathname } from 'expo-router';
 import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions, type TextInputProps } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { radii, spacing, typeScale, type ModuleKey } from '../theme';
 import { useBloomTheme } from '../lib/theme-context';
+import { moduleForPath } from '../lib/route-access';
 import { isMacDesktop } from '../lib/macos-blocking';
 
 const moduleDetails: Record<ModuleKey, { title: string; icon: ComponentProps<typeof MaterialIcons>['name'] }> = {
@@ -105,13 +107,15 @@ export function Button({ label, accessibilityLabel, accessibilityHint, onPress, 
   busy?: boolean;
 }) {
   const { theme } = useBloomTheme();
+  const activeModule = moduleForPath(usePathname());
+  const accent = activeModule ? theme.modules[activeModule] : null;
   const [focused, setFocused] = useState(false);
   const [hovered, setHovered] = useState(false);
   const resolvedVariant = variant ?? (secondary ? 'secondary' : 'primary');
   const variants = {
-    primary: { backgroundColor: theme.components.button.primaryBackground, borderColor: theme.components.button.primaryBackground, textColor: theme.components.button.primaryText },
+    primary: { backgroundColor: accent?.deep ?? theme.components.button.primaryBackground, borderColor: accent?.deep ?? theme.components.button.primaryBackground, textColor: theme.components.button.primaryText },
     secondary: { backgroundColor: theme.components.button.secondaryBackground, borderColor: theme.components.button.secondaryBorder, textColor: theme.components.button.secondaryText },
-    tertiary: { backgroundColor: 'transparent', borderColor: 'transparent', textColor: theme.components.button.tertiaryText },
+    tertiary: { backgroundColor: 'transparent', borderColor: 'transparent', textColor: accent?.deep ?? theme.components.button.tertiaryText },
     destructive: { backgroundColor: theme.components.button.destructiveBackground, borderColor: theme.components.button.destructiveBackground, textColor: theme.components.button.destructiveText },
   } satisfies Record<ButtonVariant, { backgroundColor: string; borderColor: string; textColor: string }>;
   const selected = variants[resolvedVariant];
@@ -143,6 +147,8 @@ export function Button({ label, accessibilityLabel, accessibilityHint, onPress, 
 
 export function Field({ label, helperText, error, ...props }: TextInputProps & { label: string; helperText?: string; error?: string }) {
   const { theme } = useBloomTheme();
+  const activeModule = moduleForPath(usePathname());
+  const focusBorder = activeModule ? theme.modules[activeModule].deep : theme.components.field.focusBorder;
   const [focused, setFocused] = useState(false);
   const { onFocus, onBlur, ...inputProps } = props;
   return <View style={styles.field}>
@@ -151,13 +157,13 @@ export function Field({ label, helperText, error, ...props }: TextInputProps & {
       accessibilityLabel={label}
       accessibilityHint={error ?? helperText}
       placeholderTextColor={theme.components.field.placeholder}
-      selectionColor={theme.components.field.focusBorder}
+      selectionColor={focusBorder}
       {...inputProps}
       onFocus={(event) => { setFocused(true); onFocus?.(event); }}
       onBlur={(event) => { setFocused(false); onBlur?.(event); }}
       style={[
         styles.input,
-        { color: theme.components.field.text, borderColor: error ? theme.components.field.errorBorder : focused ? theme.components.field.focusBorder : theme.components.field.border, backgroundColor: theme.components.field.background },
+        { color: theme.components.field.text, borderColor: error ? theme.components.field.errorBorder : focused ? focusBorder : theme.components.field.border, backgroundColor: theme.components.field.background },
         focused && styles.focusedInput,
         inputProps.style,
       ]}
@@ -277,6 +283,7 @@ export function StatusBanner({ tone = 'info', title, message }: { tone?: BannerT
 
 export function ProgressBar({ value, label, color }: { value: number; label: string; color?: string }) {
   const { theme } = useBloomTheme();
+  const activeModule = moduleForPath(usePathname());
   const clamped = Math.min(100, Math.max(0, value));
   return <View
     accessible
@@ -284,7 +291,7 @@ export function ProgressBar({ value, label, color }: { value: number; label: str
     accessibilityLabel={label}
     accessibilityValue={{ min: 0, max: 100, now: clamped }}
     style={[styles.progressTrack, { backgroundColor: theme.colors.surfaceSoft }]}>
-    <View style={[styles.progressFill, { width: `${clamped}%`, backgroundColor: color ?? theme.colors.action }]} />
+    <View style={[styles.progressFill, { width: `${clamped}%`, backgroundColor: color ?? (activeModule ? theme.modules[activeModule].accent : theme.colors.action) }]} />
   </View>;
 }
 

@@ -23,6 +23,7 @@ public class BloomBlockingModule: Module {
       let selection = BloomBlockingStore.loadSelection()
       let authorized = BloomBlockingStore.authorized()
       let active = BloomBlockingStore.defaults?.bool(forKey: BloomBlockingStore.activeKey) == true
+      let schedule = BloomScheduledFocusStore.currentStatus()
       return [
         "supported": true,
         "authorized": authorized,
@@ -30,6 +31,9 @@ public class BloomBlockingModule: Module {
         "appCount": selection?.applicationTokens.count ?? 0,
         "websiteCount": selection?.webDomainTokens.count ?? 0,
         "categoryCount": selection?.categoryTokens.count ?? 0,
+        "manualFocusActive": BloomManualFocusStore.activeAccount != nil,
+        "scheduledActiveCount": schedule.activeCount,
+        "scheduleError": schedule.error,
       ] as [String: Any]
       #else
       return ["supported": false, "authorized": false, "active": false, "appCount": 0, "websiteCount": 0, "categoryCount": 0] as [String: Any]
@@ -121,6 +125,146 @@ public class BloomBlockingModule: Module {
       }
       #else
       promise.reject("UNAVAILABLE", "Screen Time controls are unavailable on this OS version.")
+      #endif
+    }
+
+    AsyncFunction("setFocusAccount") { (accountId: String) throws -> Void in
+      #if canImport(FamilyControls) && canImport(ManagedSettings)
+      try BloomManualFocusStore.setAccount(accountId)
+      BloomScheduledFocusStore.setAccount(accountId)
+      #else
+      throw BlockingControlError.unavailable
+      #endif
+    }
+
+    AsyncFunction("clearFocusAccount") { (accountId: String) throws -> Void in
+      #if canImport(FamilyControls) && canImport(ManagedSettings)
+      try BloomManualFocusStore.clearAccount(accountId)
+      try BloomScheduledFocusStore.clearAccount(accountId)
+      #endif
+    }
+
+    Function("getIosFocusRoutines") { (accountId: String) throws -> String in
+      #if canImport(FamilyControls) && canImport(ManagedSettings)
+      try BloomScheduledFocusStore.json(accountId)
+      #else
+      throw BlockingControlError.unavailable
+      #endif
+    }
+
+    Function("getIosFocusRoutineSelection") { (accountId: String, routineId: String) throws -> [String: Int] in
+      #if canImport(FamilyControls) && canImport(ManagedSettings)
+      let selection = try BloomScheduledFocusStore.selection(accountId, routineId)
+      return ["appCount": selection.applicationTokens.count, "websiteCount": selection.webDomainTokens.count,
+              "categoryCount": selection.categoryTokens.count]
+      #else
+      throw BlockingControlError.unavailable
+      #endif
+    }
+
+    AsyncFunction("presentIosFocusRoutinePicker") { (accountId: String, routineId: String, promise: Promise) in
+      #if canImport(FamilyControls) && canImport(ManagedSettings)
+      DispatchQueue.main.async {
+        guard BloomBlockingStore.authorized() else {
+          promise.reject("AUTHORIZATION_REQUIRED", "Allow Screen Time access before choosing apps and websites.")
+          return
+        }
+        guard let presenter = Self.topViewController() else {
+          promise.reject("NO_PRESENTING_VIEW", "Bloom could not open the system selection screen.")
+          return
+        }
+        do {
+          let selection = try BloomScheduledFocusStore.selection(accountId, routineId)
+          let picker = UIHostingController(rootView: BloomActivityPicker(selection: selection) { next in
+            do {
+              try BloomScheduledFocusStore.saveSelection(next, accountId: accountId, routineId: routineId)
+              presenter.dismiss(animated: true) { promise.resolve(true) }
+            } catch {
+              presenter.dismiss(animated: true) { promise.reject("SCHEDULE_SELECTION_FAILED", error.localizedDescription) }
+            }
+          } onCancel: {
+            presenter.dismiss(animated: true) { promise.resolve(false) }
+          })
+          picker.modalPresentationStyle = .pageSheet
+          picker.isModalInPresentation = true
+          presenter.present(picker, animated: true)
+        } catch { promise.reject("SCHEDULE_ACCOUNT_UNAVAILABLE", error.localizedDescription) }
+      }
+      #else
+      promise.reject("UNAVAILABLE", "Scheduled Focus is unavailable on this OS version.")
+      #endif
+    }
+
+    AsyncFunction("saveIosFocusRoutine") { (accountId: String, raw: String) throws -> Void in
+      #if canImport(FamilyControls) && canImport(ManagedSettings)
+      try BloomScheduledFocusStore.save(accountId, raw: raw)
+      #else
+      throw BlockingControlError.unavailable
+      #endif
+    }
+
+    AsyncFunction("deleteIosFocusRoutine") { (accountId: String, routineId: String) throws -> Void in
+      #if canImport(FamilyControls) && canImport(ManagedSettings)
+      try BloomScheduledFocusStore.delete(accountId, routineId)
+      #else
+      throw BlockingControlError.unavailable
+      #endif
+    }
+
+    Function("getIosManualFocus") { (accountId: String) throws -> [String: Any] in
+      #if canImport(FamilyControls) && canImport(ManagedSettings)
+      let (selection, active) = try BloomManualFocusStore.state(accountId)
+      return ["appCount": selection.applicationTokens.count, "websiteCount": selection.webDomainTokens.count,
+              "categoryCount": selection.categoryTokens.count, "active": active] as [String: Any]
+      #else
+      throw BlockingControlError.unavailable
+      #endif
+    }
+
+    AsyncFunction("presentIosManualPicker") { (accountId: String, promise: Promise) in
+      #if canImport(FamilyControls) && canImport(ManagedSettings)
+      DispatchQueue.main.async {
+        guard BloomBlockingStore.authorized() else {
+          promise.reject("AUTHORIZATION_REQUIRED", "Allow Screen Time access before choosing apps and websites.")
+          return
+        }
+        guard let presenter = Self.topViewController() else {
+          promise.reject("NO_PRESENTING_VIEW", "Bloom could not open the system selection screen.")
+          return
+        }
+        do {
+          let (selection, _) = try BloomManualFocusStore.state(accountId)
+          let picker = UIHostingController(rootView: BloomActivityPicker(selection: selection) { next in
+            do {
+              try BloomManualFocusStore.save(next, accountId: accountId)
+              presenter.dismiss(animated: true) { promise.resolve(true) }
+            } catch {
+              presenter.dismiss(animated: true) { promise.reject("MANUAL_SAVE_FAILED", error.localizedDescription) }
+            }
+          } onCancel: {
+            presenter.dismiss(animated: true) { promise.resolve(false) }
+          })
+          picker.modalPresentationStyle = .pageSheet
+          picker.isModalInPresentation = true
+          presenter.present(picker, animated: true)
+        } catch { promise.reject("MANUAL_ACCOUNT_UNAVAILABLE", error.localizedDescription) }
+      }
+      #else
+      promise.reject("UNAVAILABLE", "Screen Time controls are unavailable on this OS version.")
+      #endif
+    }
+
+    AsyncFunction("startIosManualFocus") { (accountId: String) throws -> Void in
+      #if canImport(FamilyControls) && canImport(ManagedSettings)
+      try BloomManualFocusStore.start(accountId)
+      #else
+      throw BlockingControlError.unavailable
+      #endif
+    }
+
+    AsyncFunction("stopIosManualFocus") { (accountId: String) throws -> Void in
+      #if canImport(FamilyControls) && canImport(ManagedSettings)
+      try BloomManualFocusStore.stop(accountId)
       #endif
     }
 
@@ -273,6 +417,7 @@ private enum BlockingControlError: LocalizedError {
   case invalidDuration
   case invalidWebsite
   case tooManyWebsiteRules
+  case accountMismatch
 
   var errorDescription: String? {
     switch self {
@@ -285,6 +430,7 @@ private enum BlockingControlError: LocalizedError {
     case .invalidDuration: return "The screen-time session expired or could not be timed."
     case .invalidWebsite: return "Enter a valid website URL or domain."
     case .tooManyWebsiteRules: return "iOS allows up to 50 always-blocked domains and 1,000 Safari Focus domains."
+    case .accountMismatch: return "Sync this device to your profile before managing Manual Focus."
     }
   }
 }
@@ -489,7 +635,6 @@ private enum BloomBlockingStore {
     let expiryMonitor = DeviceActivityName("bloom.usage.expiry.\(session)")
     let calendar = Calendar.current
     let components: Set<Calendar.Component> = [.calendar, .timeZone, .year, .month, .day, .hour, .minute, .second]
-    let now = Date()
     let expirySchedule = DeviceActivitySchedule(intervalStart: calendar.dateComponents(components, from: expiry),
       intervalEnd: calendar.dateComponents(components, from: expiry.addingTimeInterval(16 * 60)), repeats: false)
     let file = try BloomUsageFile.shared()
@@ -621,6 +766,411 @@ private enum BloomBlockingStore {
     BloomSafariBlocker.setFocusSuspended(false)
     defaults?.removeObject(forKey: countdownEndKey)
     await BloomSafariBlocker.reloadIgnoringErrors()
+  }
+}
+
+// This named store is independent of the default store used by timed access.
+// Apple combines active stores; clearing one cannot clear the others.
+private enum BloomManualFocusStore {
+  private static let accountKey = "bloom_manual_account"
+  private static let activeKey = "bloom_manual_active_account"
+  private static let selectionPrefix = "bloom_manual_selection:"
+  private static let storeName = ManagedSettingsStore.Name("bloom.manual.focus")
+  private static let lock = NSRecursiveLock()
+
+  static var activeAccount: String? { BloomBlockingStore.defaults?.string(forKey: activeKey) }
+
+  private static func checkedDefaults(_ accountId: String) throws -> UserDefaults {
+    guard UUID(uuidString: accountId) != nil, let defaults = BloomBlockingStore.defaults else { throw BlockingControlError.appGroupUnavailable }
+    guard defaults.string(forKey: accountKey) == accountId else { throw BlockingControlError.accountMismatch }
+    return defaults
+  }
+
+  static func setAccount(_ accountId: String) throws {
+    lock.lock(); defer { lock.unlock() }
+    guard UUID(uuidString: accountId) != nil, let defaults = BloomBlockingStore.defaults else { throw BlockingControlError.appGroupUnavailable }
+    if defaults.string(forKey: accountKey) != accountId {
+      clearStore()
+      defaults.removeObject(forKey: activeKey)
+      defaults.set(accountId, forKey: accountKey)
+      guard defaults.synchronize() else { throw BlockingControlError.appGroupUnavailable }
+    }
+  }
+
+  static func clearAccount(_ accountId: String) throws {
+    lock.lock(); defer { lock.unlock() }
+    guard let defaults = BloomBlockingStore.defaults else { return }
+    guard defaults.string(forKey: accountKey) == accountId else { return }
+    clearStore()
+    defaults.removeObject(forKey: activeKey)
+    defaults.removeObject(forKey: accountKey)
+    guard defaults.synchronize() else { throw BlockingControlError.appGroupUnavailable }
+  }
+
+  static func state(_ accountId: String) throws -> (FamilyActivitySelection, Bool) {
+    lock.lock(); defer { lock.unlock() }
+    let defaults = try checkedDefaults(accountId)
+    let selection: FamilyActivitySelection
+    if let data = defaults.data(forKey: selectionPrefix + accountId) {
+      selection = try JSONDecoder().decode(FamilyActivitySelection.self, from: data)
+    } else { selection = FamilyActivitySelection() }
+    return (selection, defaults.string(forKey: activeKey) == accountId)
+  }
+
+  static func save(_ selection: FamilyActivitySelection, accountId: String) throws {
+    lock.lock(); defer { lock.unlock() }
+    let defaults = try checkedDefaults(accountId)
+    if defaults.string(forKey: activeKey) == accountId && !BloomBlockingStore.hasTargets(selection) { throw BlockingControlError.noTargets }
+    let data = try JSONEncoder().encode(selection)
+    defaults.set(data, forKey: selectionPrefix + accountId)
+    guard defaults.synchronize() else { throw BlockingControlError.appGroupUnavailable }
+    if defaults.string(forKey: activeKey) == accountId { apply(selection) }
+  }
+
+  static func start(_ accountId: String) throws {
+    lock.lock(); defer { lock.unlock() }
+    guard BloomBlockingStore.authorized() else { throw BlockingControlError.authorizationRequired }
+    let defaults = try checkedDefaults(accountId)
+    let (selection, _) = try state(accountId)
+    guard BloomBlockingStore.hasTargets(selection) else { throw BlockingControlError.noTargets }
+    defaults.set(accountId, forKey: activeKey)
+    guard defaults.synchronize() else { throw BlockingControlError.appGroupUnavailable }
+    apply(selection)
+  }
+
+  static func stop(_ accountId: String) throws {
+    lock.lock(); defer { lock.unlock() }
+    let defaults = try checkedDefaults(accountId)
+    guard defaults.string(forKey: activeKey) == accountId else { return }
+    clearStore()
+    defaults.removeObject(forKey: activeKey)
+    guard defaults.synchronize() else { throw BlockingControlError.appGroupUnavailable }
+  }
+
+  private static func apply(_ selection: FamilyActivitySelection) {
+    let store = ManagedSettingsStore(named: storeName)
+    store.shield.applications = selection.applicationTokens.isEmpty ? nil : selection.applicationTokens
+    store.shield.applicationCategories = selection.categoryTokens.isEmpty ? nil : .specific(selection.categoryTokens)
+    store.shield.webDomains = selection.webDomainTokens.isEmpty ? nil : selection.webDomainTokens
+    store.shield.webDomainCategories = selection.categoryTokens.isEmpty ? nil : .specific(selection.categoryTokens)
+  }
+
+  private static func clearStore() {
+    let store = ManagedSettingsStore(named: storeName)
+    store.shield.applications = nil
+    store.shield.applicationCategories = nil
+    store.shield.webDomains = nil
+    store.shield.webDomainCategories = nil
+  }
+}
+
+/// Each routine owns a named Managed Settings store, so overlapping schedules
+/// and Manual Focus compose without clearing one another's restrictions.
+private enum BloomScheduledFocusStore {
+  private struct Routine: Codable {
+    let id: String
+    let name: String
+    let enabled: Bool
+    let startMinute: Int
+    let endMinute: Int
+    let days: [Int]
+  }
+
+  private static let accountKey = "bloom_scheduled_focus_account"
+  private static let routinesPrefix = "bloom_scheduled_focus_routines:"
+  private static let selectionPrefix = "bloom_scheduled_focus_selection:"
+  private static let monitorPrefix = "bloom.sched."
+  private static let storePrefix = "bloom.sched."
+  private static let maximumEnabledRoutines = 18
+  private static let lock = NSRecursiveLock()
+  private static var timeObservers: [NSObjectProtocol] = []
+
+  private static var center: DeviceActivityCenter { DeviceActivityCenter() }
+
+  private static func defaults() throws -> UserDefaults {
+    guard let defaults = BloomBlockingStore.defaults else { throw BlockingControlError.appGroupUnavailable }
+    return defaults
+  }
+
+  private static func checkedDefaults(_ accountId: String) throws -> UserDefaults {
+    guard UUID(uuidString: accountId) != nil else { throw BlockingControlError.accountMismatch }
+    let defaults = try defaults()
+    guard defaults.string(forKey: accountKey) == accountId else { throw BlockingControlError.accountMismatch }
+    return defaults
+  }
+
+  private static func routinesKey(_ accountId: String) -> String { routinesPrefix + accountId }
+  private static func selectionKey(_ accountId: String, _ routineId: String) -> String { selectionPrefix + accountId + ":" + routineId }
+  private static func monitorName(_ accountId: String, _ routineId: String) -> DeviceActivityName {
+    DeviceActivityName(monitorPrefix + accountId + "." + routineId)
+  }
+  private static func storeName(_ accountId: String, _ routineId: String) -> ManagedSettingsStore.Name {
+    ManagedSettingsStore.Name(storePrefix + accountId + "." + routineId)
+  }
+
+  private static func load(_ accountId: String, defaults: UserDefaults) throws -> [Routine] {
+    guard let data = defaults.data(forKey: routinesKey(accountId)) else { return [] }
+    return try JSONDecoder().decode([Routine].self, from: data)
+  }
+
+  private static func persist(_ routines: [Routine], accountId: String, defaults: UserDefaults) throws {
+    defaults.set(try JSONEncoder().encode(routines), forKey: routinesKey(accountId))
+    guard defaults.synchronize() else { throw BlockingControlError.appGroupUnavailable }
+  }
+
+  static func setAccount(_ accountId: String) {
+    lock.lock(); defer { lock.unlock() }
+    observeTimeChanges()
+    stopLegacySchedules()
+    guard UUID(uuidString: accountId) != nil, let defaults = try? defaults() else { return }
+    let previous = defaults.string(forKey: accountKey)
+    if previous != accountId {
+      if let previous { stopAndClear(previous, defaults: defaults) }
+      defaults.set(accountId, forKey: accountKey)
+      guard defaults.synchronize() else { return }
+    }
+    guard let routines = try? load(accountId, defaults: defaults) else { return }
+    do {
+      try registerMissing(routines, accountId: accountId)
+      reconcile(routines, accountId: accountId)
+    } catch {
+      // Keep account sync available and expose the missing monitor via status.
+    }
+  }
+
+  static func clearAccount(_ accountId: String) throws {
+    lock.lock(); defer { lock.unlock() }
+    stopLegacySchedules()
+    let defaults = try defaults()
+    guard defaults.string(forKey: accountKey) == accountId else { return }
+    stopAndClear(accountId, defaults: defaults)
+    defaults.removeObject(forKey: accountKey)
+    guard defaults.synchronize() else { throw BlockingControlError.appGroupUnavailable }
+  }
+
+  private static func stopAndClear(_ accountId: String, defaults: UserDefaults) {
+    guard let routines = try? load(accountId, defaults: defaults) else { return }
+    let names = routines.map { monitorName(accountId, $0.id) }
+    center.stopMonitoring(names)
+    for routine in routines {
+      clearStore(accountId, routine.id)
+      clearLegacyStore(routine.id)
+    }
+  }
+
+  private static func stopLegacySchedules() {
+    let legacy = center.activities.filter { activity in
+      let parts = activity.rawValue.split(separator: ".")
+      return parts.count == 4 && parts[0] == "bloom" && parts[1] == "sched"
+        && UUID(uuidString: String(parts[2])) != nil && Int(parts[3]) != nil
+    }
+    center.stopMonitoring(legacy)
+    let routineIds = Set(legacy.compactMap { activity -> String? in
+      let parts = activity.rawValue.split(separator: ".")
+      return parts.count == 4 ? String(parts[2]) : nil
+    })
+    for routineId in routineIds {
+      clearLegacyStore(routineId)
+    }
+  }
+
+  private static func clearLegacyStore(_ routineId: String) {
+    let store = ManagedSettingsStore(named: ManagedSettingsStore.Name(storePrefix + routineId))
+    store.shield.applications = nil; store.shield.applicationCategories = nil
+    store.shield.webDomains = nil; store.shield.webDomainCategories = nil
+  }
+
+  static func selection(_ accountId: String, _ routineId: String) throws -> FamilyActivitySelection {
+    lock.lock(); defer { lock.unlock() }
+    let defaults = try checkedDefaults(accountId)
+    guard UUID(uuidString: routineId) != nil else { throw BlockingControlError.invalidDuration }
+    guard let data = defaults.data(forKey: selectionKey(accountId, routineId)) else { return FamilyActivitySelection() }
+    return try JSONDecoder().decode(FamilyActivitySelection.self, from: data)
+  }
+
+  static func saveSelection(_ selection: FamilyActivitySelection, accountId: String, routineId: String) throws {
+    lock.lock(); defer { lock.unlock() }
+    let defaults = try checkedDefaults(accountId)
+    guard UUID(uuidString: routineId) != nil else { throw BlockingControlError.invalidDuration }
+    defaults.set(try JSONEncoder().encode(selection), forKey: selectionKey(accountId, routineId))
+    guard defaults.synchronize() else { throw BlockingControlError.appGroupUnavailable }
+    if let routines = try? load(accountId, defaults: defaults), routines.contains(where: { $0.id == routineId && $0.enabled }) {
+      reconcile(routines, accountId: accountId)
+    }
+  }
+
+  static func save(_ accountId: String, raw: String) throws {
+    lock.lock(); defer { lock.unlock() }
+    let defaults = try checkedDefaults(accountId)
+    guard let data = raw.data(using: .utf8),
+          let object = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+          let id = object["id"] as? String, UUID(uuidString: id) != nil,
+          let rawName = object["name"] as? String,
+          let enabled = object["enabled"] as? Bool,
+          let start = object["startMinute"] as? Int,
+          let end = object["endMinute"] as? Int,
+          let rawDays = object["days"] as? [Int] else { throw BlockingControlError.invalidDuration }
+    let name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+    let days = Array(Set(rawDays)).sorted()
+    let durationMinutes = (end - start + 1440) % 1440
+    guard !name.isEmpty, name.count <= 80, start >= 0, start < 1440, end >= 0, end < 1440,
+          durationMinutes >= 15, !days.isEmpty, days.allSatisfy({ (0...6).contains($0) }) else { throw BlockingControlError.invalidDuration }
+    let selected = try selection(accountId, id)
+    guard BloomBlockingStore.hasTargets(selected) else { throw BlockingControlError.noTargets }
+    if enabled && !BloomBlockingStore.authorized() { throw BlockingControlError.authorizationRequired }
+
+    let previous = try load(accountId, defaults: defaults)
+    let routine = Routine(id: id, name: name, enabled: enabled, startMinute: start, endMinute: end, days: days)
+    let next = previous.filter { $0.id != id } + [routine]
+    guard next.filter(\.enabled).count <= maximumEnabledRoutines else {
+      throw NSError(domain: "BloomBlocking", code: 1, userInfo: [NSLocalizedDescriptionKey: "iOS supports up to 18 enabled Scheduled Focus routines on this device."])
+    }
+    try persist(next, accountId: accountId, defaults: defaults)
+    do {
+      center.stopMonitoring([monitorName(accountId, id)])
+      clearStore(accountId, id)
+      try register(routine, accountId: accountId)
+      reconcile(next, accountId: accountId)
+    } catch {
+      try? persist(previous, accountId: accountId, defaults: defaults)
+      center.stopMonitoring([monitorName(accountId, id)])
+      clearStore(accountId, id)
+      for old in previous where old.enabled { try? register(old, accountId: accountId) }
+      reconcile(previous, accountId: accountId)
+      throw error
+    }
+  }
+
+  static func delete(_ accountId: String, _ routineId: String) throws {
+    lock.lock(); defer { lock.unlock() }
+    let defaults = try checkedDefaults(accountId)
+    guard UUID(uuidString: routineId) != nil else { throw BlockingControlError.invalidDuration }
+    let previous = try load(accountId, defaults: defaults)
+    let next = previous.filter { $0.id != routineId }
+    try persist(next, accountId: accountId, defaults: defaults)
+    center.stopMonitoring([monitorName(accountId, routineId)])
+    clearStore(accountId, routineId)
+    defaults.removeObject(forKey: selectionKey(accountId, routineId))
+    reconcile(next, accountId: accountId)
+  }
+
+  static func json(_ accountId: String) throws -> String {
+    lock.lock(); defer { lock.unlock() }
+    let defaults = try checkedDefaults(accountId)
+    let routines = try load(accountId, defaults: defaults)
+    let activeIds = Set(activeRoutines(routines).map(\.id))
+    let rows = try routines.map { routine -> [String: Any] in
+      let selected = try selection(accountId, routine.id)
+      return ["id": routine.id, "name": routine.name, "enabled": routine.enabled,
+              "startMinute": routine.startMinute, "endMinute": routine.endMinute,
+              "days": routine.days, "appCount": selected.applicationTokens.count,
+              "websiteCount": selected.webDomainTokens.count, "categoryCount": selected.categoryTokens.count,
+              "active": activeIds.contains(routine.id)]
+    }
+    let data = try JSONSerialization.data(withJSONObject: rows)
+    guard let result = String(data: data, encoding: .utf8) else { throw BlockingControlError.appGroupUnavailable }
+    return result
+  }
+
+  static func currentStatus() -> (activeCount: Int, error: Bool) {
+    guard let defaults = try? defaults(), let accountId = defaults.string(forKey: accountKey),
+          let routines = try? load(accountId, defaults: defaults) else { return (0, false) }
+    let expected = routines.filter(\.enabled).map { monitorName(accountId, $0.id) }
+    let registered = Set(center.activities)
+    let hasMissingMonitor = expected.contains(where: { !registered.contains($0) })
+    return (activeRoutines(routines).count, hasMissingMonitor)
+  }
+
+  private static func registerMissing(_ routines: [Routine], accountId: String) throws {
+    let registered = Set(center.activities)
+    for routine in routines where routine.enabled {
+      let name = monitorName(accountId, routine.id)
+      if !registered.contains(name) { try center.startMonitoring(name, during: schedule(routine)) }
+    }
+  }
+
+  private static func register(_ routine: Routine, accountId: String) throws {
+    guard routine.enabled else { return }
+    try center.startMonitoring(monitorName(accountId, routine.id), during: schedule(routine))
+  }
+
+  private static func schedule(_ routine: Routine) -> DeviceActivitySchedule {
+    var start = DateComponents(); start.calendar = Calendar.current; start.timeZone = TimeZone.current
+    start.hour = routine.startMinute / 60; start.minute = routine.startMinute % 60
+    var end = DateComponents(); end.calendar = Calendar.current; end.timeZone = TimeZone.current
+    end.hour = routine.endMinute / 60; end.minute = routine.endMinute % 60
+    return DeviceActivitySchedule(intervalStart: start, intervalEnd: end, repeats: true)
+  }
+
+  private static func activeRoutines(_ routines: [Routine], now: Date = Date()) -> [Routine] {
+    let calendar = Calendar.current
+    let day = calendar.component(.weekday, from: now) - 1
+    let minute = calendar.component(.hour, from: now) * 60 + calendar.component(.minute, from: now)
+    return routines.filter { routine in
+      guard routine.enabled else { return false }
+      if routine.startMinute < routine.endMinute { return routine.days.contains(day) && minute >= routine.startMinute && minute < routine.endMinute }
+      return (routine.days.contains(day) && minute >= routine.startMinute) ||
+        (routine.days.contains((day + 6) % 7) && minute < routine.endMinute)
+    }
+  }
+
+  private static func reconcile(_ routines: [Routine], accountId: String) {
+    let active = Set(activeRoutines(routines).map(\.id))
+    for routine in routines {
+      if active.contains(routine.id),
+         let data = try? defaults().data(forKey: selectionKey(accountId, routine.id)),
+         let selection = try? JSONDecoder().decode(FamilyActivitySelection.self, from: data) {
+        apply(selection, accountId: accountId, routineId: routine.id)
+      } else { clearStore(accountId, routine.id) }
+    }
+  }
+
+  private static func apply(_ selection: FamilyActivitySelection, accountId: String, routineId: String) {
+    let store = ManagedSettingsStore(named: storeName(accountId, routineId))
+    store.shield.applications = selection.applicationTokens.isEmpty ? nil : selection.applicationTokens
+    store.shield.applicationCategories = selection.categoryTokens.isEmpty ? nil : .specific(selection.categoryTokens)
+    store.shield.webDomains = selection.webDomainTokens.isEmpty ? nil : selection.webDomainTokens
+    store.shield.webDomainCategories = selection.categoryTokens.isEmpty ? nil : .specific(selection.categoryTokens)
+  }
+
+  static func applyFromMonitor(_ expectedAccountId: String, routineId: String) {
+    guard let defaults = try? defaults(), defaults.string(forKey: accountKey) == expectedAccountId,
+          let accountId = defaults.string(forKey: accountKey),
+          let routines = try? load(accountId, defaults: defaults),
+          activeRoutines(routines).contains(where: { $0.id == routineId && $0.enabled }),
+          let data = defaults.data(forKey: selectionKey(accountId, routineId)),
+          let selection = try? JSONDecoder().decode(FamilyActivitySelection.self, from: data) else { return }
+    apply(selection, accountId: accountId, routineId: routineId)
+  }
+
+  static func clearFromMonitor(_ accountId: String, routineId: String) { clearStore(accountId, routineId) }
+
+  private static func clearStore(_ accountId: String, _ routineId: String) {
+    let store = ManagedSettingsStore(named: storeName(accountId, routineId))
+    store.shield.applications = nil; store.shield.applicationCategories = nil
+    store.shield.webDomains = nil; store.shield.webDomainCategories = nil
+  }
+
+  private static func observeTimeChanges() {
+    guard timeObservers.isEmpty else { return }
+    let center = NotificationCenter.default
+    timeObservers = [
+      center.addObserver(forName: .NSSystemTimeZoneDidChange, object: nil, queue: .main) { _ in refreshForLocalTimeChange() },
+      center.addObserver(forName: UIApplication.significantTimeChangeNotification, object: nil, queue: .main) { _ in refreshForLocalTimeChange() },
+      center.addObserver(forName: UIApplication.willEnterForegroundNotification, object: nil, queue: .main) { _ in refreshForLocalTimeChange() },
+    ]
+  }
+
+  private static func refreshForLocalTimeChange() {
+    lock.lock(); defer { lock.unlock() }
+    guard let defaults = try? defaults(), let accountId = defaults.string(forKey: accountKey),
+          let routines = try? load(accountId, defaults: defaults) else { return }
+    let names = routines.filter(\.enabled).flatMap { routine in
+      routine.days.map { monitorName(accountId, routine.id, $0) }
+    }
+    center.stopMonitoring(names)
+    for routine in routines where routine.enabled { try? register(routine, accountId: accountId) }
+    reconcile(routines, accountId: accountId)
   }
 }
 

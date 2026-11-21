@@ -40,8 +40,9 @@ export function GrowthDocumentLibraryPanel({ moduleId, items, records, documents
   const [notice, setNotice] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<GrowthDocument | null>(null);
   const pendingUpload = useRef<{ signature: string; requestId: string } | null>(null);
-  const candidates = useMemo(() => items.filter((item) => item.state === 'active'
-    && (moduleId === 'read' ? item.item_type === 'reading' : ['subject', 'course', 'lesson', 'assignment'].includes(item.item_type))), [items, moduleId]);
+  const candidates = useMemo(() => items.filter((item) => moduleId === 'read'
+    ? item.state !== 'archived' && item.item_type === 'reading'
+    : item.state === 'active' && ['subject', 'course', 'lesson', 'assignment'].includes(item.item_type)), [items, moduleId]);
   const selectedItemId = candidates.some((item) => item.id === itemId) ? itemId : candidates[0]?.id ?? '';
   const itemNames = new Map(items.map((item) => [item.id, item.title]));
   const attached = documents.filter((document) => moduleId === 'read' ? document.format !== 'docx' : true);

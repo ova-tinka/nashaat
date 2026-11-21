@@ -1,10 +1,30 @@
 import { NativeModule, requireNativeModule } from 'expo';
-import type { AppCandidate, BlockingStatus, ManagedTargets, SafariContentBlockerState, UsageAccess, WebsiteRuleSyncStatus } from './BloomBlocking.types';
+import type { AppAccessDecision, AppCandidate, BlockingStatus, IosFocusRoutineSelection, IosManualFocus, ManagedTargets, SafariContentBlockerState, UsageAccess, WebsiteRuleSyncStatus } from './BloomBlocking.types';
 
 declare class BloomBlockingNativeModule extends NativeModule {
   getStatus(): BlockingStatus;
+  setFocusAccount(accountId: string): Promise<void>;
+  getFocusAccount(): string | null;
+  clearFocusAccount(accountId: string): Promise<void>;
+  getFocusRoutines(accountId: string): string;
+  saveFocusRoutines(accountId: string, raw: string): Promise<void>;
   requestAuthorization(): Promise<boolean>;
   presentPicker(): Promise<{ appCount: number; websiteCount: number; categoryCount: number; cancelled: boolean }>;
+  getIosManualFocus(accountId: string): IosManualFocus;
+  getIosFocusRoutines(accountId: string): string;
+  getIosFocusRoutineSelection(accountId: string, routineId: string): IosFocusRoutineSelection;
+  presentIosFocusRoutinePicker(accountId: string, routineId: string): Promise<boolean>;
+  saveIosFocusRoutine(accountId: string, raw: string): Promise<void>;
+  deleteIosFocusRoutine(accountId: string, routineId: string): Promise<void>;
+  presentIosManualPicker(accountId: string): Promise<boolean>;
+  startIosManualFocus(accountId: string): Promise<void>;
+  stopIosManualFocus(accountId: string): Promise<void>;
+  getManualFocus(accountId: string): string;
+  saveManualFocus(accountId: string, raw: string): Promise<void>;
+  startManualFocus(accountId: string, durationMillis: number): Promise<void>;
+  stopManualFocus(accountId: string): Promise<void>;
+  getAppAccessDecision(accountId: string, packageId: string): AppAccessDecision;
+  getWebsiteAccessDecision(accountId: string, address: string): AppAccessDecision;
   getInstalledApps(): AppCandidate[];
   getSelectedApps(): string[];
   getManagedTargets(): ManagedTargets;
@@ -25,6 +45,7 @@ declare class BloomBlockingNativeModule extends NativeModule {
   startUsageAccess(sessionId: string, userId: string, budgetMillis: number, expiryMillis: number, requestElapsedMillis: number, requestBoot: number): Promise<void>;
   closeUsageAccess(userId: string): Promise<UsageAccess | null>;
   clearUsageAccess(userId: string, sessionId: string): Promise<void>;
+  startCreditAccessForAccount(accountId: string, durationMillis: number, requestElapsedMillis: number, requestBoot: number): Promise<void>;
   startCreditAccess(durationMillis: number, requestElapsedMillis: number, requestBoot: number): Promise<void>;
   endCreditAccess(): Promise<void>;
 }

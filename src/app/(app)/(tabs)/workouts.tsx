@@ -38,7 +38,7 @@ export default function WorkoutsScreen() {
   return <Screen safeAreaTop={false}>
     <View style={sharedStyles.column}><Eyebrow>Exercise</Eyebrow><Heading>Your workouts</Heading><Body>Plan your sessions and adjust them as your routine changes.</Body></View>
     <Button label="Create a workout plan" onPress={() => router.push('/new-plan')} />
-    {loading && <ActivityIndicator color={theme.colors.action} />}
+    {loading && <ActivityIndicator color={theme.modules.exercise.deep} />}
     {error && <Panel><ErrorText>{error}</ErrorText><Button label="Try again" secondary onPress={() => void refresh()} /></Panel>}
     {actionError && <ErrorText>{actionError}</ErrorText>}
     {!loading && !error && plans.length === 0 && <Panel><Label>No workout plans yet</Label><Body>Choose exercises and create your first plan.</Body></Panel>}
@@ -51,8 +51,8 @@ export default function WorkoutsScreen() {
       <Button label={activeWorkout?.plan_id === plan.id ? 'Continue workout' : 'Start workout'} onPress={() => void start(plan.id)} busy={startingId === plan.id} disabled={Boolean(activeWorkout && activeWorkout.plan_id !== plan.id) || Boolean(startingId && startingId !== plan.id)} />
       <Button label="Edit plan" secondary disabled={activeWorkout?.plan_id === plan.id} onPress={() => router.push({ pathname: '/new-plan', params: { planId: plan.id } })} />
       {activeWorkout?.plan_id === plan.id && <Body>Finish or cancel the workout before editing or deleting this plan.</Body>}
-      {confirmId === plan.id ? <View style={sharedStyles.column}><Body>Delete this workout plan?</Body><Button label="Delete plan" onPress={() => void remove(plan.id)} busy={deleting} /><Button label="Cancel" secondary onPress={() => setConfirmId(null)} /></View>
-        : <Button label="Delete plan" secondary disabled={activeWorkout?.plan_id === plan.id} onPress={() => setConfirmId(plan.id)} />}
+      {confirmId === plan.id ? <View style={sharedStyles.column}><Body>Delete this workout plan?</Body><Button label="Delete plan" variant="destructive" onPress={() => void remove(plan.id)} busy={deleting} /><Button label="Cancel" variant="secondary" onPress={() => setConfirmId(null)} /></View>
+        : <Button label="Delete plan" variant="destructive" disabled={activeWorkout?.plan_id === plan.id} onPress={() => setConfirmId(plan.id)} />}
     </Panel>)}
   </Screen>;
 }

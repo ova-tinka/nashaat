@@ -21,3 +21,8 @@ export function parseVisibleModules(value: string | null): ModuleKey[] {
     return [...moduleIds];
   }
 }
+
+/** Home remains present while pillar visibility and family assignments filter the dock. */
+export function showNavigationItem(moduleId: ModuleKey | null, available: boolean, visible: readonly ModuleKey[], child: boolean, assigned: readonly ModuleKey[]): boolean {
+  return moduleId === null || (available && visible.includes(moduleId) && (!child || assigned.includes(moduleId)));
+}

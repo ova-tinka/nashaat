@@ -120,16 +120,17 @@ export function WeeklyPillarPlanner({ allowedModules }: { allowedModules: Module
     <Eyebrow>Flexible weekly plan</Eyebrow>
     <Label>Goals across your assigned pillars</Label>
     <Body>Choose a weekly target and the days you want to make room for it. Other days are rest or flexible recovery time. You can change or turn off any goal; a missed planned day is not a failure.</Body>
-    {loading && <ActivityIndicator color={theme.colors.action} />}
+    {loading && <ActivityIndicator color={modules.length === 1 ? theme.modules[modules[0].moduleId].deep : theme.colors.action} />}
     {error && <ErrorText>{error}</ErrorText>}
     {!loading && modules.map((definition) => {
       const draft = drafts[definition.moduleId];
       if (!draft) return null;
+      const accent = theme.modules[definition.moduleId];
       return <View key={definition.moduleId} style={[sharedStyles.column, { borderTopWidth: 1, borderTopColor: theme.colors.border, paddingTop: 14 }]}>
         <View style={sharedStyles.row}>
           <View style={sharedStyles.grow}><Label>{definition.title}</Label><Body>{definition.description}</Body></View>
           <Switch accessibilityLabel={`Include ${definition.title} in weekly plan`} value={draft.enabled} disabled={busy || Boolean(proposal)}
-            onValueChange={(enabled) => update(definition.moduleId, { enabled })} trackColor={{ true: theme.colors.action }} />
+            onValueChange={(enabled) => update(definition.moduleId, { enabled })} trackColor={{ true: accent.accent }} />
         </View>
         {draft.enabled && <>
           {savedGoals.some((goal) => goal.module_id === definition.moduleId) && <>
@@ -147,7 +148,7 @@ export function WeeklyPillarPlanner({ allowedModules }: { allowedModules: Module
               return <Pressable key={day} accessibilityRole="checkbox" accessibilityLabel={`${day} for ${definition.title}`}
                 accessibilityState={{ checked: selected, disabled: busy || Boolean(proposal) }} disabled={busy || Boolean(proposal)}
                 onPress={() => update(definition.moduleId, { days: (selected ? activeDays.filter((value) => value !== dayIndex) : [...activeDays, dayIndex]).sort((a, b) => a - b).join(', ') })}
-                style={{ minWidth: 46, minHeight: 44, paddingHorizontal: 10, borderWidth: 1, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderColor: selected ? theme.colors.action : theme.colors.border, backgroundColor: selected ? theme.colors.surfaceTinted : theme.colors.surface }}>
+              style={{ minWidth: 46, minHeight: 44, paddingHorizontal: 10, borderWidth: 1, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderColor: selected ? accent.deep : theme.colors.border, backgroundColor: selected ? accent.surface : theme.colors.surface }}>
                 <Label>{day}</Label>
               </Pressable>;
             })}

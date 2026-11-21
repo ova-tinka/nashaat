@@ -1,7 +1,8 @@
 import { randomUUID } from 'expo-crypto';
 import { router, useFocusEffect, type Href } from 'expo-router';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Body, Button, ErrorText, Eyebrow, Field, Heading, Label, Panel, Screen, sharedStyles, useIsDesktopLayout } from '../../../components/bloom-ui';
 import { useAuth } from '../../../lib/auth';
 import { createChildAccountLink, createChildInvite, createFamily, createManagedChildProfile, deleteUnpairedChildProfile, joinFamily, leaveOrRemoveChild, loadFamilies, loadFamilyChildSummary, prepareChildPairing, type Family } from '../../../lib/family';
@@ -10,6 +11,8 @@ import { useBloomTheme } from '../../../lib/theme-context';
 
 type FamilyChildSummary = Awaited<ReturnType<typeof loadFamilyChildSummary>>;
 type FamilyChildSummaryState = { summary: FamilyChildSummary | null; loading: boolean; error: boolean };
+type ConnectionMode = 'create' | 'join' | null;
+type FamilySection = 'overview' | 'accounts' | 'profiles';
 
 export default function FamilyScreen() {
   const { profileId, refreshProfile } = useAuth();
@@ -32,6 +35,8 @@ export default function FamilyScreen() {
   const [pendingAccessCode, setPendingAccessCode] = useState<{ type: 'pair' | 'link' | 'invite'; familyId?: string; profileId?: string; displayName: string } | null>(null);
   const [pairing, setPairing] = useState<{ profileId: string; code: string } | null>(null);
   const [accountLink, setAccountLink] = useState<{ profileId: string; code: string } | null>(null);
+  const [connectionMode, setConnectionMode] = useState<ConnectionMode>(null);
+  const [familySections, setFamilySections] = useState<Record<string, FamilySection>>({});
 
   const load = useCallback(async () => {
     const request = ++summaryRequest.current;
@@ -70,14 +75,14 @@ export default function FamilyScreen() {
 
   async function create() {
     setBusy(true); setError(null);
-    try { await createFamily(name); setName(''); await load(); }
+    try { await createFamily(name); setName(''); setConnectionMode(null); await load(); }
     catch { setError('Could not create the family. Check the name and try again.'); }
     finally { setBusy(false); }
   }
   async function join() {
     if (!confirmJoin || !code.trim()) return;
     setBusy(true); setError(null);
-    try { await joinFamily(code); setCode(''); setConfirmJoin(false); await load(); await refreshProfile(); }
+    try { await joinFamily(code); setCode(''); setConfirmJoin(false); setConnectionMode(null); await load(); await refreshProfile(); }
     catch { setError('Could not join. Check the invitation code and try again.'); }
     finally { setBusy(false); }
   }
@@ -128,11 +133,19 @@ export default function FamilyScreen() {
   }
 
   return <Screen safeAreaTop={false}>
-    <View style={sharedStyles.column}><Eyebrow>Family Space · Optional</Eyebrow><Heading>Family connections</Heading><Body>Connect an account or create a child profile. Your My Space stays separate.</Body></View>
+    <View style={styles.pageHeader}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Back to profile" accessibilityHint="Returns to your profile."
+        onPress={() => router.replace('/profile')} style={({ pressed }) => [styles.backButton, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }, pressed && styles.pressed]}>
+        <MaterialIcons name="arrow-back" size={21} color={theme.colors.ink} />
+      </Pressable>
+      <View style={[sharedStyles.column, sharedStyles.grow]}><Eyebrow>Your spaces</Eyebrow><Heading>Family Space</Heading></View>
+    </View>
+    <Body>Manage family connections and child profiles here. Personal My Space and each family member’s account stay separate.</Body>
     {loading && <ActivityIndicator color={theme.colors.action} />}
     {error && <ErrorText>{error}</ErrorText>}
     {!loading && visibleFamilies.map((family) => {
       const myRole = family.members.find((member) => member.user_id === profileId)?.role;
+      const guardianCount = family.members.filter((member) => member.role === 'parent').length;
       const linkedChildren = family.members.filter((member) => member.role === 'child');
       const pendingApprovals = linkedChildren.reduce((count, child) => {
         const summary = childSummaries[child.user_id]?.summary;
@@ -140,14 +153,31 @@ export default function FamilyScreen() {
       }, 0);
       const summariesLoading = linkedChildren.some((child) => childSummaries[child.user_id]?.loading);
       const summariesError = linkedChildren.some((child) => childSummaries[child.user_id]?.error);
+      const section = familySections[family.id] ?? 'overview';
       const recentActivity = linkedChildren.flatMap((child) => (childSummaries[child.user_id]?.summary?.analytics.history ?? [])
         .map((activity) => ({ ...activity, childName: child.display_name })))
         .sort((left, right) => Date.parse(right.completed_at) - Date.parse(left.completed_at)).slice(0, 5);
       return <Panel key={family.id}>
-        <Label>{family.name}</Label>
-        {myRole === 'parent' && <View style={[styles.summary, { backgroundColor: theme.colors.surfaceSoft, borderColor: theme.colors.border }]}>
+        <View style={styles.familyHeading}>
+          <View style={sharedStyles.grow}><Eyebrow>Family Space</Eyebrow><Heading>{family.name}</Heading></View>
+          <View style={[styles.roleBadge, { backgroundColor: myRole === 'parent' ? theme.colors.surfaceTinted : theme.colors.surfaceSoft }]}>
+            <Text style={[styles.roleText, { color: myRole === 'parent' ? theme.colors.action : theme.colors.inkMuted }]}>{myRole === 'parent' ? 'Guardian' : 'Child account'}</Text>
+          </View>
+        </View>
+        <Body>Family accounts and child profiles stay separate. Guardians manage only the access and activity shown here.</Body>
+        {myRole === 'parent' && <View accessibilityRole="tablist" accessibilityLabel={`${family.name} family sections`} style={styles.familyTabs}>
+          {([['overview', 'Overview'], ['accounts', 'Accounts'], ['profiles', 'Profiles']] as const).map(([key, label]) => {
+            const selected = section === key;
+            return <Pressable key={key} accessibilityRole="tab" accessibilityLabel={`${label === 'Profiles' ? 'Child profiles' : label} section`}
+              accessibilityState={{ selected }} onPress={() => setFamilySections((current) => ({ ...current, [family.id]: key }))}
+              style={[styles.familyTab, { borderColor: selected ? theme.colors.action : theme.colors.border, backgroundColor: selected ? theme.colors.surfaceTinted : theme.colors.surface }]}>
+              <Text style={[styles.familyTabText, { color: selected ? theme.colors.action : theme.colors.inkMuted }]}>{label}</Text>
+            </Pressable>;
+          })}
+        </View>}
+        {myRole === 'parent' && section === 'overview' && <View style={[styles.summary, { backgroundColor: theme.colors.surfaceSoft, borderColor: theme.colors.border }]}>
           <Eyebrow>Family overview</Eyebrow>
-          <Label>{linkedChildren.length} connected {linkedChildren.length === 1 ? 'child' : 'children'}</Label>
+          <Label>{guardianCount} guardian {guardianCount === 1 ? 'account' : 'accounts'} · {linkedChildren.length} child {linkedChildren.length === 1 ? 'account' : 'accounts'} · {family.childProfiles.length} child {family.childProfiles.length === 1 ? 'profile' : 'profiles'}</Label>
           <Body>{summariesLoading ? 'Checking family requests…' : summariesError
             ? pendingApprovals ? `${pendingApprovals} requests await review; some could not be checked.` : 'Some requests could not be checked. Review each child below.'
             : pendingApprovals ? `${pendingApprovals} coaching and event requests await review` : 'No requests await review'}</Body>
@@ -159,57 +189,90 @@ export default function FamilyScreen() {
           </>}
           {recentActivity.length > 0 && summariesError && <Body>Some children’s activity could not be loaded.</Body>}
         </View>}
-        {family.members.map((member) => {
-          if (family.childProfiles.some((child) => child.profile_id === member.user_id)) return null;
-          const isSelf = member.user_id === profileId;
-          const canRemove = member.role === 'child' && myRole === 'parent' && !isSelf;
-          const removalKey = `${family.id}:${member.user_id}`;
-          return <View key={member.user_id} style={sharedStyles.column}>
-            <Body>{member.display_name} · {member.role}{isSelf ? ' · you' : ''}</Body>
-            {myRole === 'parent' && member.role === 'child' && <FamilyChildOverview childId={member.user_id} name={member.display_name} state={childSummaries[member.user_id]} />}
-            {myRole === 'parent' && member.role === 'child' && <Button label={`Manage ${member.display_name}`} secondary onPress={() => router.push({ pathname: '/family-child', params: { childId: member.user_id, name: member.display_name } } as unknown as Href)} />}
-            {canRemove && (confirmRemoval === removalKey
-              ? <><Body>{`Remove ${member.display_name} from this family?`}</Body><Button label="Confirm removal" secondary onPress={() => void remove(family.id, member.user_id)} busy={busy} /><Button label="Keep connection" secondary onPress={() => setConfirmRemoval(null)} disabled={busy} /></>
-              : <Button label={`Remove ${member.display_name}`} secondary onPress={() => setConfirmRemoval(removalKey)} disabled={busy} />)}
-          </View>;
-        })}
-        {myRole === 'parent' && <View style={[styles.childGrid, desktop && styles.desktopChildGrid]}>{family.childProfiles.map((child) => <View key={child.profile_id} style={[sharedStyles.column, styles.childCard, { borderColor: theme.colors.border }, desktop && styles.desktopChildCard]}>
-          <Body>{child.display_name} · child profile</Body>
-          {family.members.some((member) => member.user_id === child.profile_id && member.role === 'child')
-            ? <FamilyChildOverview childId={child.profile_id} name={child.display_name} state={childSummaries[child.profile_id]} />
-            : <Body>No child account is connected yet. Module access stays off until the profile is connected and assigned.</Body>}
-          <Body>Generate a code to sign this child in on a device. The code expires in 10 minutes and can be used once.</Body>
-          {pendingAccessCode?.profileId === child.profile_id && pendingAccessCode.type === 'pair' ? <><Body>Create a one-use, 10-minute pairing code for {pendingAccessCode.displayName}? Anyone with this code can pair a device to the child profile.</Body><Button label="Confirm pairing code" onPress={() => void createAccessCode()} busy={busy} /><Button label="Cancel" secondary onPress={() => setPendingAccessCode(null)} disabled={busy} /></> : <Button label={`Review pairing for ${child.display_name}`} secondary onPress={() => setPendingAccessCode({ type: 'pair', profileId: child.profile_id, displayName: child.display_name })} busy={busy} />}
-          {family.members.some((member) => member.user_id === child.profile_id) && <Button label={`Manage ${child.display_name}`} secondary onPress={() => router.push({ pathname: '/family-child', params: { childId: child.profile_id, name: child.display_name } } as unknown as Href)} />}
-          {family.members.some((member) => member.user_id === child.profile_id) && (pendingAccessCode?.profileId === child.profile_id && pendingAccessCode.type === 'link' ? <><Body>Create a one-use email-link code for {pendingAccessCode.displayName}? Anyone with the code can link a new sign-in to this child profile for 24 hours.</Body><Button label="Confirm account-link code" onPress={() => void createAccessCode()} busy={busy} /><Button label="Cancel" secondary onPress={() => setPendingAccessCode(null)} disabled={busy} /></> : <Button label={`Review email link for ${child.display_name}`} secondary onPress={() => setPendingAccessCode({ type: 'link', profileId: child.profile_id, displayName: child.display_name })} busy={busy} />)}
-          {pairing?.profileId === child.profile_id && <><Body>On the child device, sign out of any parent account, choose “Pair child device,” and enter this code.</Body><Text selectable style={[styles.code, { color: theme.colors.ink }]}>{pairing.code}</Text></>}
-          {accountLink?.profileId === child.profile_id && <><Body>Give this one-use code to your child. On the sign-in screen, choose “Link child email account” and create a new account. The code expires in 24 hours.</Body><Text selectable style={[styles.code, { color: theme.colors.ink }]}>{accountLink.code}</Text></>}
-          {!family.members.some((member) => member.user_id === child.profile_id) && (confirmProfileRemoval === child.profile_id ? <>
-            <Body>Remove this unpaired profile?</Body>
-            <Button label="Remove profile" secondary onPress={() => void removeChildProfile(child.profile_id)} busy={busy} />
-            <Button label="Keep profile" secondary onPress={() => setConfirmProfileRemoval(null)} disabled={busy} />
-          </> : <Button label={`Remove ${child.display_name}'s profile`} secondary onPress={() => setConfirmProfileRemoval(child.profile_id)} disabled={busy} />)}
-        </View>)}</View>}
-        {myRole === 'parent' && (newChild?.familyId === family.id ? <View style={sharedStyles.column}>
-          <Field label="Child's display name" value={newChild.name} onChangeText={(value) => setNewChild({ ...newChild, name: value })} maxLength={100} editable={!busy && !newChild.submitted} />
-          <Button label={newChild.submitted ? 'Retry saving profile' : 'Save child profile'} onPress={() => void createChild()} busy={busy} disabled={!newChild.name.trim()} />
-          <Button label="Cancel" secondary onPress={() => { setNewChild(null); void load(); }} disabled={busy} />
-        </View> : <Button label="Create child profile" secondary onPress={() => setNewChild({ familyId: family.id, name: '', requestId: randomUUID(), submitted: false })} disabled={busy || newChild !== null} />)}
-        {myRole === 'parent' && (pendingAccessCode?.familyId === family.id && pendingAccessCode.type === 'invite' ? <><Body>Create a one-use child invitation for {pendingAccessCode.displayName}? Anyone with this code can request to join this family for 24 hours.</Body><Button label="Confirm child invitation" onPress={() => void createAccessCode()} busy={busy} /><Button label="Cancel" secondary onPress={() => setPendingAccessCode(null)} disabled={busy} /></> : <Button label="Review child invitation" onPress={() => setPendingAccessCode({ type: 'invite', familyId: family.id, displayName: family.name })} busy={busy} />)}
-        {invite?.familyId === family.id && <><Body>Share this one-use code with the child. It expires in 24 hours.</Body><Text selectable style={[styles.code, { color: theme.colors.ink }]}>{invite.code}</Text></>}
+        {(myRole !== 'parent' || section === 'accounts') && <View style={sharedStyles.column}>
+          <View style={sharedStyles.column}><Eyebrow>Connected accounts</Eyebrow><Body>Sign-in accounts linked to this family appear here. A child profile, when connected, is shown under Profiles.</Body></View>
+          {family.members.map((member) => {
+            if (family.childProfiles.some((child) => child.profile_id === member.user_id)) return null;
+            const isSelf = member.user_id === profileId;
+            const canRemove = member.role === 'child' && myRole === 'parent' && !isSelf;
+            const removalKey = `${family.id}:${member.user_id}`;
+            return <View key={member.user_id} style={[sharedStyles.column, styles.memberCard, { borderColor: theme.colors.border }]}>
+              <View style={styles.memberHeader}>
+                <Label>{member.display_name}{isSelf ? ' · you' : ''}</Label>
+                <View style={[styles.roleBadge, { backgroundColor: member.role === 'parent' ? theme.colors.surfaceTinted : theme.colors.surfaceSoft }]}>
+                  <Text style={[styles.roleText, { color: member.role === 'parent' ? theme.colors.action : theme.colors.inkMuted }]}>{member.role === 'parent' ? 'Guardian' : 'Child account'}</Text>
+                </View>
+              </View>
+              {myRole === 'parent' && member.role === 'child' && <FamilyChildOverview childId={member.user_id} name={member.display_name} state={childSummaries[member.user_id]} />}
+              {myRole === 'parent' && member.role === 'child' && <Button label={`Manage ${member.display_name}`} variant="secondary" onPress={() => router.push({ pathname: '/family-child', params: { childId: member.user_id, name: member.display_name } } as unknown as Href)} />}
+              {canRemove && (confirmRemoval === removalKey
+                ? <><Body>{`Remove ${member.display_name} from this family?`}</Body><Button label="Confirm removal" variant="destructive" onPress={() => void remove(family.id, member.user_id)} busy={busy} /><Button label="Keep connection" variant="secondary" onPress={() => setConfirmRemoval(null)} disabled={busy} /></>
+                : <Button label={`Remove ${member.display_name}`} variant="destructive" onPress={() => setConfirmRemoval(removalKey)} disabled={busy} />)}
+            </View>;
+          })}
+        </View>}
+        {myRole === 'parent' && section === 'profiles' && <View style={sharedStyles.column}>
+          <View style={sharedStyles.column}><Eyebrow>Child profiles</Eyebrow><Body>Profiles keep their own progress and settings. Connect a device or sign-in before assigning module access.</Body></View>
+          <View style={[styles.childGrid, desktop && styles.desktopChildGrid]}>{family.childProfiles.map((child) => {
+            const connectedAccount = family.members.find((member) => member.user_id === child.profile_id && member.role === 'child');
+            return <View key={child.profile_id} style={[sharedStyles.column, styles.childCard, { borderColor: theme.colors.border }, desktop && styles.desktopChildCard]}>
+              <View style={styles.memberHeader}>
+                <Label>{child.display_name}</Label>
+                <View style={[styles.roleBadge, { backgroundColor: connectedAccount ? theme.colors.surfaceTinted : theme.colors.surfaceSoft }]}>
+                  <Text style={[styles.roleText, { color: connectedAccount ? theme.colors.action : theme.colors.inkMuted }]}>{connectedAccount ? 'Account connected' : 'Profile only'}</Text>
+                </View>
+              </View>
+              <Body>Child profile · managed by this family</Body>
+              {connectedAccount
+                ? <><Body>Connected child account: {connectedAccount.display_name}</Body><FamilyChildOverview childId={child.profile_id} name={child.display_name} state={childSummaries[child.profile_id]} /></>
+                : <Body>No child sign-in is connected yet. Module access stays off until a device or account is connected and access is assigned.</Body>}
+              <Body>Pair a device with a one-use code. The code expires in 10 minutes.</Body>
+              {pendingAccessCode?.profileId === child.profile_id && pendingAccessCode.type === 'pair' ? <><Body>Create a one-use, 10-minute pairing code for {pendingAccessCode.displayName}? Anyone with this code can pair a device to the child profile.</Body><Button label="Confirm pairing code" onPress={() => void createAccessCode()} busy={busy} /><Button label="Cancel" variant="secondary" onPress={() => setPendingAccessCode(null)} disabled={busy} /></> : <Button label={`Review device pairing for ${child.display_name}`} variant="secondary" onPress={() => setPendingAccessCode({ type: 'pair', profileId: child.profile_id, displayName: child.display_name })} busy={busy} />}
+              {connectedAccount && <Button label={`Manage ${child.display_name}`} variant="secondary" onPress={() => router.push({ pathname: '/family-child', params: { childId: child.profile_id, name: child.display_name } } as unknown as Href)} />}
+              {connectedAccount && (pendingAccessCode?.profileId === child.profile_id && pendingAccessCode.type === 'link' ? <><Body>Create a one-use email-link code for {pendingAccessCode.displayName}? Anyone with the code can link a new sign-in to this child profile for 24 hours.</Body><Button label="Confirm account-link code" onPress={() => void createAccessCode()} busy={busy} /><Button label="Cancel" variant="secondary" onPress={() => setPendingAccessCode(null)} disabled={busy} /></> : <Button label={`Review email link for ${child.display_name}`} variant="secondary" onPress={() => setPendingAccessCode({ type: 'link', profileId: child.profile_id, displayName: child.display_name })} busy={busy} />)}
+              {pairing?.profileId === child.profile_id && <><Body>On the child device, sign out of any parent account, choose “Pair child device,” and enter this code.</Body><Text selectable style={[styles.code, { color: theme.colors.ink }]}>{pairing.code}</Text></>}
+              {accountLink?.profileId === child.profile_id && <><Body>Give this one-use code to your child. On the sign-in screen, choose “Link child email account” and create a new account. The code expires in 24 hours.</Body><Text selectable style={[styles.code, { color: theme.colors.ink }]}>{accountLink.code}</Text></>}
+              {!connectedAccount && (confirmProfileRemoval === child.profile_id ? <>
+                <Body>Remove this unpaired profile?</Body>
+                <Button label="Remove profile" variant="destructive" onPress={() => void removeChildProfile(child.profile_id)} busy={busy} />
+                <Button label="Keep profile" variant="secondary" onPress={() => setConfirmProfileRemoval(null)} disabled={busy} />
+              </> : <Button label={`Remove ${child.display_name}'s profile`} variant="destructive" onPress={() => setConfirmProfileRemoval(child.profile_id)} disabled={busy} />)}
+            </View>;
+          })}</View>
+          {newChild?.familyId === family.id ? <View style={sharedStyles.column}>
+            <Eyebrow>New child profile</Eyebrow>
+            <Field label="Child's display name" value={newChild.name} onChangeText={(value) => setNewChild({ ...newChild, name: value })} maxLength={100} editable={!busy && !newChild.submitted} />
+            <Button label={newChild.submitted ? 'Retry saving profile' : 'Save child profile'} onPress={() => void createChild()} busy={busy} disabled={!newChild.name.trim()} />
+            <Button label="Cancel" variant="secondary" onPress={() => { setNewChild(null); void load(); }} disabled={busy} />
+          </View> : <Button label="Create child profile" variant="secondary" onPress={() => setNewChild({ familyId: family.id, name: '', requestId: randomUUID(), submitted: false })} disabled={busy || newChild !== null} />}
+          {pendingAccessCode?.familyId === family.id && pendingAccessCode.type === 'invite' ? <><Body>Create a one-use child invitation for {pendingAccessCode.displayName}? Anyone with this code can request to join this family for 24 hours.</Body><Button label="Confirm child invitation" onPress={() => void createAccessCode()} busy={busy} /><Button label="Cancel" variant="secondary" onPress={() => setPendingAccessCode(null)} disabled={busy} /></> : <Button label="Review child invitation" onPress={() => setPendingAccessCode({ type: 'invite', familyId: family.id, displayName: family.name })} busy={busy} />}
+          {invite?.familyId === family.id && <><Body>Share this one-use code with the child. It expires in 24 hours.</Body><Text selectable style={[styles.code, { color: theme.colors.ink }]}>{invite.code}</Text></>}
+        </View>}
       </Panel>;
     })}
-    <Panel><Label>Create a family</Label><Field label="Family name" value={name} onChangeText={setName} maxLength={100} /><Button label="Create family" onPress={() => void create()} busy={busy} disabled={!name.trim()} /></Panel>
-    <Panel><Label>Join a family</Label><Body>Enter the invitation code supplied by the parent.</Body><Field label="Invitation code" value={code} onChangeText={(value) => { setCode(value); setConfirmJoin(false); }} autoCapitalize="none" autoCorrect={false} editable={!busy} />
-      {!confirmJoin
-        ? <Button label="Review family invitation" secondary onPress={() => setConfirmJoin(true)} disabled={!code.trim() || busy} />
-        : <View style={sharedStyles.column}>
-          <Body>Confirm joining the family linked to the invitation ending in {code.trim().slice(-4)} as a child member. The parent managing that household can manage this profile’s workouts, credits, and blocking rules.</Body>
-          <Button label="Confirm joining as child" onPress={() => void join()} busy={busy} />
-          <Button label="Keep editing invitation" secondary onPress={() => setConfirmJoin(false)} disabled={busy} />
-        </View>}
-    </Panel>
-    <Button label="Back to profile" secondary onPress={() => router.replace('/settings')} />
+    {!loading && <Panel>
+      <Eyebrow>{visibleFamilies.length ? 'Connect another person' : 'Get started'}</Eyebrow>
+      <Label>{visibleFamilies.length ? 'Add another family connection' : 'Create or join a family'}</Label>
+      <Body>{visibleFamilies.length ? 'Choose whether to create a separate family space or join one with an invitation code.' : 'Create a new family space, or join one using a code from the parent who invited you.'}</Body>
+      {connectionMode === null ? <View style={sharedStyles.column}>
+        <Button label="Create a family" onPress={() => setConnectionMode('create')} disabled={busy} />
+        <Button label="Join with an invitation code" variant="secondary" onPress={() => setConnectionMode('join')} disabled={busy} />
+      </View> : connectionMode === 'create' ? <View style={sharedStyles.column}>
+        <Field label="Family name" value={name} onChangeText={setName} maxLength={100} placeholder="e.g. The Ahmed family" editable={!busy} />
+        <Button label="Create family" onPress={() => void create()} busy={busy} disabled={!name.trim()} />
+        <Button label="Choose another option" variant="tertiary" onPress={() => setConnectionMode(null)} disabled={busy} />
+      </View> : <View style={sharedStyles.column}>
+        <Field label="Invitation code" value={code} onChangeText={(value) => { setCode(value); setConfirmJoin(false); }} autoCapitalize="none" autoCorrect={false} editable={!busy} />
+        {!confirmJoin
+          ? <Button label="Review invitation" variant="secondary" onPress={() => setConfirmJoin(true)} disabled={!code.trim() || busy} />
+          : <View style={sharedStyles.column}>
+            <Body>Confirm joining the family linked to the invitation ending in {code.trim().slice(-4)} as a child member. The parent managing that household can manage this profile’s workouts, credits, and blocking rules.</Body>
+            <Button label="Confirm joining as child" onPress={() => void join()} busy={busy} />
+            <Button label="Keep editing invitation" variant="secondary" onPress={() => setConfirmJoin(false)} disabled={busy} />
+          </View>}
+        <Button label="Choose another option" variant="tertiary" onPress={() => { setConnectionMode(null); setConfirmJoin(false); }} disabled={busy} />
+      </View>}
+    </Panel>}
   </Screen>;
 }
 
@@ -241,7 +304,18 @@ function FamilyChildOverview({ childId, name, state }: { childId: string; name: 
 }
 
 const styles = StyleSheet.create({
+  pageHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  backButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderWidth: StyleSheet.hairlineWidth, borderRadius: 20 },
+  pressed: { opacity: 0.72, transform: [{ scale: 0.96 }] },
+  familyHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  familyTabs: { flexDirection: 'row', gap: 8 },
+  familyTab: { flex: 1, minWidth: 0, minHeight: 44, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8, borderWidth: 1, borderRadius: 14 },
+  familyTabText: { fontSize: 13, fontWeight: '700' },
   code: { fontSize: 15, fontWeight: '700' },
+  memberCard: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 16, padding: 12 },
+  memberHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  roleBadge: { borderRadius: 999, paddingHorizontal: 9, paddingVertical: 5 },
+  roleText: { fontSize: 10, fontWeight: '800' },
   childGrid: { gap: 16 },
   desktopChildGrid: { flexDirection: 'row', flexWrap: 'wrap' },
   childCard: { padding: 12, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth },

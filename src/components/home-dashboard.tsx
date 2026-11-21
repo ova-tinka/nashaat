@@ -73,7 +73,7 @@ export function HomeDashboard({
         </Pressable>
       </ImageBackground>
 
-      <View style={styles.balanceGoalsRow}>
+      <View style={[styles.balanceGoalsRow, !desktop && styles.balanceGoalsMobile]}>
         <View style={styles.balanceColumn}>
           <BalancePanel available={creditBalance} enabled={creditsEnabled} loading={loading} error={walletError} onRefresh={refresh} />
         </View>
@@ -161,19 +161,21 @@ function BalancePanel({ available, enabled, loading, error, onRefresh }: {
 }) {
   const { theme } = useBloomTheme();
   return <Panel>
-    <Eyebrow>Balance</Eyebrow>
-    <Text style={[styles.balancePeriod, { color: theme.colors.inkMuted }]} numberOfLines={1}>This week</Text>
     {loading ? <View style={styles.inlineStatus}><ActivityIndicator color={theme.colors.action} /><Body>Connecting to Bloom.</Body></View>
       : error ? <>
         <ErrorText>{error}</ErrorText>
         <Button label="Retry" variant="secondary" onPress={() => void onRefresh()} />
       </> : enabled ? <>
-        <View style={styles.balanceRow}>
-          <Text accessibilityLabel={`${formatCreditDuration(available)} of screen time available in your balance for the rest of this week`} style={[styles.balanceAmount, { color: theme.colors.ink }]}>{formatCreditHours(available)}</Text>
-          <Text style={[styles.balanceUnit, { color: theme.colors.inkMuted }]}>h</Text>
+        <View>
+          <View style={styles.balanceRow}>
+            <Text accessibilityLabel={`${formatCreditDuration(available)} of screen time available in your balance`} style={[styles.balanceAmount, { color: theme.colors.ink }]}>{formatCreditHours(available)}</Text>
+            <Text style={[styles.balanceUnit, { color: theme.colors.inkMuted }]}>h</Text>
+          </View>
+          <Text style={[styles.balanceLabel, { color: theme.colors.inkMuted }]}>Balance</Text>
         </View>
       </> : <>
         <Text style={[styles.creditsOff, { color: theme.colors.ink }]}>Credits are off</Text>
+        <Text style={[styles.balanceLabel, { color: theme.colors.inkMuted }]}>Balance</Text>
       </>}
   </Panel>;
 }
@@ -326,6 +328,7 @@ const styles = StyleSheet.create({
   heroHeading: { color: '#FFFFFF', fontSize: 28, lineHeight: 34, fontWeight: '700', letterSpacing: -0.6 },
   heroAction: { position: 'absolute', right: 17, bottom: 17, width: 46, height: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 23, backgroundColor: '#FFFFFF', shadowColor: '#141B35', shadowOpacity: 0.12, shadowOffset: { width: 0, height: 3 }, shadowRadius: 8, elevation: 3 },
   balanceGoalsRow: { flexDirection: 'row', alignItems: 'stretch', gap: 12 },
+  balanceGoalsMobile: { flexDirection: 'column' },
   balanceColumn: { flex: 1, minWidth: 0 },
   goalsColumn: { flex: 2, minWidth: 0 },
   insightColumns: { flexDirection: 'row', alignItems: 'stretch', gap: 12 },
@@ -339,9 +342,9 @@ const styles = StyleSheet.create({
   inlineAction: { minHeight: 40, flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 5 },
   inlineActionText: { fontSize: 13, lineHeight: 18, fontWeight: '600' },
   balanceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 3 },
-  balanceAmount: { fontSize: 25, lineHeight: 32, fontWeight: '700', letterSpacing: -0.6, fontVariant: ['tabular-nums'] },
-  balanceUnit: { fontSize: 14, fontWeight: '600' },
-  balancePeriod: { fontSize: 13, lineHeight: 18, fontWeight: '500' },
+  balanceAmount: { fontSize: 45, lineHeight: 52, fontWeight: '800', letterSpacing: -1.2, fontVariant: ['tabular-nums'] },
+  balanceUnit: { fontSize: 18, fontWeight: '600' },
+  balanceLabel: { fontSize: 12, lineHeight: 16, fontWeight: '600', letterSpacing: 0.35 },
   deviceAvailability: { fontSize: 13, lineHeight: 18, fontWeight: '500' },
   screenTimeHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   creditsOff: { fontSize: 19, lineHeight: 26, fontWeight: '600' },
