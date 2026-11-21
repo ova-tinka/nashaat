@@ -203,8 +203,9 @@ function IosScheduledFocusScreen() {
   async function saveDraft() {
     if (!draft) return;
     const start = parseTime(draft.start); const end = parseTime(draft.end);
-    if (!draft.name.trim() || draft.name.trim().length > 80 || start === null || end === null || start === end || draft.days.length === 0) {
-      setError('Enter a name, different start and end times, and at least one day.'); return;
+    const duration = start === null || end === null ? 0 : (end - start + 1440) % 1440;
+    if (!draft.name.trim() || draft.name.trim().length > 80 || start === null || end === null || duration < 15 || draft.days.length === 0) {
+      setError('Enter a name, a duration of at least 15 minutes, and at least one day.'); return;
     }
     const selected = profileId ? BloomBlocking.getIosFocusRoutineSelection(profileId, draft.id) : null;
     if (!selected || selected.appCount + selected.websiteCount + selected.categoryCount === 0) { setError('Choose at least one app, website, or category.'); return; }
@@ -235,7 +236,7 @@ function IosScheduledFocusScreen() {
   return <Screen safeAreaTop={false}>
     <View style={sharedStyles.column}>
       <Eyebrow>Focus & Blocking</Eyebrow><Heading>Scheduled Focus</Heading>
-      <Body>Routines use this device’s local time. Overlapping routines combine their restrictions, including routines that run across midnight.</Body>
+      <Body>Routines use this device’s local time. Overlapping routines combine their restrictions, including routines that run across midnight. iOS supports up to 18 enabled routines, each at least 15 minutes long.</Body>
       <Button label="Back" variant="tertiary" onPress={() => router.back()} />
     </View>
     <Panel>
