@@ -17,7 +17,7 @@ export default function AppLayout() {
   const pathname = usePathname();
   const { width } = useWindowDimensions();
   const desktop = isMacDesktop() || (Platform.OS === 'web' && width >= 1024);
-  const immersive = pathname === '/session' || pathname.startsWith('/apps/read/reader/');
+  const immersive = pathname === '/session' || ['/apps/read/item', '/apps/read/add', '/apps/read/edit', '/apps/read/session', '/apps/read/session-complete'].includes(pathname) || pathname.startsWith('/apps/read/reader/');
   if (loading || (session && profileLoading)) return <Screen><ActivityIndicator color={theme.colors.action} /></Screen>;
   if (!session) return <Redirect href="/sign-in" />;
   if (profileError || !profileId) return <Screen><Panel><ErrorText>{profileError ?? 'Profile unavailable.'}</ErrorText><Button label="Try again" onPress={() => void refreshProfile()} /><Button label="Sign out" secondary onPress={() => { void supabase?.auth.signOut({ scope: 'local' }); }} /></Panel></Screen>;

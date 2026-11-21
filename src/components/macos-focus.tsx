@@ -10,9 +10,13 @@ import { useBloom } from '../lib/bloom-context';
 import { findUsageSession, finishUsageSession } from '../lib/bloom';
 import type { UsageAccess } from '../../modules/bloom-blocking/src/BloomBlocking.types';
 import { matchesMacUsageReservation, parseMacUsageRequest, recoverOrCreateMacUsageRequest } from '../lib/mac-credit-marker';
+import { FocusSectionNavigation, type FocusSettingsSection } from './focus-section-navigation';
 
-export function MacosFocus() {
-  const { session, profileId } = useAuth();
+export function MacosFocus({ section, onSelectSection }: {
+  section: FocusSettingsSection;
+  onSelectSection: (section: FocusSettingsSection) => void;
+}) {
+  const { session, profileId, childProfile } = useAuth();
   const userId = profileId;
   const { creditsEnabled, creditSettings, creditBalance, refresh, blockingRules, blockingRulesSyncError, blockingRulesSyncedAt, blockingRulesSyncStatus, loading, error: accountError } = useBloom();
   const { width } = useWindowDimensions();
@@ -401,11 +405,15 @@ export function MacosFocus() {
   const brokerNeedsApproval = websitePolicyBrokerStatus === 'needsApproval';
   const brokerUnavailable = websitePolicyBrokerStatus !== 'active';
 
+  const sectionTitle = section === 'focus' ? 'Make space to focus.' : section === 'apps' ? 'Choose apps' : section === 'websites' ? 'Choose websites' : 'Focus rules';
   return <Screen safeAreaTop={false}>
-    <View style={sharedStyles.column}><Eyebrow>Focus</Eyebrow><Heading>Make space to focus.</Heading><Body>Set up protection on this Mac and use the screen time you earn.</Body></View>
+    <View style={sharedStyles.column}><Eyebrow>Focus settings</Eyebrow><Heading>{sectionTitle}</Heading>
+      <Button label="Back to settings" variant="tertiary" onPress={() => router.replace('/settings')} />
+    </View>
+    <FocusSectionNavigation selected={section} onSelect={onSelectSection} />
     {message && <Body>{message}</Body>}{error && <ErrorText>{error}</ErrorText>}
     {blockingRulesSyncError && <ErrorText>{blockingRulesSyncError}</ErrorText>}
-    <View style={[focusStyles.columns, wide && focusStyles.columnsWide]}>
+    {section === 'focus' && <View style={[focusStyles.columns, wide && focusStyles.columnsWide]}>
       <View style={[focusStyles.primaryColumn, wide && focusStyles.flexColumn]}>
     {creditsEnabled && creditSettings && <Panel><Eyebrow>Earned screen time</Eyebrow>
       {creditRecoveryStatus === 'checking' && <Body>Checking the original server session. Protection stays blocked until the same owner and expiry are confirmed.</Body>}
@@ -452,15 +460,21 @@ export function MacosFocus() {
           <Button label="Refresh protection status" secondary onPress={() => void refreshProtection()} />
         </Panel>
       </View>
-    </View>
-    {(managedApps.length > 0 || managedSites.length > 0) && <Panel><Eyebrow>Parent-set rules</Eyebrow>
-      {managedApps.map((app) => <Body key={`app:${app}`}>App · {app}</Body>)}
-      {managedSites.map((site) => <Body key={`site:${site}`}>Website · {site}</Body>)}
-      <Body>These rules sync from the child account and cannot be removed on this Mac.</Body>
+    </View>}
+    {section === 'rules' && <Panel><Eyebrow>Focus rules</Eyebrow><Label>Rules applied on this Mac</Label>
+      {apps.filter((app) => !managedApps.includes(app)).map((app) => <Body key={`app:${app}`}>App · {app}</Body>)}
+      {sites.filter((site) => !managedSites.includes(site)).map((site) => <Body key={`site:${site}`}>Website · {site}</Body>)}
+      {managedApps.map((app) => <Body key={`managed-app:${app}`}>App · {app} · Parent rule</Body>)}
+      {managedSites.map((site) => <Body key={`managed-site:${site}`}>Website · {site} · Parent rule</Body>)}
+      {managedApps.length + managedSites.length > 0
+        ? <Body>Parent-set rules sync from the child account and cannot be removed on this Mac.</Body>
+        : <Body>Selected apps and websites are blocked only while their protection services are active.</Body>}
+      {apps.length + sites.length + managedApps.length + managedSites.length === 0 && <Body>No apps or websites are selected yet.</Body>}
       {blockingRulesSyncedAt && !blockingRulesSyncError && <Body>Last checked {new Date(blockingRulesSyncedAt).toLocaleTimeString()}.</Body>}
       {blockingRulesSyncError && <Body>Bloom could not confirm the latest parent rules. Check protection and try again.</Body>}
+      {!childProfile && <Button label="Manage family Focus rules" secondary onPress={() => router.push('/family')} />}
     </Panel>}
-    <View style={[focusStyles.columns, wide && focusStyles.columnsWide]}>
+    {section === 'websites' && <View style={[focusStyles.columns, wide && focusStyles.columnsWide]}>
       <View style={[focusStyles.protectionColumn, wide && focusStyles.flexColumn]}>
     <Panel><Eyebrow>Websites</Eyebrow><Label>{websiteCheck === 'checking' ? 'Checking website filter…' : websiteCheck === 'unavailable' || appCheck === 'unavailable' ? 'Website filter status unavailable' : enabled ? websiteUsageAvailable && websiteProviderHealthy ? 'Enabled · filter responding' : 'Enabled · provider or broker degraded' : activationStatus === 'active' ? websiteUsageAvailable ? 'Ready · website filter' : 'Setup · coverage incomplete' : 'Needs attention · website filter'}</Label>
       <Body>1. Set up the system extension and approve Bloom in Privacy & Security.  2. Add a domain.  3. Start protection and allow the content filter when macOS asks.</Body>
@@ -517,6 +531,8 @@ export function MacosFocus() {
       <Button label="Remove Bloom hosts entries" secondary onPress={() => void cleanupHosts()} busy={busy} />
     </Panel>
       </View>
+    </View>}
+    {section === 'apps' && <View style={[focusStyles.columns, wide && focusStyles.columnsWide]}>
       <View style={[focusStyles.protectionColumn, wide && focusStyles.flexColumn]}>
     <Panel><Eyebrow>Apps</Eyebrow><Label>{appCheck === 'checking' ? 'Checking app protection…' : appCheck === 'unavailable' ? 'App protection status unavailable' : appHideFailed ? 'Needs attention · App protection' : appEnabled ? 'Active · App protection' : appService === 'active' && accessibilityTrusted ? 'Ready · App protection' : 'Needs attention · App protection'}</Label>
       {appHideFailed && <Body>A selected app is still running. Bloom may be warning it or trying to close it; protection remains degraded until it has quit.</Body>}
@@ -556,7 +572,7 @@ export function MacosFocus() {
       {appConfigured && managedApps.length === 0 && <Button label="Stop app blocking" secondary onPress={() => void run('stopApps')} busy={busy} />}
     </Panel>
       </View>
-    </View>
+    </View>}
   </Screen>;
 }
 

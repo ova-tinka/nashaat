@@ -8,7 +8,7 @@ export default function TabLayout() {
   const pathname = usePathname();
   const { width } = useWindowDimensions();
   const desktop = isMacDesktop() || (Platform.OS === 'web' && width >= 1024);
-  const immersive = pathname === '/session' || pathname.startsWith('/apps/read/reader/')
+  const immersive = pathname === '/session' || ['/apps/read/item', '/apps/read/add', '/apps/read/edit', '/apps/read/session', '/apps/read/session-complete'].includes(pathname) || pathname.startsWith('/apps/read/reader/')
     || ['/apps/study/active-session', '/apps/study/session-complete', '/apps/study/learning-check'].includes(pathname);
 
   return <BloomFloatingDockContext.Provider value={!desktop && !immersive}><Tabs tabBar={desktop || immersive ? () => null : () => <BloomBottomNavigation />} screenOptions={{
@@ -20,22 +20,23 @@ export default function TabLayout() {
     <Tabs.Screen name="study" options={{ title: 'Study' }} />
     <Tabs.Screen name="read" options={{ title: 'Read' }} />
     <Tabs.Screen name="tasks" options={{ title: 'Tasks' }} />
-    <Tabs.Screen name="progress" options={{ href: null }} />
-    <Tabs.Screen name="activity" options={{ href: null }} />
-    <Tabs.Screen name="devices" options={{ href: null }} />
-    <Tabs.Screen name="settings" options={{ href: null }} />
-    <Tabs.Screen name="device-detail" options={{ href: null }} />
-    <Tabs.Screen name="credit-history" options={{ href: null }} />
-    <Tabs.Screen name="workouts" options={{ href: null }} />
-    <Tabs.Screen name="library" options={{ href: null }} />
-    <Tabs.Screen name="family" options={{ href: null }} />
-    <Tabs.Screen name="family-child" options={{ href: null }} />
-    <Tabs.Screen name="profile-switch" options={{ href: null }} />
-    <Tabs.Screen name="apps/index" options={{ href: null }} />
-    <Tabs.Screen name="apps/[module]" options={{ href: null }} />
+    <Tabs.Screen name="progress" options={{ tabBarItemStyle: { display: 'none' } }} />
+    <Tabs.Screen name="activity" options={{ tabBarItemStyle: { display: 'none' } }} />
+    <Tabs.Screen name="devices" options={{ tabBarItemStyle: { display: 'none' } }} />
+    <Tabs.Screen name="settings" options={{ tabBarItemStyle: { display: 'none' } }} />
+    <Tabs.Screen name="profile" options={{ tabBarItemStyle: { display: 'none' } }} />
+    <Tabs.Screen name="device-detail" options={{ tabBarItemStyle: { display: 'none' } }} />
+    <Tabs.Screen name="credit-history" options={{ tabBarItemStyle: { display: 'none' } }} />
+    <Tabs.Screen name="workouts" options={{ tabBarItemStyle: { display: 'none' } }} />
+    <Tabs.Screen name="library" options={{ tabBarItemStyle: { display: 'none' } }} />
+    <Tabs.Screen name="family" options={{ tabBarItemStyle: { display: 'none' } }} />
+    <Tabs.Screen name="family-child" options={{ tabBarItemStyle: { display: 'none' } }} />
+    <Tabs.Screen name="profile-switch" options={{ tabBarItemStyle: { display: 'none' } }} />
+    <Tabs.Screen name="apps/index" options={{ tabBarItemStyle: { display: 'none' } }} />
+    <Tabs.Screen name="apps/[module]" options={{ tabBarItemStyle: { display: 'none' } }} />
     <Tabs.Screen name="apps/study/[section]" options={{ tabBarItemStyle: { display: 'none' } }} />
     <Tabs.Screen name="apps/read/[section]" options={{ tabBarItemStyle: { display: 'none' } }} />
     <Tabs.Screen name="apps/tasks/[section]" options={{ tabBarItemStyle: { display: 'none' } }} />
-    <Tabs.Screen name="apps/read/reader/[id]" options={{ href: null }} />
+    <Tabs.Screen name="apps/read/reader/[id]" options={{ tabBarItemStyle: { display: 'none' } }} />
   </Tabs></BloomFloatingDockContext.Provider>;
 }

@@ -13,7 +13,7 @@ export const palette = {
   study: '#247BFF',
   studyDeep: '#1E5EBE',
   read: '#9155F7',
-  readDeep: '#7139CE',
+  readDeep: '#6D35C7',
   tasks: '#E743C8',
   tasksDeep: '#AD278F',
   info: '#247BFF',
@@ -215,7 +215,7 @@ export const lightTheme: BloomTheme = {
   modules: {
     exercise: { accent: palette.exercise, deep: palette.exerciseDeep, text: '#086239', surface: '#EAF9F0' },
     study: { accent: palette.study, deep: palette.studyDeep, text: palette.studyDeep, surface: '#EDF4FF' },
-    read: { accent: palette.read, deep: palette.readDeep, text: palette.readDeep, surface: '#F3EDFF' },
+    read: { accent: palette.read, deep: palette.readDeep, text: palette.readDeep, surface: '#F2ECFF' },
     tasks: { accent: palette.tasks, deep: palette.tasksDeep, text: palette.tasksDeep, surface: '#FDEEF8' },
   },
   components: componentTokens(lightColors),

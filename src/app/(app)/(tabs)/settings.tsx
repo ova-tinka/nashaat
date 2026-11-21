@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { router, type Href } from 'expo-router';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { ActivityIndicator, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { Body, Button, ErrorText, Eyebrow, Heading, Label, Panel, Screen, sharedStyles } from '../../../components/bloom-ui';
 import { CreditRulesEditor } from '../../../components/credit-rules-editor';
@@ -112,9 +113,12 @@ export default function SettingsScreen() {
 
       <Panel>
         <Eyebrow>Focus & blocking</Eyebrow>
-        <Label>Protection for this device</Label>
-        <Body>Permission and enforcement status are specific to the device you are using.</Body>
-        <Button label="Open Focus settings" variant="secondary" onPress={() => router.push('/focus' as Href)} />
+        <Label>Choose what Focus blocks</Label>
+        <View style={styles.focusLinks}>
+          <FocusSettingLink title="Apps" icon="apps" section="apps" />
+          <FocusSettingLink title="Websites" icon="language" section="websites" />
+          <FocusSettingLink title="Rules" icon="rule" section="rules" />
+        </View>
       </Panel>
 
       <Panel>
@@ -135,6 +139,11 @@ export default function SettingsScreen() {
         <Body>Family is optional. Your personal space stays available alongside guardian tools.</Body>
         <Button label="Manage Family Space" variant="secondary" onPress={() => router.push('/family' as Href)} />
         <Button label="Profile switching and PIN" variant="tertiary" onPress={() => router.push('/profile-switch' as Href)} />
+      </Panel>}
+
+      {childProfile && managedChild && <Panel>
+        <Eyebrow>Profile</Eyebrow>
+        <Button label="Switch to parent" variant="secondary" onPress={() => router.push('/profile-switch' as Href)} />
       </Panel>}
 
       <Panel>
@@ -167,11 +176,27 @@ export default function SettingsScreen() {
   </Screen>;
 }
 
+function FocusSettingLink({ title, icon, section }: { title: string; icon: 'apps' | 'language' | 'rule'; section: 'apps' | 'websites' | 'rules' }) {
+  const { theme } = useBloomTheme();
+  return <Pressable
+    accessibilityRole="button"
+    accessibilityLabel={`${title} Focus settings`}
+    onPress={() => router.push({ pathname: '/focus', params: { section } } as Href)}
+    style={({ pressed }) => [styles.focusLink, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }, pressed && styles.pressed]}>
+    <MaterialIcons name={icon} size={20} color={theme.colors.action} />
+    <Text style={[styles.focusLinkLabel, { color: theme.colors.ink }]}>{title}</Text>
+    <MaterialIcons name="chevron-right" size={20} color={theme.colors.inkMuted} />
+  </Pressable>;
+}
+
 const styles = StyleSheet.create({
   appearanceChoices: { flexDirection: 'row', gap: 8 },
   appearanceChoice: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderRadius: 12, paddingHorizontal: 6 },
   appearanceText: { fontSize: 13, fontWeight: '700', textAlign: 'center' },
   pillarChoice: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 12, borderTopWidth: StyleSheet.hairlineWidth, paddingVertical: 12 },
   pillarDescription: { fontSize: 13, lineHeight: 19, marginTop: 3 },
+  focusLinks: { gap: 8, marginTop: 2 },
+  focusLink: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 14, paddingHorizontal: 12 },
+  focusLinkLabel: { flex: 1, fontSize: 15, fontWeight: '700' },
   pressed: { opacity: 0.76 },
 });

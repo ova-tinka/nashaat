@@ -6,6 +6,7 @@ export type GrowthItemType = 'subject' | 'course' | 'lesson' | 'assignment' | 'r
 export type GrowthItemState = 'active' | 'completed' | 'archived';
 export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
 export type ReadingStatus = 'want_to_read' | 'currently_reading' | 'finished';
+export type ReadingKind = 'book' | 'article';
 
 export type GrowthItem = {
   id: string;
@@ -22,6 +23,7 @@ export type GrowthItem = {
   priority: TaskPriority;
   postponed_until: string | null;
   reading_status: ReadingStatus | null;
+  reading_kind: ReadingKind | null;
   author: string;
   genre: string;
   page_count: number | null;
@@ -104,7 +106,7 @@ export async function loadGrowthModule(profileId: string, moduleId: GrowthModule
   const db = client();
   const [items, sessions, records, studyPlan, studyPlanChanges, taskFocusSessions, recordAttachments] = await Promise.all([
     db.from('bloom_growth_items')
-      .select('id,parent_id,module_id,item_type,title,notes,state,due_date,target_minutes,progress_percent,priority,postponed_until,reading_status,author,genre,page_count,current_page,completed_at,created_at,updated_at')
+      .select('id,parent_id,module_id,item_type,title,notes,state,due_date,target_minutes,progress_percent,priority,postponed_until,reading_status,reading_kind,author,genre,page_count,current_page,completed_at,created_at,updated_at')
       .eq('profile_id', profileId).eq('module_id', moduleId).order('updated_at', { ascending: false }),
     moduleId === 'tasks'
       ? Promise.resolve({ data: [], error: null })
@@ -138,6 +140,16 @@ export async function loadGrowthModule(profileId: string, moduleId: GrowthModule
       duration_seconds: session.duration_seconds == null ? null : Number(session.duration_seconds) })) as TaskFocusSession[],
     recordAttachments: (recordAttachments.data ?? []) as GrowthRecordAttachment[],
   };
+}
+
+export async function loadReadSessionsSince(profileId: string, startedAfter: string): Promise<GrowthSession[]> {
+  const { data, error } = await client().from('bloom_growth_sessions')
+    .select('id,module_id,item_id,source_device_id,source_device_name,request_id,status,started_at,completed_at,duration_seconds')
+    .eq('profile_id', profileId).eq('module_id', 'read').gte('started_at', startedAfter)
+    .order('started_at', { ascending: false }).limit(1000);
+  if (error) throw error;
+  return (data ?? []).map((session) => ({ ...session,
+    duration_seconds: session.duration_seconds == null ? null : Number(session.duration_seconds) })) as GrowthSession[];
 }
 
 export async function loadGrowthDocuments(moduleId: 'study' | 'read'): Promise<GrowthDocument[]> {
@@ -491,15 +503,16 @@ export async function updateGrowthTaskMetadata(itemId: string, priority: TaskPri
 }
 
 export async function updateGrowthReadingDetails(itemId: string, details: {
-  author: string; genre: string; pageCount: number | null; currentPage: number | null; status: ReadingStatus;
+  author: string; genre: string; pageCount: number | null; currentPage: number | null; status: ReadingStatus; readingKind?: ReadingKind;
 }) {
-  const { error } = await client().rpc('bloom_update_reading_details', {
+  const { error } = await client().rpc('bloom_update_reading_details_v2', {
     p_item_id: itemId,
     p_author: details.author,
     p_genre: details.genre,
     p_page_count: details.pageCount,
     p_current_page: details.currentPage,
     p_reading_status: details.status,
+    p_reading_kind: details.readingKind ?? null,
   });
   if (error) throw error;
 }
