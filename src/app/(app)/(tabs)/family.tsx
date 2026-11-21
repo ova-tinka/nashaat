@@ -161,7 +161,7 @@ export default function FamilyScreen() {
         <View style={styles.familyHeading}>
           <View style={sharedStyles.grow}><Eyebrow>Family Space</Eyebrow><Heading>{family.name}</Heading></View>
           <View style={[styles.roleBadge, { backgroundColor: myRole === 'parent' ? theme.colors.surfaceTinted : theme.colors.surfaceSoft }]}>
-            <Text style={[styles.roleText, { color: myRole === 'parent' ? theme.colors.action : theme.colors.inkMuted }]}>{myRole === 'parent' ? 'Guardian' : 'Child account'}</Text>
+            <Text style={[styles.roleText, { color: myRole === 'parent' ? theme.colors.action : theme.colors.inkMuted }]}>{myRole === 'parent' ? 'Guardian' : myRole === 'child' ? 'Child account' : 'Member'}</Text>
           </View>
         </View>
         <Body>Family accounts and child profiles stay separate. Guardians manage only the access and activity shown here.</Body>
