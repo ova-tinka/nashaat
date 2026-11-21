@@ -232,6 +232,16 @@ function IosScheduledFocusScreen() {
     finally { setBusy(false); }
   }
 
+  async function cancelDraft() {
+    if (!draft) return;
+    const existing = routines.some((routine) => routine.id === draft.id);
+    setDraft(null); setSelection(null); setError(null);
+    if (!existing && profileId) {
+      try { await BloomBlocking.deleteIosFocusRoutine(profileId, draft.id); }
+      catch { setError('Could not remove the temporary app selection from this device.'); }
+    }
+  }
+
   const enforced = status?.authorized && !status.scheduleError;
   return <Screen safeAreaTop={false}>
     <View style={sharedStyles.column}>
@@ -271,7 +281,7 @@ function IosScheduledFocusScreen() {
       <Label>Days</Label><View style={styles.days}>{dayNames.map((day, index) => <Pressable key={day} accessibilityRole="checkbox" accessibilityLabel={day} accessibilityState={{ checked: draft.days.includes(index) }} onPress={() => setDraft({ ...draft, days: draft.days.includes(index) ? draft.days.filter((item) => item !== index) : [...draft.days, index].sort() })} style={[styles.day, { borderColor: theme.colors.border, backgroundColor: draft.days.includes(index) ? theme.colors.surfaceTinted : theme.colors.surface }]}><Text style={{ color: theme.colors.ink }}>{day}</Text></Pressable>)}</View>
       <Button label={`Choose apps and websites${selection ? ` · ${selection.appCount + selection.websiteCount + selection.categoryCount} selected` : ''}`} variant="secondary" onPress={() => void chooseApps(draft.id)} busy={busy} disabled={busy} />
       <Button label="Save routine" onPress={() => void saveDraft()} busy={busy} disabled={busy || !status?.authorized} />
-      <Button label="Cancel" variant="secondary" onPress={() => { setDraft(null); setError(null); }} disabled={busy} />
+      <Button label="Cancel" variant="secondary" onPress={() => void cancelDraft()} disabled={busy} />
     </Panel>}
   </Screen>;
 }

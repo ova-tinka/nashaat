@@ -2,6 +2,8 @@ package expo.modules.bloomblocking
 
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.provider.Settings
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
@@ -9,6 +11,8 @@ import android.provider.Settings.Secure
 import android.text.TextUtils
 import android.content.Context
 import android.os.SystemClock
+import android.util.Base64
+import java.io.ByteArrayOutputStream
 
 class BloomBlockingModule : Module() {
   override fun definition() = ModuleDefinition {
@@ -109,6 +113,7 @@ class BloomBlockingModule : Module() {
           mapOf(
             "id" to it.activityInfo.packageName,
             "name" to it.loadLabel(context.packageManager).toString(),
+            "icon" to runCatching { appIconUri(it.loadIcon(context.packageManager)) }.getOrDefault(""),
           )
         }
         .sortedBy { it["name"]?.lowercase() }
@@ -417,6 +422,18 @@ class BloomBlockingModule : Module() {
       .map { it.activityInfo.packageName }
       .filter { it != context.packageName }
       .toSet()
+  }
+
+  private fun appIconUri(drawable: android.graphics.drawable.Drawable): String {
+    val size = 48
+    val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bitmap)
+    drawable.setBounds(0, 0, size, size)
+    drawable.draw(canvas)
+    val output = ByteArrayOutputStream()
+    bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
+    bitmap.recycle()
+    return "data:image/png;base64," + Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
   }
 
   companion object {

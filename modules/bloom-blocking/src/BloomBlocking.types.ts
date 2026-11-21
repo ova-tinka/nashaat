@@ -19,7 +19,7 @@ export type IosFocusRoutineSelection = { appCount: number; websiteCount: number;
 
 export type AppAccessDecision = { blocked: boolean; reasons: string[]; enforceable: boolean };
 
-export type AppCandidate = { id: string; name: string };
+export type AppCandidate = { id: string; name: string; icon?: string };
 
 export type ManagedTargets = { apps: string[]; websites: string[]; accountId?: string | null };
 export type SafariContentBlockerState = { bundled: boolean; stateAvailable: boolean; enabled: boolean };

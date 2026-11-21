@@ -144,6 +144,7 @@ export default function SettingsScreen() {
           </View>
           <Body>Unlock selected apps using screen-time credits. {blockingStatus ? `${blockingStatus.appCount + blockingStatus.websiteCount + blockingStatus.categoryCount} apps, sites, or categories selected.` : 'Device selection status is unavailable.'}</Body>
           <Body>{Math.round(creditBalance * 100) / 100} minutes in your shared balance. Credit earning rules are directly below.</Body>
+          <Body>Credit access currently follows a timed reservation; Easy reservations continue during idle time or while another Focus rule blocks the app.</Body>
           <Button label={blockingStatus?.active ? 'Pause Earned Access' : 'Enable Earned Access'} onPress={() => void toggleEarnedAccess()} busy={blockingBusy} disabled={blockingBusy || !blockingStatus || (!blockingStatus.active && blockingStatus.appCount + blockingStatus.websiteCount + blockingStatus.categoryCount === 0)} />
           <FocusSettingLink title="Choose apps and websites" icon="apps" section="apps" />
           <FocusSettingLink title="Device permissions and rules" icon="rule" section="rules" />
@@ -155,6 +156,7 @@ export default function SettingsScreen() {
             <View style={sharedStyles.grow}><Label>Manual Focus</Label><Body>{manualActive === null ? 'Status unavailable' : manualActive ? 'Active' : 'Inactive'}</Body></View>
           </View>
           {(Platform.OS === 'android' || Platform.OS === 'ios') && !isMacDesktop() ? <>
+            <Body>Block selected apps whenever you choose. Available credits never override an active session.</Body>
             <Body>{manualTargets === null ? 'Sync this device to review your selection.' : `${manualTargets} apps and websites selected.`}</Body>
             {manualActive && <Body>{manualRemaining === null ? 'Runs until stopped.' : `${Math.ceil(manualRemaining / 60000)} minutes remaining.`}</Body>}
             <Button label={manualActive ? 'End Focus' : 'Start Focus'} onPress={() => void toggleManualFocus()} busy={manualBusy} disabled={manualBusy || manualActive === null || !blockingStatus || (!manualActive && (!blockingStatus.authorized || (Platform.OS === 'android' && blockingStatus.serviceConnected !== true) || !manualTargets))} />
@@ -247,7 +249,8 @@ function blockingStatusLabel(status: BlockingStatus | null): string {
   if (Platform.OS !== 'ios' && Platform.OS !== 'android') return 'Blocking unavailable on this platform';
   if (!status || !status.supported) return 'Enforcement unavailable';
   if (!status.authorized) return 'Blocking permission needed';
-  if (status.scheduleError || status.manualFocusError) return 'Could not read Focus restrictions';
+  if (status.scheduleError) return 'Scheduled Focus enforcement needs attention';
+  if (status.manualFocusError) return 'Manual Focus status unavailable';
   const scheduled = (status.scheduledActiveCount ?? 0) > 0;
   const manual = status.manualFocusActive === true;
   if (Platform.OS === 'android' && (status.active || scheduled || manual) && status.serviceConnected !== true) return 'Blocking service needs attention';

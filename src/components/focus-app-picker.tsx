@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { AppCandidate } from '../../modules/bloom-blocking/src/BloomBlocking.types';
 import { useBloomTheme } from '../lib/theme-context';
 import { Body, Field, Label } from './bloom-ui';
@@ -19,9 +19,12 @@ export function FocusAppPicker({ apps, selected, onChange, requiredIds = [] }: {
       return <Pressable key={app.id} accessibilityRole="checkbox" accessibilityLabel={`${app.name}${required ? ', parent rule' : ''}`} accessibilityState={{ checked, disabled: required }} disabled={required}
         onPress={() => onChange(checked ? selected.filter((id) => id !== app.id) : [...selected, app.id])}
         style={[styles.app, { borderColor: theme.colors.border }]}>
-        <Text style={{ color: theme.colors.ink }}>{checked ? '☑' : '☐'}  {app.name}{required ? ' · Parent rule' : ''}</Text>
+        <View style={[styles.icon, { backgroundColor: theme.colors.surfaceTinted }]}>
+          {app.icon ? <Image source={{ uri: app.icon }} style={styles.iconImage} /> : <Text style={{ color: theme.colors.action }}>{app.name.slice(0, 1).toUpperCase()}</Text>}
+        </View>
+        <Text style={[styles.name, { color: theme.colors.ink }]}>{checked ? '☑' : '☐'}  {app.name}{required ? ' · Parent rule' : ''}</Text>
       </Pressable>;
     })}
   </>;
 }
-const styles = StyleSheet.create({ app: { minHeight: 48, justifyContent: 'center', borderBottomWidth: StyleSheet.hairlineWidth } });
+const styles = StyleSheet.create({ app: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 10, borderBottomWidth: StyleSheet.hairlineWidth }, icon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, iconImage: { width: 36, height: 36 }, name: { flex: 1, flexShrink: 1 } });
