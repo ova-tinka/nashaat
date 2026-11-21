@@ -1,30 +1,45 @@
 import { randomUUID } from 'expo-crypto';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
-import { StyleSheet, Switch, View } from 'react-native';
+import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { Body, Button, ErrorText, Eyebrow, Field, Label, Panel, ProgressBar, sharedStyles } from './bloom-ui';
 import {
   changeStudyOccurrence, createGrowthChild, createGrowthItem, deleteGrowthRecord, finishTaskFocus, formatElapsed,
   saveGrowthRecord, saveStudyPlan, saveStudyVerification, startTaskFocus, submitStudyReview, updateGrowthItem, updateGrowthReadingDetails, updateGrowthRecord, updateStudyVerification,
   type GrowthDocument, type GrowthItem, type GrowthModuleId, type GrowthRecord, type GrowthRecordAttachment, type StudyPlanChange, type StudyPlanSlot,
-  type TaskFocusSession,
+  type TaskFocusSession, type GrowthSession,
 } from '../lib/growth-modules';
 import { approveTaskBreakdown, clearStudyTutorConversation, loadGrowthAiPreferences, loadStudyTutorMessages, requestReadingReflection, requestStudyTutor, requestTaskBreakdown, saveGrowthAiPreferences, type GrowthAiPreferences, type StudyTutorMessage, type TaskBreakdownDraft } from '../lib/growth-ai';
 import { useAuth } from '../lib/auth';
 import { suggestStudyPracticeDifficulty, type StudyPracticeDifficulty } from '../lib/study-practice';
 import { useBloomTheme } from '../lib/theme-context';
+import { dateKeyInTimeZone } from '../lib/date-utils';
 
 const studyDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-export function StudyPlanPanel({ items, slots, changes, readOnly, onSaved }: {
-  items: GrowthItem[]; slots: StudyPlanSlot[]; changes: StudyPlanChange[]; readOnly: boolean; onSaved: () => void;
+export function StudyPlanPanel({ items, slots, changes, sessions, timeZone, today, todayDayOfWeek, readOnly, onSaved }: {
+  items: GrowthItem[]; slots: StudyPlanSlot[]; changes: StudyPlanChange[]; sessions: GrowthSession[]; timeZone: string;
+  today: string; todayDayOfWeek: number; readOnly: boolean; onSaved: () => void;
 }) {
+  const { theme } = useBloomTheme();
   const [values, setValues] = useState<Record<string, string[]>>(() => initialPlanValues(items, slots));
+  const [selectedDay, setSelectedDay] = useState(todayDayOfWeek);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const active = items.filter((item) => item.state === 'active' && ['subject', 'course'].includes(item.item_type));
-  const upcoming = useMemo(() => getUpcomingStudySessions(items, slots, changes), [items, slots, changes]);
+  const weekStart = startOfWeekKey(today);
+  const completedMinutes = Math.floor(sessions.filter((session) => session.status === 'completed' && session.completed_at
+    && dateKeyInTimeZone(Date.parse(session.completed_at), timeZone) >= weekStart
+    && dateKeyInTimeZone(Date.parse(session.completed_at), timeZone) <= today)
+    .reduce((sum, session) => sum + (session.duration_seconds ?? 0), 0) / 60);
+  const plannedMinutes = active.reduce((sum, item) => sum + (values[item.id] ?? Array(7).fill('0'))
+    .reduce((itemSum, minutes) => itemSum + (Number.isInteger(Number(minutes)) ? Number(minutes) : 0), 0), 0);
+  const dayTotals = studyDays.map((_, day) => active.reduce((sum, item) => {
+    const minutes = Number(values[item.id]?.[day] ?? 0);
+    return sum + (Number.isInteger(minutes) && minutes > 0 ? minutes : 0);
+  }, 0));
+  const upcoming = useMemo(() => getUpcomingStudySessions(items, slots, changes, today), [items, slots, changes, today]);
 
   async function save() {
     setBusy(true); setError(null); setNotice(null);
@@ -37,7 +52,7 @@ export function StudyPlanPanel({ items, slots, changes, readOnly, onSaved }: {
         return parsed.flatMap((minutes, dayOfWeek) => minutes > 0 ? [{ itemId: item.id, dayOfWeek, targetMinutes: minutes }] : []);
       });
       await saveStudyPlan(entries);
-      setNotice('Weekly plan saved. Moving or skipping a session does not count as failure.');
+      setNotice('Weekly plan saved.');
       onSaved();
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not save the weekly plan.'); }
     finally { setBusy(false); }
@@ -54,43 +69,62 @@ export function StudyPlanPanel({ items, slots, changes, readOnly, onSaved }: {
     finally { setBusy(false); }
   }
 
-  return <Panel>
-    <Eyebrow>Flexible weekly study plan</Eyebrow>
-    <Body>Set a focused-study target for each day. Leave a day at zero for rest or flexible rollover. You can schedule a course instead of its parent subject.</Body>
-    {active.length === 0 ? <Body>Add a subject to build your weekly plan.</Body> : active.map((item) => {
-      const dailyValues = values[item.id] ?? Array(7).fill('0');
-      const plannedMinutes = dailyValues.reduce((sum, value) => sum + (Number.isInteger(Number(value)) ? Number(value) : 0), 0);
-      return <View key={item.id} style={styles.planItem}>
-        <Label>{item.title}</Label>
-        <Body>{item.item_type === 'subject' ? `Weekly target ${item.target_minutes} min` : 'Course allocation'} · {plannedMinutes} min scheduled</Body>
-        <View style={styles.planDayGrid}>
-          {studyDays.map((day, dayOfWeek) => <View key={day} style={styles.planDayCell}>
-            <Field label={day} value={dailyValues[dayOfWeek] ?? '0'}
+  return <>
+    <Panel>
+      <Eyebrow>Weekly plan</Eyebrow>
+      <Text style={[styles.planBigMetric, { color: theme.colors.ink }]}>{formatMinutes(plannedMinutes)}</Text>
+      <View style={styles.planSummaryRow}>
+        <View style={sharedStyles.grow}><Body>Planned</Body><Label>{formatMinutes(plannedMinutes)}</Label></View>
+        <View style={sharedStyles.grow}><Body>Completed</Body><Label>{formatMinutes(completedMinutes)}</Label></View>
+        <View style={sharedStyles.grow}><Body>Remaining</Body><Label>{formatMinutes(Math.max(0, plannedMinutes - completedMinutes))}</Label></View>
+      </View>
+      <View style={[styles.planDaySelector, { borderColor: theme.colors.border }]}>
+        {studyDays.map((day, dayOfWeek) => {
+          const selected = selectedDay === dayOfWeek;
+          const isToday = todayDayOfWeek === dayOfWeek;
+          return <Pressable key={day} accessibilityRole="button" accessibilityState={{ selected }} accessibilityLabel={`${day}${isToday ? ', today' : ''}, ${dayTotals[dayOfWeek]} planned minutes`}
+            onPress={() => setSelectedDay(dayOfWeek)} style={({ pressed }) => [styles.planDayOption,
+              selected && { backgroundColor: theme.modules.study.surface, borderColor: theme.modules.study.deep }, pressed && { opacity: 0.78 }]}>
+            <Text style={[styles.planDayName, { color: selected ? theme.modules.study.deep : theme.colors.inkMuted }]}>{day}{isToday ? ' ·' : ''}</Text>
+            <Text style={[styles.planDayMinutes, { color: theme.colors.ink }]}>{dayTotals[dayOfWeek] ? `${dayTotals[dayOfWeek]}m` : '—'}</Text>
+          </Pressable>;
+        })}
+      </View>
+      {active.length === 0 ? <Body>Add a subject to start planning.</Body> : <>
+        <Label>{studyDays[selectedDay]} allocation</Label>
+        {active.map((item) => {
+          const dailyValues = values[item.id] ?? Array(7).fill('0');
+          const total = dailyValues.reduce((sum, value) => sum + (Number.isInteger(Number(value)) ? Number(value) : 0), 0);
+          return <View key={item.id} style={styles.planInputRow}>
+            <View style={sharedStyles.grow}><Label>{item.title}</Label><Body>{item.item_type === 'subject' ? `${item.target_minutes ?? 0} min target` : `${formatMinutes(total)} this week`}</Body></View>
+            <View style={styles.planInput}><Field label="Minutes" value={dailyValues[selectedDay] ?? '0'}
               onChangeText={(value) => setValues((current) => {
-                const next = [...(current[item.id] ?? Array(7).fill('0'))]; next[dayOfWeek] = value;
+                const next = [...(current[item.id] ?? Array(7).fill('0'))]; next[selectedDay] = value;
                 return { ...current, [item.id]: next };
               })}
-              placeholder="0" keyboardType="number-pad" maxLength={4} editable={!readOnly && !busy} />
-          </View>)}
-        </View>
-      </View>;
-    })}
-    {active.length > 0 && <Button label="Save weekly plan" onPress={() => void save()} busy={busy} disabled={readOnly} />}
-    {error && <ErrorText>{error}</ErrorText>}{notice && <Body>{notice}</Body>}
-    <Label>Next sessions</Label>
-    {upcoming.length === 0 ? <Body>No scheduled sessions yet.</Body> : upcoming.slice(0, 5).map((session) => <View key={`${session.itemId}:${session.date}`} style={styles.row}>
-      <View style={sharedStyles.grow}><Label>{session.title} · {session.minutes} min</Label><Body>{formatLocalDate(session.date)}{session.moved ? ' · moved' : ''}</Body></View>
-      <Button label="Skip" variant="tertiary" disabled={busy || readOnly} onPress={() => void reschedule(session.itemId, session.originalDate, 'skip')} />
-      <Button label="Move +1 day" variant="tertiary" disabled={busy || readOnly} onPress={() => void reschedule(session.itemId, session.originalDate, 'move')} />
-    </View>)}
-  </Panel>;
+              placeholder="0" keyboardType="number-pad" maxLength={4} editable={!readOnly && !busy} /></View>
+          </View>;
+        })}
+        <Button label="Save weekly plan" onPress={() => void save()} busy={busy} disabled={readOnly} />
+      </>}
+      {error && <ErrorText>{error}</ErrorText>}{notice && <Body>{notice}</Body>}
+    </Panel>
+    <Panel>
+      <Eyebrow>Upcoming</Eyebrow>
+      {upcoming.length === 0 ? <Body>No planned sessions yet.</Body> : upcoming.slice(0, 5).map((session) => <View key={`${session.itemId}:${session.date}`} style={styles.row}>
+        <View style={sharedStyles.grow}><Label>{session.title} · {formatMinutes(session.minutes)}</Label><Body>{formatPlanDate(session.date)}{session.moved ? ' · moved' : ''}</Body></View>
+        <Button label="Skip" variant="tertiary" disabled={busy || readOnly} onPress={() => void reschedule(session.itemId, session.originalDate, 'skip')} />
+        <Button label="Move +1 day" variant="tertiary" disabled={busy || readOnly} onPress={() => void reschedule(session.itemId, session.originalDate, 'move')} />
+      </View>)}
+    </Panel>
+  </>;
 }
 
-export function StudyPracticeReviewPanel({ items, records, readOnly, onSaved }: {
-  items: GrowthItem[]; records: GrowthRecord[]; readOnly: boolean; onSaved: () => void;
+export function StudyPracticeReviewPanel({ items, records, initialItemId, readOnly, onSaved }: {
+  items: GrowthItem[]; records: GrowthRecord[]; initialItemId?: string; readOnly: boolean; onSaved: () => void;
 }) {
   const studyItems = items.filter((item) => item.module_id === 'study' && item.state !== 'archived');
-  const [itemId, setItemId] = useState(studyItems[0]?.id ?? null);
+  const [itemId, setItemId] = useState(initialItemId ?? studyItems[0]?.id ?? null);
   const [question, setQuestion] = useState('');
   const [answerKey, setAnswerKey] = useState('');
   const [explanation, setExplanation] = useState('');
@@ -233,11 +267,11 @@ export function StudyPracticeReviewPanel({ items, records, readOnly, onSaved }: 
   </Panel>;
 }
 
-export function StudyTutorPanel({ profileId, items, readOnly }: { profileId: string; items: GrowthItem[]; readOnly: boolean }) {
+export function StudyTutorPanel({ profileId, items, initialItemId, readOnly }: { profileId: string; items: GrowthItem[]; initialItemId?: string; readOnly: boolean }) {
   const { childProfile } = useAuth();
   const [preferences, setPreferences] = useState<GrowthAiPreferences | null>(null);
   const [messages, setMessages] = useState<StudyTutorMessage[]>([]);
-  const [itemId, setItemId] = useState(items.find((item) => item.module_id === 'study' && item.state !== 'archived')?.id ?? '');
+  const [itemId, setItemId] = useState(initialItemId ?? items.find((item) => item.module_id === 'study' && item.state !== 'archived')?.id ?? '');
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -335,8 +369,8 @@ export function StudyTutorPanel({ profileId, items, readOnly }: { profileId: str
   </Panel>;
 }
 
-export function GrowthHierarchyPanel({ moduleId, items, readOnly, onSaved }: {
-  moduleId: 'study' | 'tasks'; items: GrowthItem[]; readOnly: boolean; onSaved: () => void;
+export function GrowthHierarchyPanel({ moduleId, items, readOnly, onOpenTool, onSaved }: {
+  moduleId: 'study' | 'tasks'; items: GrowthItem[]; readOnly: boolean; onOpenTool?: (tool: string, itemId: string) => void; onSaved: () => void;
 }) {
   const { theme } = useBloomTheme();
   const [parentId, setParentId] = useState<string | null>(null);
@@ -351,6 +385,7 @@ export function GrowthHierarchyPanel({ moduleId, items, readOnly, onSaved }: {
 
   async function add() {
     if (!parent || !childType || !title.trim()) { setError('Choose a parent and add a title.'); return; }
+    if (dueDate.trim() && !isValidDateOnly(dueDate.trim())) { setError('Enter a due date as YYYY-MM-DD.'); return; }
     setBusy(true); setError(null);
     try {
       await createGrowthChild({ parentId: parent.id, itemType: childType, title: title.trim(), notes: notes.trim(),
@@ -377,6 +412,11 @@ export function GrowthHierarchyPanel({ moduleId, items, readOnly, onSaved }: {
         </View>
         {nextChildType(moduleId, item.item_type) && item.state === 'active' && <Button label={`Add ${humanType(nextChildType(moduleId, item.item_type)!)}`} variant="tertiary"
           disabled={readOnly || busy} onPress={() => { setParentId(item.id); setError(null); }} />}
+        {moduleId === 'study' && ['lesson', 'assignment'].includes(item.item_type) && item.state === 'active' && onOpenTool && <View style={styles.contextActionRow}>
+          <Button label="Practice" variant="tertiary" onPress={() => onOpenTool('practice', item.id)} />
+          <Button label="Ask tutor" variant="tertiary" onPress={() => onOpenTool('tutor', item.id)} />
+          <Button label="Materials" variant="tertiary" onPress={() => onOpenTool('resources', item.id)} />
+        </View>}
       </View>;
     })}
     {parent && childType && <View style={sharedStyles.column}>
@@ -391,15 +431,15 @@ export function GrowthHierarchyPanel({ moduleId, items, readOnly, onSaved }: {
   </Panel>;
 }
 
-export function GrowthRecordPanel({ profileId, moduleId, items, records, documents = [], attachments = [], readOnly, onSaved }: {
+export function GrowthRecordPanel({ profileId, moduleId, items, records, documents = [], attachments = [], initialItemId, readOnly, onSaved }: {
   profileId: string | null; moduleId: GrowthModuleId; items: GrowthItem[]; records: GrowthRecord[]; documents?: GrowthDocument[];
-  attachments?: GrowthRecordAttachment[]; readOnly: boolean; onSaved: () => void;
+  attachments?: GrowthRecordAttachment[]; initialItemId?: string; readOnly: boolean; onSaved: () => void;
 }) {
   const { childProfile } = useAuth();
   const isRead = moduleId === 'read';
   const targets = items.filter((item) => item.state !== 'archived' && (isRead ? item.item_type === 'reading'
     : ['subject', 'course', 'lesson', 'assignment'].includes(item.item_type)));
-  const [itemId, setItemId] = useState<string | null>(targets[0]?.id ?? null);
+  const [itemId, setItemId] = useState<string | null>(initialItemId ?? targets[0]?.id ?? null);
   const [kind, setKind] = useState<'reading_note' | 'reading_annotation' | 'vocabulary' | 'reflection' | 'verification'>
     (isRead ? 'reading_note' : 'verification');
   const [title, setTitle] = useState('');
@@ -857,6 +897,12 @@ function nextChildType(moduleId: 'study' | 'tasks', parentType: string) {
   return null;
 }
 
+function isValidDateOnly(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T12:00:00Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
 function flattenTree(items: GrowthItem[]) {
   const roots = items.filter((item) => !item.parent_id);
   const result: { item: GrowthItem; depth: number }[] = [];
@@ -879,14 +925,13 @@ function getDescendants(items: GrowthItem[], parentId: string) {
   return result;
 }
 
-function getUpcomingStudySessions(items: GrowthItem[], slots: StudyPlanSlot[], changes: StudyPlanChange[]) {
+function getUpcomingStudySessions(items: GrowthItem[], slots: StudyPlanSlot[], changes: StudyPlanChange[], today: string) {
   const itemById = new Map(items.map((item) => [item.id, item]));
   const result: { itemId: string; title: string; date: string; originalDate: string; minutes: number; moved: boolean }[] = [];
-  const today = new Date(); today.setHours(0, 0, 0, 0);
   for (let offset = 0; offset < 15; offset += 1) {
-    const date = new Date(today); date.setDate(today.getDate() + offset);
-    const dateKey = localDateKey(date);
-    for (const slot of slots.filter((item) => item.day_of_week === date.getDay())) {
+    const dateKey = shiftDateKey(today, offset);
+    const dayOfWeek = new Date(`${dateKey}T12:00:00Z`).getUTCDay();
+    for (const slot of slots.filter((item) => item.day_of_week === dayOfWeek)) {
       const item = itemById.get(slot.item_id);
       if (!item || item.state !== 'active') continue;
       const change = changes.find((entry) => entry.item_id === item.id && entry.original_date === dateKey);
@@ -896,7 +941,7 @@ function getUpcomingStudySessions(items: GrowthItem[], slots: StudyPlanSlot[], c
   }
   for (const change of changes.filter((item) => item.action === 'move' && item.moved_to_date)) {
     const item = itemById.get(change.item_id); const slot = slots.find((entry) => entry.item_id === change.item_id);
-    if (item && slot && change.moved_to_date! >= localDateKey(today) && !result.some((entry) => entry.itemId === item.id && entry.originalDate === change.original_date)) {
+    if (item && slot && change.moved_to_date! >= today && !result.some((entry) => entry.itemId === item.id && entry.originalDate === change.original_date)) {
       result.push({ itemId: item.id, title: item.title, date: change.moved_to_date!, originalDate: change.original_date, minutes: slot.target_minutes, moved: true });
     }
   }
@@ -916,11 +961,11 @@ function initialPlanValues(items: GrowthItem[], slots: StudyPlanSlot[]) {
   return formatted;
 }
 
-function localDateKey(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-}
-function addDays(value: string, count: number) { const date = new Date(`${value}T12:00:00`); date.setDate(date.getDate() + count); return localDateKey(date); }
-function formatLocalDate(value: string) { return new Date(`${value}T12:00:00`).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }); }
+function shiftDateKey(value: string, count: number) { const date = new Date(`${value}T12:00:00Z`); date.setUTCDate(date.getUTCDate() + count); return date.toISOString().slice(0, 10); }
+function startOfWeekKey(value: string) { const date = new Date(`${value}T12:00:00Z`); date.setUTCDate(date.getUTCDate() - date.getUTCDay()); return date.toISOString().slice(0, 10); }
+function addDays(value: string, count: number) { return shiftDateKey(value, count); }
+function formatPlanDate(value: string) { return new Date(`${value}T12:00:00Z`).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }); }
+function formatMinutes(value: number) { const hours = Math.floor(value / 60); const minutes = value % 60; return hours ? `${hours}h${minutes ? ` ${minutes}m` : ''}` : `${value} min`; }
 function humanType(value: string) { return value.replaceAll('_', ' '); }
 function formatDuration(seconds: number) { const mins = Math.floor(seconds / 60); const secs = seconds % 60; return mins ? `${mins} min${secs ? ` ${secs} sec` : ''}` : `${secs} sec`; }
 
@@ -928,7 +973,14 @@ const styles = StyleSheet.create({
   row: { ...sharedStyles.row, gap: 8, paddingVertical: 8, flexWrap: 'wrap' },
   choiceRow: { ...sharedStyles.row, gap: 6, flexWrap: 'wrap' },
   planItem: { ...sharedStyles.column, borderTopWidth: 1, borderTopColor: '#E4E8F3', paddingTop: 12 },
-  planDayGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  planDayCell: { width: '22%', minWidth: 72, flexGrow: 1 },
+  planBigMetric: { fontSize: 38, lineHeight: 46, fontWeight: '800', fontVariant: ['tabular-nums'], letterSpacing: -1 },
+  planSummaryRow: { flexDirection: 'row', gap: 10 },
+  planDaySelector: { borderWidth: 1, borderRadius: 18, flexDirection: 'row', padding: 4, gap: 2 },
+  planDayOption: { flex: 1, minHeight: 52, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'transparent', borderRadius: 13, paddingHorizontal: 2 },
+  planDayName: { fontSize: 11, fontWeight: '700' },
+  planDayMinutes: { fontSize: 10, fontWeight: '700', marginTop: 2 },
+  planInputRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#E4E8F3', paddingVertical: 8 },
+  planInput: { width: 100 },
+  contextActionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 0, marginStart: -8 },
   record: { ...sharedStyles.column, paddingVertical: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#E4E8F3' },
 });

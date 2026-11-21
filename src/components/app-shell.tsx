@@ -74,7 +74,7 @@ export function BloomBottomNavigation() {
     && (!childProfile || assignedModules.includes(item.moduleId))
   ));
 
-  return <View style={[styles.dockFrame, { paddingBottom: Math.max(insets.bottom + 4, 12) }]}>
+  return <View pointerEvents="box-none" style={[styles.dockFrame, { paddingBottom: Math.max(insets.bottom + 4, 12) }]}>
     <View style={[styles.dock, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]} accessibilityRole="tablist">
       {items.map((item) => {
         const selected = item.moduleId === null ? pathname === '/' : item.moduleId === activeModule;
@@ -294,7 +294,7 @@ const styles = StyleSheet.create({
   avatarButton: { width: 46, height: 46, overflow: 'hidden', borderRadius: 17 },
   avatarImage: { width: '100%', height: '100%' },
   noticeBadge: { position: 'absolute', top: 7, right: 8, width: 11, height: 11, borderRadius: 6, borderWidth: 2 },
-  dockFrame: { alignItems: 'center', paddingTop: 8, paddingHorizontal: 20 },
+  dockFrame: { position: 'absolute', right: 0, bottom: 0, left: 0, zIndex: 20, alignItems: 'center', paddingTop: 8, paddingHorizontal: 20, backgroundColor: 'transparent' },
   dock: { width: '100%', maxWidth: 560, minHeight: 68, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', gap: 4, borderWidth: 1, borderRadius: 999, paddingHorizontal: 8, shadowColor: '#282348', shadowOffset: { width: 0, height: 7 }, shadowOpacity: 0.14, shadowRadius: 24, elevation: 7 },
   dockButton: { minWidth: 44, minHeight: 52, flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 999 },
   dockIcon: { width: 43, height: 43, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },

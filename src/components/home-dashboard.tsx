@@ -28,13 +28,6 @@ export type HomeDashboardProps = {
   onRefresh: () => void;
 };
 
-const moduleDescriptions: Record<(typeof moduleManifest)[number]['id'], string> = {
-  exercise: 'Find time to move.',
-  study: 'Make room to focus.',
-  read: 'Pick up where you left off.',
-  tasks: 'Choose your next step.',
-};
-
 export function HomeDashboard({
   weeklySummary,
   weeklyLoading,
@@ -69,7 +62,6 @@ export function HomeDashboard({
         <View style={styles.heroCopy}>
           <Text style={styles.heroEyebrow}>TODAY</Text>
           <Text accessibilityRole="header" style={styles.heroHeading}>{childProfile ? 'A day at your pace.' : 'A more balanced day.'}</Text>
-          <Text style={styles.heroBody}>{activeWorkout ? 'Your workout is ready when you are.' : 'Small steps in every pillar add up.'}</Text>
         </View>
         <Pressable accessibilityRole="button"
           accessibilityLabel={activeWorkout ? 'Resume your workout' : 'Open your weekly plan'}
@@ -104,10 +96,7 @@ export function HomeDashboard({
 
       {pillars.length > 0 ? <View style={styles.pillarsSection}>
         <View style={styles.sectionHeading}>
-          <View style={styles.sectionTitle}>
-            <Text accessibilityRole="header" style={[styles.sectionHeadingText, { color: theme.colors.ink }]}>Your pillars</Text>
-            <Body>Your four spaces for growth.</Body>
-          </View>
+          <Text accessibilityRole="header" style={[styles.sectionHeadingText, { color: theme.colors.ink }]}>Your pillars</Text>
           <Pressable accessibilityRole="button" accessibilityLabel="See all Bloom pillars" onPress={() => router.push('/apps')}
             style={({ pressed }) => [styles.seeAllButton, pressed && styles.pressed]}>
             <Text style={[styles.seeAllText, { color: theme.colors.inkMuted }]}>See all</Text>
@@ -118,10 +107,8 @@ export function HomeDashboard({
           {pillars.map((module) => <PillarCard key={module.id} moduleId={module.id} />)}
         </View>
       </View> : <Panel>
-        <Eyebrow>Your space</Eyebrow>
-        <Label>Your pillars are ready when you are.</Label>
-        <Body>Visit Settings to choose which of your Bloom spaces appear in navigation.</Body>
-        <Button label="Choose your pillars" variant="secondary" onPress={() => router.push('/settings')} />
+        <Label>No pillars selected</Label>
+        <Button label="Choose pillars" variant="secondary" onPress={() => router.push('/settings')} />
       </Panel>}
 
     </View>
@@ -140,7 +127,7 @@ function TodayPillarsPanel({ progress, loading, error, onRetry }: {
   return <Panel>
     <View style={styles.panelHeading}>
       <Eyebrow>Today’s plan</Eyebrow>
-      <Text accessibilityRole="header" style={[styles.panelTitle, { color: theme.colors.ink }]}>{progress.length > 0 ? `${completedCount} of ${progress.length} done` : 'A flexible day'}</Text>
+      <Text accessibilityRole="header" style={[styles.panelTitle, { color: theme.colors.ink }]}>{progress.length > 0 ? `${completedCount} of ${progress.length} done` : 'No plan'}</Text>
     </View>
     {loading ? <ActivityIndicator color={theme.colors.action} /> : error ? <>
       <Body>Today’s pillar plan could not be loaded.</Body>
@@ -156,8 +143,11 @@ function TodayPillarsPanel({ progress, loading, error, onRetry }: {
         </View>;
       })}
     </View> : <>
-      <Body>No pillar is scheduled today. Keep the day flexible or choose a weekly plan.</Body>
-      <Button label="Edit weekly plan" variant="secondary" onPress={() => router.push('/progress')} />
+      <Pressable accessibilityRole="button" accessibilityLabel="Edit weekly plan" onPress={() => router.push('/progress')}
+        style={({ pressed }) => [styles.inlineAction, pressed && styles.pressed]}>
+        <Text style={[styles.inlineActionText, { color: theme.colors.action }]}>Edit plan</Text>
+        <MaterialIcons name="chevron-right" size={18} color={theme.colors.action} />
+      </Pressable>
     </>}
   </Panel>;
 }
@@ -171,20 +161,17 @@ function BalancePanel({ available, enabled, loading, error, onRefresh }: {
 }) {
   const { theme } = useBloomTheme();
   return <Panel>
-    <View style={styles.panelHeading}>
-      <Eyebrow>Screen-time balance</Eyebrow>
-      <Text accessibilityRole="header" style={[styles.panelTitle, { color: theme.colors.ink }]}>This week</Text>
-    </View>
+    <Eyebrow>Balance</Eyebrow>
+    <Text style={[styles.balancePeriod, { color: theme.colors.inkMuted }]} numberOfLines={1}>This week</Text>
     {loading ? <View style={styles.inlineStatus}><ActivityIndicator color={theme.colors.action} /><Body>Connecting to Bloom.</Body></View>
       : error ? <>
         <ErrorText>{error}</ErrorText>
         <Button label="Retry" variant="secondary" onPress={() => void onRefresh()} />
       </> : enabled ? <>
         <View style={styles.balanceRow}>
-          <Text accessibilityLabel={`${formatCreditDuration(available)} of screen time available in your balance`} style={[styles.balanceAmount, { color: theme.colors.ink }]}>{formatCreditHours(available)}</Text>
+          <Text accessibilityLabel={`${formatCreditDuration(available)} of screen time available in your balance for the rest of this week`} style={[styles.balanceAmount, { color: theme.colors.ink }]}>{formatCreditHours(available)}</Text>
           <Text style={[styles.balanceUnit, { color: theme.colors.inkMuted }]}>h</Text>
         </View>
-        <Text style={[styles.balanceNote, { color: theme.colors.inkMuted }]}>Available for screen time</Text>
       </> : <>
         <Text style={[styles.creditsOff, { color: theme.colors.ink }]}>Credits are off</Text>
       </>}
@@ -217,7 +204,6 @@ function WeeklyScreenTimePanel({ totals, loading, error, onRetry }: {
         {totals.map((day) => {
           const barHeight = day.minutes <= 0 ? 2 : Math.max(9, Math.round((day.minutes / (peak || 1)) * 84));
           return <View key={day.dateKey} style={styles.chartDay}>
-            <Text style={[styles.chartValue, { color: theme.colors.inkMuted }]}>{day.minutes > 0 ? formatCompactDuration(day.minutes) : '—'}</Text>
             <View style={[styles.chartArea, { backgroundColor: theme.colors.surfaceSoft }]}>
               <View style={[styles.chartBar, {
                 height: barHeight,
@@ -229,9 +215,6 @@ function WeeklyScreenTimePanel({ totals, loading, error, onRetry }: {
         })}
       </View>
     </>}
-    <View style={[styles.panelActions, { borderTopColor: theme.colors.border }]}>
-      <SecondaryLink icon="history" title="Screen-time history" route="/credit-history" />
-    </View>
   </Panel>;
 }
 
@@ -245,13 +228,12 @@ function ByDevicePanel({ devices, loading, error, onRetry }: {
   return <Panel>
     <View style={styles.panelHeading}>
       <Eyebrow>By device</Eyebrow>
-      <Text accessibilityRole="header" style={[styles.panelTitle, { color: theme.colors.ink }]}>Usage hours</Text>
     </View>
     {loading ? <ActivityIndicator color={theme.colors.action} /> : error || !devices ? <>
-      <Body>Connected devices are temporarily unavailable.</Body>
+      <Body>Unavailable</Body>
       <Button label="Try again" variant="secondary" onPress={onRetry} />
     </> : devices.length > 0 ? <>
-      <Body>Bloom does not report screen-time hours by device yet.</Body>
+      <Text style={[styles.deviceAvailability, { color: theme.colors.inkMuted }]}>Hours unavailable</Text>
       {devices.slice(0, 3).map((device) => <Pressable key={device.device_id} accessibilityRole="button"
         accessibilityLabel={`${device.display_name}. Per-device screen-time totals are not available yet.`}
         onPress={() => router.push({ pathname: '/device-detail', params: { deviceId: device.device_id } })}
@@ -259,16 +241,16 @@ function ByDevicePanel({ devices, loading, error, onRetry }: {
         <View style={[styles.deviceIcon, { backgroundColor: theme.colors.surfaceSoft }]}>
           <MaterialIcons name={deviceIcon(device.platform)} size={19} color={theme.colors.inkMuted} />
         </View>
-        <View style={styles.deviceCopy}>
-          <Text style={[styles.deviceName, { color: theme.colors.ink }]} numberOfLines={1}>{device.display_name}</Text>
-          <Text style={[styles.deviceDetail, { color: theme.colors.inkMuted }]}>Hours not reported</Text>
-        </View>
+        <Text style={[styles.deviceName, styles.deviceCopy, { color: theme.colors.ink }]} numberOfLines={1}>{device.display_name}</Text>
         <Text style={[styles.unknownHours, { color: theme.colors.inkMuted }]}>—</Text>
       </Pressable>)}
-    </> : <Body>Your devices will appear here after their first check-in.</Body>}
-    <View style={[styles.panelActions, { borderTopColor: theme.colors.border }]}>
-      <SecondaryLink icon="devices" title="Manage devices" route="/devices" />
-    </View>
+    </> : <Body>No devices</Body>}
+    {!loading && !error && devices && <Pressable accessibilityRole="button" accessibilityLabel="Manage devices" onPress={() => router.push('/devices')}
+      style={({ pressed }) => [styles.inlineAction, pressed && styles.pressed]}>
+      <MaterialIcons name="devices" size={17} color={theme.colors.action} />
+      <Text style={[styles.inlineActionText, { color: theme.colors.inkMuted }]}>Manage</Text>
+      <MaterialIcons name="chevron-right" size={17} color={theme.colors.inkSubtle} />
+    </Pressable>}
   </Panel>;
 }
 
@@ -283,13 +265,12 @@ function InsightsPanel({ summary, loading, error }: { summary: WeeklyGoalSummary
   return <Panel>
     <View style={styles.panelHeading}>
       <Eyebrow>Insight</Eyebrow>
-      <Text accessibilityRole="header" style={[styles.panelTitle, { color: theme.colors.ink }]}>Your week</Text>
     </View>
     {loading ? <ActivityIndicator color={theme.colors.action} /> : error ? <Body>Your weekly insight is temporarily unavailable.</Body>
       : goals.length > 0 ? <>
-        <Text style={[styles.insightMetric, { color: theme.colors.ink }]}>{completed} of {goals.length}</Text>
-        <Body>{nextGoal ? `${moduleName(nextGoal.module_id)} is ready for your next step.` : 'Every active weekly goal is complete.'}</Body>
-      </> : <Body>Set a weekly pillar goal to see a progress insight here.</Body>}
+        <Text style={[styles.insightMetric, { color: theme.colors.ink }]}>{completed}/{goals.length}</Text>
+        <Text style={[styles.insightCaption, { color: theme.colors.inkMuted }]}>{nextGoal ? `Goals · ${moduleName(nextGoal.module_id)} next` : 'Goals complete'}</Text>
+      </> : <Text style={[styles.insightCaption, { color: theme.colors.inkMuted }]}>No goals set</Text>}
   </Panel>;
 }
 
@@ -308,18 +289,7 @@ function PillarCard({ moduleId }: { moduleId: (typeof moduleManifest)[number]['i
     </ImageBackground>
     <View style={styles.pillarCopy}>
       <Text style={[styles.pillarName, { color: theme.colors.ink }]}>{module.name}</Text>
-      <Text style={[styles.pillarDescription, { color: theme.colors.inkMuted }]}>{moduleDescriptions[moduleId]}</Text>
     </View>
-  </Pressable>;
-}
-
-function SecondaryLink({ icon, title, route }: { icon: 'history' | 'devices'; title: string; route: Href }) {
-  const { theme } = useBloomTheme();
-  return <Pressable accessibilityRole="button" accessibilityLabel={title} onPress={() => router.push(route)}
-    style={({ pressed }) => [styles.quickLink, pressed && styles.pressed]}>
-    <MaterialIcons name={icon} size={18} color={theme.colors.action} />
-    <Text style={[styles.quickLinkText, { color: theme.colors.inkMuted }]}>{title}</Text>
-    <MaterialIcons name="chevron-right" size={17} color={theme.colors.inkSubtle} />
   </Pressable>;
 }
 
@@ -338,10 +308,6 @@ function formatCreditHours(minutes: number) {
   return (minutes / 60).toLocaleString(undefined, { maximumFractionDigits: 1 });
 }
 
-function formatCompactDuration(minutes: number) {
-  return minutes >= 60 ? `${formatCreditHours(minutes)}h` : `${Math.round(minutes)}m`;
-}
-
 function formatCreditDuration(value: number) {
   const rounded = Math.round(value);
   const hours = Math.floor(rounded / 60);
@@ -358,7 +324,6 @@ const styles = StyleSheet.create({
   heroCopy: { flex: 1, justifyContent: 'flex-end', paddingEnd: 62, gap: 5 },
   heroEyebrow: { color: 'rgba(255, 255, 255, 0.96)', fontSize: 13, fontWeight: '700', letterSpacing: 1.05 },
   heroHeading: { color: '#FFFFFF', fontSize: 28, lineHeight: 34, fontWeight: '700', letterSpacing: -0.6 },
-  heroBody: { color: 'rgba(255, 255, 255, 0.95)', fontSize: 15, lineHeight: 21 },
   heroAction: { position: 'absolute', right: 17, bottom: 17, width: 46, height: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 23, backgroundColor: '#FFFFFF', shadowColor: '#141B35', shadowOpacity: 0.12, shadowOffset: { width: 0, height: 3 }, shadowRadius: 8, elevation: 3 },
   balanceGoalsRow: { flexDirection: 'row', alignItems: 'stretch', gap: 12 },
   balanceColumn: { flex: 1, minWidth: 0 },
@@ -371,33 +336,31 @@ const styles = StyleSheet.create({
   todayPillarRow: { minHeight: 24, flexDirection: 'row', alignItems: 'center', gap: 7 },
   todayPillarName: { flex: 1, minWidth: 0, fontSize: 13, lineHeight: 18, fontWeight: '600' },
   todayPillarStatus: { fontSize: 12, lineHeight: 16, fontWeight: '600' },
+  inlineAction: { minHeight: 40, flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 5 },
+  inlineActionText: { fontSize: 13, lineHeight: 18, fontWeight: '600' },
   balanceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 3 },
   balanceAmount: { fontSize: 25, lineHeight: 32, fontWeight: '700', letterSpacing: -0.6, fontVariant: ['tabular-nums'] },
   balanceUnit: { fontSize: 14, fontWeight: '600' },
-  balanceNote: { fontSize: 13, lineHeight: 19, fontWeight: '500' },
+  balancePeriod: { fontSize: 13, lineHeight: 18, fontWeight: '500' },
+  deviceAvailability: { fontSize: 13, lineHeight: 18, fontWeight: '500' },
   screenTimeHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   creditsOff: { fontSize: 19, lineHeight: 26, fontWeight: '600' },
   inlineStatus: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 9 },
-  panelActions: { gap: 3, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 8, marginTop: 3 },
-  quickLink: { minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 9 },
-  quickLinkText: { flex: 1, fontSize: 13, lineHeight: 19, fontWeight: '600' },
   trendAmount: { fontSize: 30, lineHeight: 37, fontWeight: '700', letterSpacing: -0.65, fontVariant: ['tabular-nums'] },
   chart: { minHeight: 126, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 8, paddingTop: 8 },
   chartDay: { flex: 1, minWidth: 0, alignItems: 'center', gap: 5 },
-  chartValue: { minHeight: 15, fontSize: 10, lineHeight: 14, fontWeight: '500', fontVariant: ['tabular-nums'] },
   chartArea: { width: '100%', maxWidth: 34, height: 84, alignItems: 'center', justifyContent: 'flex-end', overflow: 'hidden', borderTopLeftRadius: 9, borderTopRightRadius: 9 },
   chartBar: { width: '78%', borderTopLeftRadius: 8, borderTopRightRadius: 8 },
   chartLabel: { fontSize: 11, lineHeight: 15, fontWeight: '500' },
-  deviceRow: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 11 },
-  deviceIcon: { width: 35, height: 35, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
-  deviceCopy: { flex: 1, minWidth: 0, gap: 1 },
+  deviceRow: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  deviceIcon: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center', borderRadius: 10 },
+  deviceCopy: { flex: 1, minWidth: 0 },
   deviceName: { fontSize: 14, lineHeight: 20, fontWeight: '600' },
-  deviceDetail: { fontSize: 12, lineHeight: 17 },
-  unknownHours: { minWidth: 16, fontSize: 18, fontWeight: '600', textAlign: 'right' },
+  unknownHours: { minWidth: 14, fontSize: 17, fontWeight: '600', textAlign: 'right' },
   insightMetric: { fontSize: 28, lineHeight: 34, fontWeight: '700', letterSpacing: -0.6, fontVariant: ['tabular-nums'] },
+  insightCaption: { fontSize: 13, lineHeight: 18, fontWeight: '500' },
   pillarsSection: { gap: 11, paddingTop: 1 },
   sectionHeading: { minHeight: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-  sectionTitle: { flex: 1, gap: 2 },
   sectionHeadingText: { fontSize: 22, lineHeight: 27, fontWeight: '700', letterSpacing: -0.5 },
   seeAllButton: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 2 },
   seeAllText: { fontSize: 14, fontWeight: '600' },
@@ -406,8 +369,7 @@ const styles = StyleSheet.create({
   pillarPhoto: { height: 105, justifyContent: 'flex-end', alignItems: 'flex-start', padding: 10 },
   pillarPhotoImage: { borderTopLeftRadius: 19, borderTopRightRadius: 19 },
   pillarIcon: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 18 },
-  pillarCopy: { minHeight: 62, justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 8, gap: 1 },
+  pillarCopy: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 8 },
   pillarName: { fontSize: 15, lineHeight: 20, fontWeight: '700' },
-  pillarDescription: { fontSize: 12, lineHeight: 17 },
   pressed: { opacity: 0.78 },
 });

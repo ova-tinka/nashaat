@@ -28,10 +28,11 @@ function currentBloomPlatform() {
 
 const readModuleManifest = moduleManifest.find((module) => module.id === 'read');
 
-export function GrowthDocumentLibraryPanel({ moduleId, items, records, documents, readOnly, onSaved }: {
-  moduleId: 'study' | 'read'; items: GrowthItem[]; records: GrowthRecord[]; documents: GrowthDocument[]; readOnly: boolean; onSaved: () => void;
+export function GrowthDocumentLibraryPanel({ moduleId, items, records, documents, initialItemId, onDocumentHelp, readOnly, onSaved }: {
+  moduleId: 'study' | 'read'; items: GrowthItem[]; records: GrowthRecord[]; documents: GrowthDocument[]; initialItemId?: string;
+  onDocumentHelp?: (documentId: string) => void; readOnly: boolean; onSaved: () => void;
 }) {
-  const [itemId, setItemId] = useState(items.find((item) => item.state === 'active')?.id ?? '');
+  const [itemId, setItemId] = useState(initialItemId ?? items.find((item) => item.state === 'active')?.id ?? '');
   const [title, setTitle] = useState('');
   const [picked, setPicked] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
   const [busy, setBusy] = useState(false);
@@ -149,6 +150,8 @@ export function GrowthDocumentLibraryPanel({ moduleId, items, records, documents
       <Body>{itemNames.get(document.item_id) ?? 'Study item'} · {document.format.toUpperCase()} · {(document.byte_size / 1024 / 1024).toFixed(1)} MB
         {moduleId === 'read' && documentProgress(document.id) !== null ? ` · ${Math.round(documentProgress(document.id)!)}% read` : ''}</Body>
       <View style={sharedStyles.row}>
+        {moduleId === 'study' && onDocumentHelp && <Button label="Ask about this document" variant="tertiary" disabled={busy}
+          onPress={() => onDocumentHelp(document.id)} />}
         {moduleId === 'read' && document.format !== 'docx'
           && isReaderFormatSupported(readModuleManifest?.readerFormats ?? {}, currentBloomPlatform(), document.format)
           ? <Button label="Open reader" variant="secondary" disabled={readOnly || busy}
@@ -166,8 +169,8 @@ export function GrowthDocumentLibraryPanel({ moduleId, items, records, documents
   </Panel>;
 }
 
-export function StudyDocumentHelpPanel({ profileId, documents, readOnly, onSaved }: {
-  profileId: string | null; documents: GrowthDocument[]; readOnly: boolean; onSaved: () => void;
+export function StudyDocumentHelpPanel({ profileId, documents, initialDocumentId, readOnly, onSaved }: {
+  profileId: string | null; documents: GrowthDocument[]; initialDocumentId?: string; readOnly: boolean; onSaved: () => void;
 }) {
   const { childProfile } = useAuth();
   const { theme } = useBloomTheme();
@@ -175,7 +178,7 @@ export function StudyDocumentHelpPanel({ profileId, documents, readOnly, onSaved
   const [sharingConsent, setSharingConsent] = useState(false);
   const [adultAttested, setAdultAttested] = useState(false);
   const [documentConsent, setDocumentConsent] = useState(false);
-  const [documentId, setDocumentId] = useState(documents[0]?.id ?? '');
+  const [documentId, setDocumentId] = useState(initialDocumentId ?? documents[0]?.id ?? '');
   const [prompt, setPrompt] = useState('');
   const [answers, setAnswers] = useState<Awaited<ReturnType<typeof loadStudyDocumentAnswers>>>([]);
   const [busy, setBusy] = useState(false);

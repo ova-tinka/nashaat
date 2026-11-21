@@ -1,17 +1,19 @@
 import { Tabs, usePathname } from 'expo-router';
 import { Platform, useWindowDimensions } from 'react-native';
 import { BloomBottomNavigation } from '../../../components/app-shell';
+import { BloomFloatingDockContext } from '../../../components/bloom-ui';
 import { isMacDesktop } from '../../../lib/macos-blocking';
 
 export default function TabLayout() {
   const pathname = usePathname();
   const { width } = useWindowDimensions();
   const desktop = isMacDesktop() || (Platform.OS === 'web' && width >= 1024);
-  const immersive = pathname === '/session' || pathname.startsWith('/apps/read/reader/');
+  const immersive = pathname === '/session' || pathname.startsWith('/apps/read/reader/')
+    || ['/apps/study/active-session', '/apps/study/session-complete', '/apps/study/learning-check'].includes(pathname);
 
-  return <Tabs tabBar={desktop || immersive ? () => null : () => <BloomBottomNavigation />} screenOptions={{
+  return <BloomFloatingDockContext.Provider value={!desktop && !immersive}><Tabs tabBar={desktop || immersive ? () => null : () => <BloomBottomNavigation />} screenOptions={{
     headerShown: false,
-    tabBarStyle: { display: 'none' },
+    tabBarStyle: { backgroundColor: 'transparent', borderTopColor: 'transparent', borderTopWidth: 0, elevation: 0 },
   }}>
     <Tabs.Screen name="index" options={{ title: 'Home' }} />
     <Tabs.Screen name="exercise" options={{ title: 'Exercise' }} />
@@ -35,5 +37,5 @@ export default function TabLayout() {
     <Tabs.Screen name="apps/read/[section]" options={{ tabBarItemStyle: { display: 'none' } }} />
     <Tabs.Screen name="apps/tasks/[section]" options={{ tabBarItemStyle: { display: 'none' } }} />
     <Tabs.Screen name="apps/read/reader/[id]" options={{ href: null }} />
-  </Tabs>;
+  </Tabs></BloomFloatingDockContext.Provider>;
 }

@@ -2,10 +2,10 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { randomUUID } from 'expo-crypto';
 import type { ComponentProps } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
-import { router, useFocusEffect, type Href } from 'expo-router';
+import { ActivityIndicator, ImageBackground, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { router, useFocusEffect, useLocalSearchParams, type Href } from 'expo-router';
 import { Body, Button, ErrorText, Eyebrow, FeatureTile, Field, Heading, Label, Panel, ProgressBar, Screen, sharedStyles } from './bloom-ui';
-import { cancelGrowthSession, createGrowthItem, createGrowthProject, finishGrowthSession, formatElapsed, loadGrowthDocuments, loadGrowthModule, startGrowthSession, updateGrowthItem, updateGrowthReadingDetails, updateGrowthTaskMetadata, type GrowthDocument, type GrowthItem, type GrowthModuleId, type GrowthSession, type GrowthRecord, type GrowthRecordAttachment, type StudyPlanChange, type StudyPlanSlot, type TaskFocusSession, type TaskPriority, type ReadingStatus } from '../lib/growth-modules';
+import { cancelGrowthSession, createGrowthItem, createGrowthProject, finishGrowthSession, formatElapsed, loadGrowthDocuments, loadGrowthModule, loadGrowthRewards, startGrowthSession, updateGrowthItem, updateGrowthReadingDetails, updateGrowthTaskMetadata, type GrowthDocument, type GrowthItem, type GrowthModuleId, type GrowthSession, type GrowthRecord, type GrowthRecordAttachment, type StudyPlanChange, type StudyPlanSlot, type TaskFocusSession, type TaskPriority, type ReadingStatus, type GrowthRewardEvent } from '../lib/growth-modules';
 import { GrowthHierarchyPanel, GrowthRecordPanel, ReadingDiscoveryPanel, StudyPlanPanel, StudyPracticeReviewPanel, StudyTutorPanel, TaskBreakdownPanel, TaskFocusPanel } from './growth-feature-panels';
 import { MockExamPanel } from './mock-exam-panel';
 import { GrowthDocumentLibraryPanel, StudyDocumentHelpPanel } from './growth-document-panels';
@@ -15,6 +15,7 @@ import { useBloomTheme } from '../lib/theme-context';
 import { useBloom } from '../lib/bloom-context';
 import { dateKeyInTimeZone, formatDateOnly } from '../lib/date-utils';
 import { getCurrentDeviceIdentity } from '../lib/devices';
+import { bloomPillarImages } from '../assets/bloom-images';
 
 const moduleContent: Record<GrowthModuleId, { title: string; description: string; icon: 'school' | 'menu-book' | 'check-box' }> = {
   study: {
@@ -36,6 +37,7 @@ const moduleContent: Record<GrowthModuleId, { title: string; description: string
 
 type GrowthSection = { id: string; label: string; title: string; description: string; icon: ComponentProps<typeof MaterialIcons>['name'] };
 function sectionHref(moduleId: GrowthModuleId, sectionId: string): Href {
+  if (moduleId === 'study' && sectionId === 'today') return '/study';
   const params = { section: sectionId };
   switch (moduleId) {
     case 'study': return { pathname: '/apps/study/[section]', params };
@@ -46,15 +48,19 @@ function sectionHref(moduleId: GrowthModuleId, sectionId: string): Href {
 
 const moduleSections: Record<GrowthModuleId, GrowthSection[]> = {
   study: [
-    { id: 'today', label: 'Today', title: 'Your subjects', description: 'Start a focus session or add a subject.', icon: 'today' },
-    { id: 'plan', label: 'Weekly plan', title: 'A plan that can move with you', description: 'Set a target and choose flexible study days.', icon: 'calendar-month' },
-    { id: 'courses', label: 'Courses and lessons', title: 'Your learning map', description: 'Organize courses, lessons, and assignments.', icon: 'account-tree' },
-    { id: 'practice', label: 'Practice and review', title: 'Practice and retrieval', description: 'Practice questions and spaced reviews.', icon: 'quiz' },
-    { id: 'exams', label: 'Mock exams', title: 'Prepare with a focused attempt', description: 'Take a mock exam and review the result.', icon: 'assignment' },
-    { id: 'tutor', label: 'Study tutor', title: 'Ask the Study tutor', description: 'Ask for a clear explanation.', icon: 'forum' },
-    { id: 'resources', label: 'Documents', title: 'Your study documents', description: 'Manage private learning files.', icon: 'folder-open' },
-    { id: 'document-help', label: 'Document help', title: 'Ask about a source', description: 'Ask source-based questions with citations.', icon: 'manage-search' },
-    { id: 'learning-check', label: 'Learning check', title: 'Reflect on a study session', description: 'Save an answer or learning artifact.', icon: 'fact-check' },
+    { id: 'today', label: 'Today', title: 'Today', description: 'Focus. Learn. Grow.', icon: 'today' },
+    { id: 'plan', label: 'Plan', title: 'Weekly plan', description: 'Set a flexible weekly target.', icon: 'calendar-month' },
+    { id: 'courses', label: 'Courses', title: 'Courses and lessons', description: 'Organize subjects, courses, and lessons.', icon: 'account-tree' },
+    { id: 'more', label: 'More', title: 'Study tools', description: 'Practice, exams, tutor, and materials.', icon: 'apps' },
+    { id: 'progress', label: 'Progress', title: 'Your study progress', description: 'Review sessions and learning activity.', icon: 'insights' },
+    { id: 'practice', label: 'Practice & review', title: 'Practice and review', description: 'Questions, flashcards, and due review.', icon: 'quiz' },
+    { id: 'exams', label: 'Mock exams', title: 'Mock exams', description: 'Take an exam and review results.', icon: 'assignment' },
+    { id: 'tutor', label: 'Study tutor', title: 'Study tutor', description: 'Get explanations and guided hints.', icon: 'forum' },
+    { id: 'resources', label: 'Documents', title: 'Study documents', description: 'Your private course materials.', icon: 'folder-open' },
+    { id: 'document-help', label: 'Document help', title: 'Document help', description: 'Ask about a source with citations.', icon: 'manage-search' },
+    { id: 'learning-check', label: 'Learning check', title: 'Learning check', description: 'Save a short reflection after a session.', icon: 'fact-check' },
+    { id: 'active-session', label: 'Focus session', title: 'Focus session', description: 'A focused study session.', icon: 'timer' },
+    { id: 'session-complete', label: 'Session complete', title: 'Session complete', description: 'Review your saved session.', icon: 'check-circle' },
   ],
   read: [
     { id: 'library', label: 'Reading list', title: 'Your reading list', description: 'Continue a book, update progress, or see recent sessions.', icon: 'bookmarks' },
@@ -72,6 +78,12 @@ const moduleSections: Record<GrowthModuleId, GrowthSection[]> = {
 
 export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthModuleId; sectionId?: string }) {
   const content = moduleContent[moduleId];
+  const routeParams = useLocalSearchParams<{ itemId?: string | string[]; documentId?: string | string[]; durationSeconds?: string | string[]; rewardStatus?: string | string[]; rewardMinutes?: string | string[] }>();
+  const contextItemId = typeof routeParams.itemId === 'string' ? routeParams.itemId : undefined;
+  const contextDocumentId = typeof routeParams.documentId === 'string' ? routeParams.documentId : undefined;
+  const durationSecondsParam = typeof routeParams.durationSeconds === 'string' ? routeParams.durationSeconds : undefined;
+  const rewardStatusParam = typeof routeParams.rewardStatus === 'string' ? routeParams.rewardStatus : undefined;
+  const rewardMinutesParam = typeof routeParams.rewardMinutes === 'string' ? routeParams.rewardMinutes : undefined;
   const { profileId } = useAuth();
   const { creditSettings } = useBloom();
   const { theme } = useBloomTheme();
@@ -81,6 +93,7 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
   const [records, setRecords] = useState<GrowthRecord[]>([]);
   const [recordAttachments, setRecordAttachments] = useState<GrowthRecordAttachment[]>([]);
   const [documents, setDocuments] = useState<GrowthDocument[]>([]);
+  const [studyRewardEvents, setStudyRewardEvents] = useState<GrowthRewardEvent[] | null>(null);
   const [studyPlan, setStudyPlan] = useState<StudyPlanSlot[]>([]);
   const [studyPlanChanges, setStudyPlanChanges] = useState<StudyPlanChange[]>([]);
   const [taskFocusSessions, setTaskFocusSessions] = useState<TaskFocusSession[]>([]);
@@ -104,16 +117,22 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
   const [lastSyncCheckedAt, setLastSyncCheckedAt] = useState<number | null>(null);
   const [taskFilter, setTaskFilter] = useState<'today' | 'overdue' | 'upcoming' | 'postponed' | 'completed' | 'archived'>('today');
   const [taskPriority, setTaskPriority] = useState<TaskPriority>('medium');
-  const [showMoreStudyTools, setShowMoreStudyTools] = useState(false);
+  const [showStudyStartSetup, setShowStudyStartSetup] = useState(false);
+  const [showAddSubject, setShowAddSubject] = useState(false);
   const snapshotTargetRef = useRef<string | null>(null);
   const viewedTargetRef = useRef<string | null>(null);
   const refreshRequest = useRef(0);
   const activeTargetKey = growthModuleSnapshotKey(profileId, moduleId);
   const hasSnapshot = Boolean(activeTargetKey && snapshotTargetKey === activeTargetKey);
   const sections = moduleSections[moduleId];
-  const primarySections = moduleId === 'study' ? sections.slice(0, 4) : sections;
-  const moreStudySections = moduleId === 'study' ? sections.slice(4) : [];
-  const activeSection = sections.find((section) => section.id === sectionId);
+  const effectiveSectionId = moduleId === 'study' ? sectionId ?? 'today' : sectionId;
+  const primarySections = moduleId === 'study'
+    ? sections.filter((section) => ['today', 'plan', 'courses', 'more'].includes(section.id))
+    : sections;
+  const moreStudySections = moduleId === 'study'
+    ? sections.filter((section) => ['progress', 'practice', 'exams', 'tutor', 'resources', 'document-help', 'learning-check'].includes(section.id))
+    : [];
+  const activeSection = sections.find((section) => section.id === effectiveSectionId);
   const pendingCreate = useRef<{ signature: string; requestId: string } | null>(null);
   const pendingStart = useRef<{ itemId: string; requestId: string } | null>(null);
 
@@ -123,7 +142,7 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
     if (!profileId || !targetKey) {
       viewedTargetRef.current = null;
       snapshotTargetRef.current = null;
-      setItems([]); setSessions([]); setRecords([]); setRecordAttachments([]); setDocuments([]); setStudyPlan([]); setStudyPlanChanges([]); setTaskFocusSessions([]); setSnapshotTargetKey(null); setLastSyncCheckedAt(null);
+      setItems([]); setSessions([]); setRecords([]); setRecordAttachments([]); setDocuments([]); setStudyPlan([]); setStudyPlanChanges([]); setTaskFocusSessions([]); setStudyRewardEvents(null); setSnapshotTargetKey(null); setLastSyncCheckedAt(null);
       setLoading(false); setHasStaleSnapshot(false); setError('Your Bloom profile is unavailable. Refresh your profile and try again.');
       return;
     }
@@ -131,7 +150,7 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
       viewedTargetRef.current = targetKey;
       snapshotTargetRef.current = null;
       pendingCreate.current = null; pendingStart.current = null;
-      setItems([]); setSessions([]); setRecords([]); setRecordAttachments([]); setDocuments([]); setStudyPlan([]); setStudyPlanChanges([]); setTaskFocusSessions([]); setSnapshotTargetKey(null); setLastSyncCheckedAt(null);
+      setItems([]); setSessions([]); setRecords([]); setRecordAttachments([]); setDocuments([]); setStudyPlan([]); setStudyPlanChanges([]); setTaskFocusSessions([]); setStudyRewardEvents(null); setSnapshotTargetKey(null); setLastSyncCheckedAt(null);
       setTitle(''); setNotes(''); setDueDate(''); setTargetMinutes(''); setAuthor(''); setGenre(''); setPageCount(''); setReadingStatus('want_to_read'); setProjectTitle(''); setProjectNotes(''); setTaskFilter('today'); setTaskPriority('medium');
     }
     setLoading(true); setError(null); setHasStaleSnapshot(false);
@@ -148,6 +167,12 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
       setStudyPlan(result.studyPlan);
       setStudyPlanChanges(result.studyPlanChanges);
       setTaskFocusSessions(result.taskFocusSessions);
+      setStudyRewardEvents(null);
+      if (moduleId === 'study') {
+        void loadGrowthRewards(profileId).then((rewardData) => {
+          if (request === refreshRequest.current) setStudyRewardEvents(rewardData.events);
+        }).catch(() => { /* Reward status is supplementary; it does not block study records. */ });
+      }
       setSnapshotTargetKey(targetKey);
       snapshotTargetRef.current = targetKey;
       setHasStaleSnapshot(false);
@@ -196,6 +221,7 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
         currentPage: parsedPageCount ? (readingStatus === 'finished' ? parsedPageCount : 0) : null, status: readingStatus });
       pendingCreate.current = null;
       setTitle(''); setNotes(''); setDueDate(''); setTargetMinutes(''); setTaskPriority('medium'); setAuthor(''); setGenre(''); setPageCount(''); setReadingStatus('want_to_read');
+      if (moduleId === 'study') { setShowAddSubject(false); setShowStudyStartSetup(false); }
       setNotice(moduleId === 'study' ? 'Subject added.' : moduleId === 'read' ? 'Added to your reading list.' : 'Task added.');
       await refresh();
     } catch {
@@ -226,7 +252,8 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
       await startGrowthSession(moduleId as 'study' | 'read', item.id, sourceDevice, pendingStart.current.requestId);
       pendingStart.current = null;
       await refresh();
-      setNotice('Session started. Bloom records its start on the server.');
+      if (moduleId === 'study') router.replace(sectionHref('study', 'active-session'));
+      else setNotice('Session started. Bloom records its start on the server.');
     } catch (cause) {
       setError(cause instanceof Error && cause.message.includes('active session')
         ? 'Finish or cancel the current session before starting another.'
@@ -242,9 +269,23 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
         setNotice('Session cancelled; it was not added to your completed history.');
       } else {
         const result = await finishGrowthSession(session.id);
-        setNotice(`Session saved · ${formatDuration(result.durationSeconds)}. No screen-time credits were awarded.`);
+        if (moduleId === 'study' && profileId) {
+          let rewardStatus = 'unavailable';
+          let rewardMinutes = 0;
+          try {
+            const rewards = await loadGrowthRewards(profileId);
+            const event = rewards.events.find((entry) => entry.source_type === 'session' && entry.source_id === session.id);
+            if (event) { rewardStatus = event.status; rewardMinutes = event.awarded_minutes; }
+          } catch { /* Session completion is authoritative even if the separate wallet read is unavailable. */ }
+          await refresh();
+          router.replace({ pathname: '/apps/study/[section]', params: { section: 'session-complete', itemId: session.item_id,
+            durationSeconds: String(result.durationSeconds), rewardStatus, rewardMinutes: String(rewardMinutes) } });
+          return;
+        }
+        setNotice(`Session saved · ${formatDuration(result.durationSeconds)}.`);
       }
       await refresh();
+      if (cancel && moduleId === 'study') router.replace(sectionHref('study', 'today'));
     } catch (cause) {
       setError(cause instanceof Error && cause.message.toLowerCase().includes('session has expired')
         ? 'This server session expired after 12 hours. Cancel it to clear the session, then start a new one.'
@@ -320,10 +361,41 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
   const wantToRead = activeReadings.filter((item) => (item.reading_status ?? (item.progress_percent > 0 ? 'currently_reading' : 'want_to_read')) === 'want_to_read');
   const currentlyReading = activeReadings.filter((item) => (item.reading_status ?? (item.progress_percent > 0 ? 'currently_reading' : 'want_to_read')) === 'currently_reading');
   const completedStudySessions = sessions.filter((session) => session.status === 'completed');
+  const studySubjects = activeStudyItems.filter((item) => item.item_type === 'subject');
+  const studyTodaySessions = sessions.filter((session) => session.status === 'completed' && session.completed_at
+    && dateKeyInTimeZone(Date.parse(session.completed_at), taskTimeZone) === todayInProfileTimeZone);
+  const studyTodayMinutes = Math.floor(studyTodaySessions.reduce((sum, session) => sum + (session.duration_seconds ?? 0), 0) / 60);
+  const studyTodayPlan = getTodaysStudyPlan(items, studyPlan, studyPlanChanges, todayInProfileTimeZone);
+  const studyTodayPlannedMinutes = studyTodayPlan.reduce((sum, slot) => sum + slot.minutes, 0);
+  const studyTodayProgress = studyTodayPlannedMinutes > 0 ? Math.min(100, Math.round(studyTodayMinutes / studyTodayPlannedMinutes * 100)) : null;
+  const studyTodaySubjectCount = new Set(studyTodaySessions.map((session) => findRootSubject(items, session.item_id)?.id ?? session.item_id)).size;
+  const weekStart = startOfWeekKey(todayInProfileTimeZone);
+  const studyWeekSessions = completedStudySessions.filter((session) => session.completed_at
+    && dateKeyInTimeZone(Date.parse(session.completed_at), taskTimeZone) >= weekStart
+    && dateKeyInTimeZone(Date.parse(session.completed_at), taskTimeZone) <= todayInProfileTimeZone);
+  const studyWeekMinutes = Math.floor(studyWeekSessions.reduce((sum, session) => sum + (session.duration_seconds ?? 0), 0) / 60);
+  const studyWeekRewards = (studyRewardEvents ?? []).filter((event) => event.module_id === 'study'
+    && dateKeyInTimeZone(Date.parse(event.created_at), taskTimeZone) >= weekStart
+    && dateKeyInTimeZone(Date.parse(event.created_at), taskTimeZone) <= todayInProfileTimeZone);
+  const studyWeekRewardedMinutes = studyWeekRewards.filter((event) => event.status === 'awarded').reduce((sum, event) => sum + event.awarded_minutes, 0);
+  const studyWeekPendingRewards = studyWeekRewards.filter((event) => event.status === 'pending').length;
   const openTaskCount = openItems.filter((item) => ['task', 'checklist'].includes(item.item_type)).length;
+  const isStudyImmersive = moduleId === 'study' && ['active-session', 'session-complete', 'learning-check'].includes(effectiveSectionId ?? '');
+  const selectedStudyTab = moduleId === 'study' && !primarySections.some((section) => section.id === effectiveSectionId) ? 'more' : effectiveSectionId;
 
   return <Screen safeAreaTop={false}>
-    <View style={[styles.moduleHero, { backgroundColor: accent.surface, borderColor: theme.colors.border }]}>
+    {moduleId === 'study' ? (!isStudyImmersive && <>
+      <View style={styles.studyHeader}>
+        <View style={[styles.moduleIcon, { backgroundColor: theme.colors.surface }]}><MaterialIcons name="school" size={24} color={accent.deep} /></View>
+        <View style={sharedStyles.grow}><Eyebrow>Bloom Study</Eyebrow><Heading>Study</Heading><Body>Focus. Learn. Grow.</Body></View>
+      </View>
+      <StudyLocalNavigation selected={selectedStudyTab ?? 'today'} accent={accent.deep} surface={accent.surface}
+        onSelect={(id) => router.replace(sectionHref('study', id))} />
+      {effectiveSectionId === 'today' && <ImageBackground source={bloomPillarImages.study} resizeMode="cover" imageStyle={styles.studyHeroImage} style={styles.studyHero}>
+        <View style={styles.studyHeroShade} />
+        <View style={styles.studyHeroCopy}><Text style={styles.studyHeroEyebrow}>TODAY</Text><Text style={styles.studyHeroTitle}>Deep focus, real progress.</Text></View>
+      </ImageBackground>}
+    </>) : <View style={[styles.moduleHero, { backgroundColor: accent.surface, borderColor: theme.colors.border }]}>
       <View style={styles.moduleTitleRow}>
         <View style={[styles.moduleIcon, { backgroundColor: theme.colors.surface }]}><MaterialIcons name={content.icon} size={25} color={accent.deep} /></View>
         <View style={sharedStyles.grow}>
@@ -334,12 +406,10 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
           onPress={() => router.replace(sectionId ? `/apps/${moduleId}` as Href : '/apps' as Href)} />
       </View>
       {!sectionId && <Body>{content.description}</Body>}
-    </View>
+    </View>}
 
-    {sectionId && activeSection && <View style={styles.sectionHeading}>
-      <Eyebrow>{activeSection.label}</Eyebrow>
-      <Heading>{activeSection.title}</Heading>
-      <Body>{activeSection.description}</Body>
+    {moduleId !== 'study' && sectionId && activeSection && <View style={styles.sectionHeading}>
+      <Eyebrow>{activeSection.label}</Eyebrow><Heading>{activeSection.title}</Heading><Body>{activeSection.description}</Body>
     </View>}
 
     {loading && <ActivityIndicator color={accent.deep} />}
@@ -353,7 +423,7 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
     </View>}
     {notice && <Panel><Body>{notice}</Body></Panel>}
 
-    {!sectionId && !loading && <>
+    {moduleId !== 'study' && !sectionId && !loading && <>
       <DashboardSummary moduleId={moduleId} hasSnapshot={hasSnapshot}
         activeSession={activeSession} activeStudyItems={activeStudyItems} activeReadings={activeReadings}
         completedReadings={completedReadings} completedStudySessions={completedStudySessions.length}
@@ -368,76 +438,168 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
               onPress={() => router.push(sectionHref(moduleId, section.id))} />
           </View>)}
         </View>
-        {moreStudySections.length > 0 && <View style={styles.moreTools}>
-          <Button label={showMoreStudyTools ? 'Hide extra Study tools' : `Show all Study tools · ${moreStudySections.length}`} variant="secondary"
-            onPress={() => setShowMoreStudyTools((current) => !current)} />
-          {!showMoreStudyTools && <Body>Mock exams · Tutor · Documents · Document help · Learning check</Body>}
-          {showMoreStudyTools && <View style={styles.dashboardGrid}>
-            {moreStudySections.map((section) => <View key={section.id} style={styles.dashboardTile}>
-              <FeatureTile title={section.label} subtitle={section.description} icon={section.icon} accentColor={accent.deep} backgroundColor={accent.surface}
-                onPress={() => router.push(sectionHref(moduleId, section.id))} />
-            </View>)}
-          </View>}
-        </View>}
       </View>
     </>}
 
-    {sectionId && !activeSection && <Panel><Eyebrow>{content.title}</Eyebrow><Label>Section not found</Label><Body>This page isn’t part of this pillar.</Body></Panel>}
+    {effectiveSectionId && !activeSection && <Panel><Eyebrow>{content.title}</Eyebrow><Label>Section not found</Label><Body>This page isn’t part of this pillar.</Body></Panel>}
 
-    {!loading && sectionId === 'today' && moduleId === 'study' && <>
+    {!loading && moduleId === 'study' && effectiveSectionId === 'today' && <>
       {activeSession && <Panel>
-        <Eyebrow>Focus session · in progress</Eyebrow>
-        <Heading>{formatElapsed(elapsed)}</Heading>
-        <Label>{sessionItem?.title ?? 'Study subject'}</Label>
-        <Body>Started on {activeSession.source_device_name} · server time {new Date(activeSession.started_at).toLocaleString()}{lastSyncCheckedAt ? ` · last checked ${new Date(lastSyncCheckedAt).toLocaleString()}` : ''}.</Body>
-        <Button label="Finish session" onPress={() => void endSession(activeSession, false)} busy={saving} disabled={readOnly} />
-        <Button label="Cancel session" variant="secondary" onPress={() => void endSession(activeSession, true)} disabled={saving || readOnly} />
+        <View style={sharedStyles.row}><View style={sharedStyles.grow}><Eyebrow>Focus in progress</Eyebrow><Heading>{formatElapsed(elapsed)}</Heading></View>
+          <View style={[styles.liveIndicator, { backgroundColor: accent.surface }]}><View style={[styles.liveDot, { backgroundColor: accent.deep }]} /><Text style={[styles.liveText, { color: accent.deep }]}>LIVE</Text></View>
+        </View>
+        <Label>{sessionItem?.title ?? 'Study session'}</Label>
+        <Button label="Continue session" onPress={() => router.push(sectionHref('study', 'active-session'))} />
       </Panel>}
+
       <Panel>
-        <Eyebrow>Add to Study</Eyebrow>
-        <Label>Add a subject</Label>
+        <View style={sharedStyles.row}><View style={sharedStyles.grow}><Eyebrow>Today’s focus</Eyebrow><Label>{studyTodaySessions.length ? `${studyTodaySessions.length} completed session${studyTodaySessions.length === 1 ? '' : 's'}` : 'Ready when you are'}</Label></View>
+          {studyTodayProgress !== null && <Text style={[styles.todayPercent, { color: accent.deep }]}>{studyTodayProgress}%</Text>}
+        </View>
+        <View style={styles.todayMetrics}>
+          <StudyMetric value={formatMinutes(studyTodayMinutes)} label="studied" />
+          <StudyMetric value={studyTodaySubjectCount.toString()} label="subjects" />
+          <StudyMetric value={studyTodayPlannedMinutes ? formatMinutes(studyTodayPlannedMinutes) : '—'} label="planned" />
+        </View>
+        {studyTodayProgress !== null && <ProgressBar value={studyTodayProgress} label="Today's planned study time completed" color={accent.deep} />}
+        {!studyTodayPlannedMinutes && <Body>No study time planned today.</Body>}
+        {studyRewardEvents === null ? <Body>Screen-time rewards are unavailable.</Body> :
+          <Body>{formatMinutes(studyWeekRewardedMinutes)} screen time earned this week{studyWeekPendingRewards ? ` · ${studyWeekPendingRewards} pending` : ''}</Body>}
+        {!activeSession && <Button label="Start study session" onPress={() => setShowStudyStartSetup((current) => !current)} disabled={readOnly || !studySubjects.length} />}
+        {activeSession && <Body>Continue your active session above.</Body>}
+        {!studySubjects.length && <View style={sharedStyles.row}><View style={sharedStyles.grow}><Body>Add a subject to start.</Body></View>
+          <Button label="Add subject" variant="tertiary" onPress={() => setShowAddSubject(true)} disabled={readOnly} />
+        </View>}
+        {showStudyStartSetup && studySubjects.length > 0 && <View style={styles.studyPicker}>
+          <Label>Choose a subject</Label>
+          {studySubjects.map((item) => <View key={item.id} style={styles.itemRow}><Label>{item.title}</Label>
+            <Button label="Start" variant="tertiary" disabled={readOnly || saving || Boolean(activeSession)} onPress={() => void beginSession(item)} />
+          </View>)}
+        </View>}
+      </Panel>
+
+      {showAddSubject && <Panel>
+        <View style={sharedStyles.row}><Label>Add a subject</Label><Button label="Close" variant="tertiary" onPress={() => setShowAddSubject(false)} /></View>
         <Field label="Subject" value={title} onChangeText={setTitle} placeholder="e.g. Biology" maxLength={120} editable={!readOnly} />
         <Field label="Weekly study target in minutes" value={targetMinutes} onChangeText={setTargetMinutes} keyboardType="number-pad" placeholder="e.g. 240" editable={!readOnly} />
         <Field label="Notes (optional)" value={notes} onChangeText={setNotes} multiline maxLength={2000} placeholder="Topics or a short plan" editable={!readOnly} />
         <Button label="Add subject" onPress={() => void addItem()} busy={saving} disabled={readOnly} />
-      </Panel>
+      </Panel>}
+
+      <View style={styles.studySection}>
+        <View style={sharedStyles.row}><View style={sharedStyles.grow}><Heading>Your subjects</Heading></View><Button label="Courses" variant="tertiary" onPress={() => router.push(sectionHref('study', 'courses'))} /></View>
+        {studySubjects.length ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.subjectCards}>
+          {studySubjects.map((item) => {
+            const children = items.filter((entry) => entry.parent_id === item.id && entry.state === 'active');
+            const nextLesson = children.find((entry) => entry.item_type === 'course') ?? children[0];
+            const dueAssignments = items.filter((entry) => entry.item_type === 'assignment' && entry.state === 'active' && entry.due_date
+              && findRootSubject(items, entry.id)?.id === item.id).length;
+            return <ImageBackground key={item.id} source={bloomPillarImages.study} resizeMode="cover" imageStyle={styles.subjectImage} style={styles.subjectCard}>
+              <View style={styles.subjectShade} />
+              <View style={styles.subjectCardContent}>
+                <Text style={styles.subjectEyebrow}>SUBJECT</Text><Text numberOfLines={2} style={styles.subjectTitle}>{item.title}</Text>
+                <Text numberOfLines={2} style={styles.subjectDetail}>{nextLesson ? `Next · ${nextLesson.title}` : item.target_minutes ? `${formatMinutes(item.target_minutes)} weekly target` : 'No weekly target'}</Text>
+                {dueAssignments > 0 && <Text style={styles.subjectDetail}>{dueAssignments} assignment{dueAssignments === 1 ? '' : 's'} due</Text>}
+                <Pressable accessibilityRole="button" accessibilityLabel={`Open ${item.title} courses`} onPress={() => router.push(sectionHref('study', 'courses'))}
+                  style={({ pressed }) => [styles.subjectOpenAction, pressed && { opacity: 0.82 }]}>
+                  <Text style={styles.subjectOpenText}>Open</Text>
+                </Pressable>
+              </View>
+            </ImageBackground>;
+          })}
+        </ScrollView> : <Panel><Body>Your subjects will appear here.</Body><Button label="Add subject" variant="secondary" onPress={() => setShowAddSubject(true)} disabled={readOnly} /></Panel>}
+      </View>
+
       <Panel>
-        <Eyebrow>Current subjects · {openItems.length}</Eyebrow>
-        {openItems.filter((item) => ['subject', 'course', 'lesson', 'assignment'].includes(item.item_type)).length === 0 ? <Body>Add your first subject to begin a focus session.</Body> : openItems.filter((item) => ['subject', 'course', 'lesson', 'assignment'].includes(item.item_type)).map((item) => <View key={item.id} style={styles.itemRow}>
-          <View style={sharedStyles.grow}><Label>{item.title}</Label><Body>{item.target_minutes} min weekly target{item.notes ? ` · ${item.notes}` : ''}</Body></View>
-          <Button label="Start" variant="tertiary" disabled={readOnly || saving || Boolean(activeSession)} onPress={() => void beginSession(item)} />
-        </View>)}
+        <View style={sharedStyles.row}><View style={sharedStyles.grow}><Eyebrow>Today’s plan</Eyebrow><Label>{studyTodayPlan.length ? `${studyTodayPlan.length} planned block${studyTodayPlan.length === 1 ? '' : 's'}` : 'A flexible day'}</Label></View>
+          <Button label="Edit" variant="tertiary" onPress={() => router.push(sectionHref('study', 'plan'))} />
+        </View>
+        {studyTodayPlan.length ? studyTodayPlan.map((slot) => <View key={`${slot.itemId}:${slot.minutes}`} style={styles.itemRow}>
+          <View style={sharedStyles.grow}><Label>{slot.title}</Label><Body>{formatMinutes(slot.minutes)} planned</Body></View>
+          {(() => {
+            const completedMinutes = Math.floor(studyTodaySessions.filter((session) => isItemWithin(items, session.item_id, slot.itemId))
+              .reduce((sum, session) => sum + (session.duration_seconds ?? 0), 0) / 60);
+            return completedMinutes >= slot.minutes
+              ? <Text style={[styles.planDone, { color: accent.deep }]}>Done</Text>
+              : completedMinutes > 0 ? <Text style={[styles.planDone, { color: accent.deep }]}>{formatMinutes(completedMinutes)}</Text> : null;
+          })()}
+        </View>) : <Body>No sessions planned.</Body>}
       </Panel>
-      <SessionHistory sessions={sessions} items={sessionsByItem} moduleId="study" />
+
+      <StudySessionHistory sessions={sessions} items={sessionsByItem} timeZone={taskTimeZone}
+        onLearningCheck={(itemId) => router.push({ pathname: '/apps/study/[section]', params: { section: 'learning-check', itemId } })} />
     </>}
 
-    {!loading && moduleId === 'study' && sectionId === 'plan' && <>
-      <StudyPlanPanel key={profileId} items={items} slots={studyPlan} changes={studyPlanChanges} readOnly={readOnly} onSaved={() => void refresh()} />
+    {!loading && moduleId === 'study' && effectiveSectionId === 'plan' && <StudyPlanPanel key={profileId} items={items} slots={studyPlan} changes={studyPlanChanges}
+      sessions={sessions} timeZone={taskTimeZone} today={todayInProfileTimeZone} todayDayOfWeek={new Date(`${todayInProfileTimeZone}T12:00:00Z`).getUTCDay()}
+      readOnly={readOnly} onSaved={() => void refresh()} />}
+
+    {!loading && moduleId === 'study' && effectiveSectionId === 'courses' && <GrowthHierarchyPanel moduleId="study" items={items} readOnly={readOnly}
+      onOpenTool={(tool, itemId) => router.push({ pathname: '/apps/study/[section]', params: { section: tool, itemId } })}
+      onSaved={() => void refresh()} />}
+
+    {!loading && moduleId === 'study' && effectiveSectionId === 'more' && <View style={styles.studySection}>
+      <View><Eyebrow>More</Eyebrow><Heading>Study tools</Heading></View>
+      <View style={styles.dashboardGrid}>{moreStudySections.map((section) => <View key={section.id} style={styles.dashboardTile}>
+        <FeatureTile title={section.label} subtitle={section.id === 'practice' ? 'Questions and reviews' : section.id === 'exams' ? 'Timed assessments' : section.id === 'tutor' ? 'Guided explanations' : section.id === 'resources' ? 'Course materials' : section.id === 'document-help' ? 'Ask with sources' : section.id === 'progress' ? 'Sessions and learning' : 'Session reflection'}
+          icon={section.icon} accentColor={accent.deep} backgroundColor={accent.surface} onPress={() => router.push(sectionHref('study', section.id))} />
+      </View>)}</View>
+    </View>}
+
+    {!loading && moduleId === 'study' && effectiveSectionId === 'progress' && <>
+      <Panel><Eyebrow>This week</Eyebrow><Heading>{formatMinutes(studyWeekMinutes)}</Heading>
+        <View style={styles.todayMetrics}>
+          <StudyMetric value={studyWeekSessions.length.toString()} label="sessions" />
+          <StudyMetric value={studySubjects.length.toString()} label="subjects" />
+          <StudyMetric value={studyRewardEvents === null ? '—' : formatMinutes(studyWeekRewardedMinutes)} label="screen time earned" />
+        </View>
+        {studyRewardEvents === null ? <Body>Reward status is unavailable.</Body> : studyWeekPendingRewards > 0 ? <Body>{studyWeekPendingRewards} reward{studyWeekPendingRewards === 1 ? '' : 's'} pending review.</Body> : null}
+      </Panel>
+      <StudySessionHistory sessions={sessions} items={sessionsByItem} timeZone={taskTimeZone}
+        onLearningCheck={(itemId) => router.push({ pathname: '/apps/study/[section]', params: { section: 'learning-check', itemId } })} />
     </>}
 
-    {!loading && moduleId === 'study' && sectionId === 'courses' && <>
-      <GrowthHierarchyPanel moduleId="study" items={items} readOnly={readOnly} onSaved={() => void refresh()} />
+    {!loading && moduleId === 'study' && effectiveSectionId === 'practice' && <StudyPracticeReviewPanel key={`${profileId}:${contextItemId ?? ''}`} items={items} records={records} initialItemId={contextItemId} readOnly={readOnly} onSaved={() => void refresh()} />}
+
+    {!loading && moduleId === 'study' && effectiveSectionId === 'exams' && <MockExamPanel key={profileId} profileId={profileId ?? ''} items={items} records={records} readOnly={readOnly} onSaved={() => void refresh()} />}
+
+    {!loading && moduleId === 'study' && effectiveSectionId === 'learning-check' && <>
+      {isStudyImmersive && <View style={[sharedStyles.row, styles.immersiveTitle]}>
+        <View style={sharedStyles.grow}><Eyebrow>Study · Learning check</Eyebrow><Heading>What did you learn?</Heading></View>
+        <Button label="Study" variant="tertiary" onPress={() => router.replace(sectionHref('study', 'today'))} />
+      </View>}
+      <GrowthRecordPanel key={`${profileId}:${contextItemId ?? ''}`} profileId={profileId} moduleId="study" items={items} records={records} documents={documents} attachments={recordAttachments}
+        initialItemId={contextItemId} readOnly={readOnly} onSaved={() => void refresh()} />
     </>}
 
-    {!loading && moduleId === 'study' && sectionId === 'practice' && <StudyPracticeReviewPanel items={items} records={records} readOnly={readOnly} onSaved={() => void refresh()} />}
+    {!loading && moduleId === 'study' && effectiveSectionId === 'tutor' && <StudyTutorPanel key={`${profileId}:${contextItemId ?? ''}`} profileId={profileId ?? ''} items={items} initialItemId={contextItemId} readOnly={readOnly} />}
 
-    {!loading && moduleId === 'study' && sectionId === 'exams' && <>
-      <MockExamPanel key={profileId} profileId={profileId ?? ''} items={items} records={records} readOnly={readOnly} onSaved={() => void refresh()} />
-    </>}
+    {!loading && moduleId === 'study' && effectiveSectionId === 'resources' && <GrowthDocumentLibraryPanel key={`${profileId}:${contextItemId ?? ''}`} moduleId="study" items={items} records={records}
+      documents={documents} initialItemId={contextItemId} onDocumentHelp={(documentId) => router.push({ pathname: '/apps/study/[section]', params: { section: 'document-help', documentId } })}
+      readOnly={readOnly} onSaved={() => void refresh()} />}
 
-    {!loading && moduleId === 'study' && sectionId === 'learning-check' && <>
-      <GrowthRecordPanel profileId={profileId} moduleId="study" items={items} records={records} documents={documents} attachments={recordAttachments} readOnly={readOnly} onSaved={() => void refresh()} />
-    </>}
+    {!loading && moduleId === 'study' && effectiveSectionId === 'document-help' && <StudyDocumentHelpPanel key={`study-document-help:${profileId}:${contextDocumentId ?? ''}`} profileId={profileId}
+      documents={documents} initialDocumentId={contextDocumentId} readOnly={readOnly} onSaved={() => void refresh()} />}
 
-    {!loading && moduleId === 'study' && sectionId === 'tutor' && <StudyTutorPanel key={profileId} profileId={profileId ?? ''} items={items} readOnly={readOnly} />}
+    {!loading && moduleId === 'study' && effectiveSectionId === 'active-session' && <Panel>
+      <View style={styles.immersiveTitle}><Eyebrow>Study session</Eyebrow><Heading>Stay with one thing.</Heading></View>
+      {activeSession ? <>
+        <Text accessibilityRole="timer" style={[styles.sessionTimer, { color: accent.deep }]}>{formatElapsed(elapsed)}</Text>
+        <Label>{sessionItem?.title ?? 'Study session'}</Label>
+        <Body>Started {new Date(activeSession.started_at).toLocaleTimeString(undefined, { timeZone: taskTimeZone, hour: 'numeric', minute: '2-digit' })} · {activeSession.source_device_name}</Body>
+        <Button label="Finish session" onPress={() => void endSession(activeSession, false)} busy={saving} disabled={readOnly} />
+        <Button label="Cancel session" variant="secondary" onPress={() => void endSession(activeSession, true)} disabled={saving || readOnly} />
+      </> : <><Body>No study session is active.</Body><Button label="Back to Today" variant="secondary" onPress={() => router.replace(sectionHref('study', 'today'))} /></>}
+    </Panel>}
 
-    {!loading && moduleId === 'study' && sectionId === 'resources' && <>
-      <GrowthDocumentLibraryPanel moduleId="study" items={items} records={records} documents={documents} readOnly={readOnly} onSaved={() => void refresh()} />
-    </>}
-
-    {!loading && moduleId === 'study' && sectionId === 'document-help' && <>
-      <StudyDocumentHelpPanel key={`study-document-help:${profileId}`} profileId={profileId} documents={documents} readOnly={readOnly} onSaved={() => void refresh()} />
-    </>}
+    {!loading && moduleId === 'study' && effectiveSectionId === 'session-complete' && <Panel>
+      <View style={styles.immersiveTitle}><Eyebrow>Session saved</Eyebrow><Heading>Good work.</Heading></View>
+      <Text style={[styles.sessionTimer, { color: accent.deep }]}>{formatDuration(Number(durationSecondsParam ?? 0))}</Text>
+      <Label>{items.find((item) => item.id === contextItemId)?.title ?? 'Study session'}</Label>
+      <Body>{studyRewardMessage(rewardStatusParam, Number(rewardMinutesParam ?? 0))}</Body>
+      <Button label="Complete learning check" onPress={() => router.replace({ pathname: '/apps/study/[section]', params: { section: 'learning-check', itemId: contextItemId ?? '' } })} />
+      <Button label="Back to Study" variant="secondary" onPress={() => router.replace(sectionHref('study', 'today'))} />
+    </Panel>}
 
     {!loading && moduleId === 'read' && sectionId === 'library' && <>
       {activeSession && <Panel>
@@ -564,6 +726,118 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
   </Screen>;
 }
 
+function StudyLocalNavigation({ selected, accent, surface, onSelect }: {
+  selected: string; accent: string; surface: string; onSelect: (id: string) => void;
+}) {
+  const { theme } = useBloomTheme();
+  const tabs = [
+    { id: 'today', label: 'Today', icon: 'today' as const },
+    { id: 'plan', label: 'Plan', icon: 'calendar-month' as const },
+    { id: 'courses', label: 'Courses', icon: 'account-tree' as const },
+    { id: 'more', label: 'More', icon: 'apps' as const },
+  ];
+  return <View style={[styles.studyNav, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
+    {tabs.map((tab) => {
+      const active = selected === tab.id;
+      return <Pressable key={tab.id} accessibilityRole="button" accessibilityState={{ selected: active }}
+        accessibilityLabel={`${tab.label}${active ? ', selected' : ''}`} onPress={() => onSelect(tab.id)}
+        style={({ pressed }) => [styles.studyNavItem, active && { backgroundColor: surface }, pressed && { opacity: 0.78 }]}>
+        <MaterialIcons name={tab.icon} size={20} color={active ? accent : theme.colors.inkMuted} />
+        <Text numberOfLines={1} style={[styles.studyNavLabel, { color: active ? accent : theme.colors.inkMuted }]}>{tab.label}</Text>
+      </Pressable>;
+    })}
+  </View>;
+}
+
+function StudyMetric({ value, label }: { value: string; label: string }) {
+  const { theme } = useBloomTheme();
+  return <View style={styles.studyMetric}>
+    <Text style={[styles.studyMetricValue, { color: theme.colors.ink }]}>{value}</Text>
+    <Text style={[styles.studyMetricLabel, { color: theme.colors.inkMuted }]}>{label}</Text>
+  </View>;
+}
+
+function StudySessionHistory({ sessions, items, timeZone, onLearningCheck }: {
+  sessions: GrowthSession[]; items: Map<string, GrowthItem>; timeZone: string; onLearningCheck: (itemId: string) => void;
+}) {
+  const { theme } = useBloomTheme();
+  const recent = [...sessions].sort((a, b) => Date.parse(b.started_at) - Date.parse(a.started_at)).slice(0, 3);
+  return <Panel>
+    <View style={sharedStyles.row}><View style={sharedStyles.grow}><Eyebrow>Recent sessions</Eyebrow></View>
+      <Text style={[styles.historyCount, { color: theme.colors.inkMuted }]}>{sessions.length}</Text>
+    </View>
+    {recent.length ? recent.map((session) => <View key={session.id} style={styles.itemRow}>
+      <View style={sharedStyles.grow}><Label>{items.get(session.item_id)?.title ?? 'Study session'}</Label>
+        <Body>{session.completed_at ? new Date(session.completed_at).toLocaleDateString(undefined, { timeZone, weekday: 'short', month: 'short', day: 'numeric' }) : 'In progress'} · {session.status === 'completed' ? formatDuration(session.duration_seconds ?? 0) : session.status === 'cancelled' ? 'Cancelled' : 'In progress'}</Body>
+      </View>
+      {session.status === 'completed' && <Button label="Learning check" variant="tertiary" onPress={() => onLearningCheck(session.item_id)} />}
+    </View>) : <Body>Completed sessions will appear here.</Body>}
+  </Panel>;
+}
+
+function studyRewardMessage(status: string | undefined, minutes: number) {
+  if (status === 'awarded') return `${minutes} min of screen time added.`;
+  if (status === 'pending') return 'The screen-time reward is pending review.';
+  if (status === 'capped') return 'No screen time was added because a reward cap was reached.';
+  if (status === 'rejected') return 'This session was not eligible for a screen-time reward.';
+  return 'The screen-time reward status is not available yet.';
+}
+
+function formatMinutes(minutes: number) {
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  return hours ? `${hours}h${remainder ? ` ${remainder}m` : ''}` : `${minutes} min`;
+}
+
+function getTodaysStudyPlan(items: GrowthItem[], slots: StudyPlanSlot[], changes: StudyPlanChange[], date: string) {
+  if (!date) return [];
+  const dayOfWeek = new Date(`${date}T12:00:00Z`).getUTCDay();
+  const itemById = new Map(items.map((item) => [item.id, item]));
+  const planned = new Map<string, { itemId: string; title: string; minutes: number }>();
+  for (const slot of slots.filter((entry) => entry.day_of_week === dayOfWeek)) {
+    const item = itemById.get(slot.item_id);
+    if (!item || item.state !== 'active') continue;
+    const change = changes.find((entry) => entry.item_id === item.id && entry.original_date === date);
+    if (!change) planned.set(`${item.id}:${date}`, { itemId: item.id, title: item.title, minutes: slot.target_minutes });
+  }
+  for (const change of changes.filter((entry) => entry.action === 'move' && entry.moved_to_date === date)) {
+    const item = itemById.get(change.item_id);
+    const slot = slots.find((entry) => entry.item_id === change.item_id);
+    if (item?.state === 'active' && slot) planned.set(`${item.id}:${change.original_date}`, { itemId: item.id, title: item.title, minutes: slot.target_minutes });
+  }
+  return [...planned.values()].sort((a, b) => a.title.localeCompare(b.title));
+}
+
+function findRootSubject(items: GrowthItem[], itemId: string) {
+  const byId = new Map(items.map((item) => [item.id, item]));
+  let item = byId.get(itemId);
+  const visited = new Set<string>();
+  while (item && item.item_type !== 'subject' && item.parent_id && !visited.has(item.id)) {
+    visited.add(item.id);
+    item = byId.get(item.parent_id);
+  }
+  return item?.item_type === 'subject' ? item : null;
+}
+
+function isItemWithin(items: GrowthItem[], itemId: string, ancestorId: string) {
+  const byId = new Map(items.map((item) => [item.id, item]));
+  let item = byId.get(itemId);
+  const visited = new Set<string>();
+  while (item && !visited.has(item.id)) {
+    if (item.id === ancestorId) return true;
+    visited.add(item.id);
+    item = item.parent_id ? byId.get(item.parent_id) : undefined;
+  }
+  return false;
+}
+
+function startOfWeekKey(dateKey: string) {
+  if (!dateKey) return '';
+  const date = new Date(`${dateKey}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() - date.getUTCDay());
+  return date.toISOString().slice(0, 10);
+}
+
 function DashboardSummary({ moduleId, hasSnapshot, activeSession, activeStudyItems, activeReadings, completedReadings, completedStudySessions, openTaskCount, tasksDueToday }:
   { moduleId: GrowthModuleId; hasSnapshot: boolean; activeSession: GrowthSession | null; activeStudyItems: GrowthItem[];
     activeReadings: GrowthItem[]; completedReadings: GrowthItem[]; completedStudySessions: number; openTaskCount: number; tasksDueToday: number }) {
@@ -686,6 +960,40 @@ const styles = StyleSheet.create({
   moduleTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   moduleIcon: { width: 48, height: 48, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
   sectionHeading: { gap: 5, paddingTop: 2 },
+  studyHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingTop: 2 },
+  studyNav: { flexDirection: 'row', gap: 3, padding: 4, borderWidth: 1, borderRadius: 20 },
+  studyNavItem: { flex: 1, minHeight: 46, borderRadius: 15, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 5, paddingHorizontal: 4 },
+  studyNavLabel: { fontSize: 12, fontWeight: '700' },
+  studyHero: { height: 168, borderRadius: 26, overflow: 'hidden', justifyContent: 'flex-end' },
+  studyHeroImage: { borderRadius: 26 },
+  studyHeroShade: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(15, 28, 58, 0.34)' },
+  studyHeroCopy: { padding: 20, gap: 5 },
+  studyHeroEyebrow: { color: '#FFFFFF', fontSize: 12, fontWeight: '800', letterSpacing: 1.2 },
+  studyHeroTitle: { color: '#FFFFFF', fontSize: 25, lineHeight: 31, fontWeight: '800', maxWidth: 280 },
+  studySection: { gap: 12 },
+  todayMetrics: { flexDirection: 'row', gap: 10 },
+  studyMetric: { flex: 1, gap: 2 },
+  studyMetricValue: { fontSize: 23, lineHeight: 28, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  studyMetricLabel: { fontSize: 12, lineHeight: 17, fontWeight: '600' },
+  todayPercent: { fontSize: 28, lineHeight: 34, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  studyPicker: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#E4E8F3', paddingTop: 12, gap: 4 },
+  subjectCards: { gap: 12, paddingEnd: 3 },
+  subjectCard: { width: 252, minHeight: 196, borderRadius: 22, overflow: 'hidden', justifyContent: 'flex-end' },
+  subjectImage: { borderRadius: 22 },
+  subjectShade: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(15, 28, 58, 0.43)' },
+  subjectCardContent: { padding: 16, gap: 4, alignItems: 'flex-start' },
+  subjectEyebrow: { color: 'rgba(255,255,255,0.86)', fontSize: 10, fontWeight: '800', letterSpacing: 1.1 },
+  subjectTitle: { color: '#FFFFFF', fontSize: 21, lineHeight: 26, fontWeight: '800' },
+  subjectDetail: { color: 'rgba(255,255,255,0.94)', fontSize: 13, lineHeight: 18, fontWeight: '600' },
+  subjectOpenAction: { minHeight: 40, paddingHorizontal: 17, justifyContent: 'center', alignItems: 'center', borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.96)', marginTop: 5 },
+  subjectOpenText: { color: '#17203B', fontSize: 13, fontWeight: '800' },
+  liveIndicator: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, alignItems: 'center', flexDirection: 'row', gap: 6 },
+  liveDot: { width: 7, height: 7, borderRadius: 4 },
+  liveText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.8 },
+  planDone: { fontSize: 13, fontWeight: '800' },
+  historyCount: { fontSize: 13, fontWeight: '700' },
+  immersiveTitle: { gap: 4, marginBottom: 8 },
+  sessionTimer: { fontSize: 50, lineHeight: 60, fontWeight: '800', letterSpacing: -1.5, fontVariant: ['tabular-nums'] },
   connectionNotice: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 8 },
   dashboardSection: { gap: 12 },
   moreTools: { gap: 8 },

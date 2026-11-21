@@ -1,5 +1,5 @@
 import type { ComponentProps, PropsWithChildren } from 'react';
-import { useState } from 'react';
+import { createContext, useContext, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions, type TextInputProps } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,6 +13,8 @@ const moduleDetails: Record<ModuleKey, { title: string; icon: ComponentProps<typ
   read: { title: 'Read', icon: 'menu-book' },
   tasks: { title: 'Tasks', icon: 'check-box' },
 };
+
+export const BloomFloatingDockContext = createContext(false);
 
 export function BloomMark({ size = 32, monochrome = false }: { size?: number; monochrome?: boolean }) {
   const { theme } = useBloomTheme();
@@ -37,8 +39,9 @@ export function BloomWordmark({ size = 32 }: { size?: number }) {
 export function Screen({ children, safeAreaTop = true }: PropsWithChildren<{ safeAreaTop?: boolean }>) {
   const { theme } = useBloomTheme();
   const desktop = useIsDesktopLayout();
+  const floatingDock = useContext(BloomFloatingDockContext);
   return <SafeAreaView style={[styles.safe, { backgroundColor: theme.colors.canvas }]} edges={safeAreaTop ? ['top'] : []}>
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.outer, desktop && styles.desktopOuter]}>
+    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.outer, desktop && styles.desktopOuter, floatingDock && styles.floatingDockOuter]}>
       <View style={[styles.content, desktop && styles.desktopContent]}>{children}</View>
     </ScrollView>
   </SafeAreaView>;
@@ -295,6 +298,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   outer: { flexGrow: 1, alignItems: 'center', paddingHorizontal: spacing.space5, paddingTop: spacing.space4, paddingBottom: spacing.space8 },
   desktopOuter: { paddingHorizontal: 40, paddingTop: 28, paddingBottom: 40 },
+  floatingDockOuter: { paddingBottom: 128 },
   content: { width: '100%', maxWidth: 740, gap: spacing.space4 },
   desktopContent: { maxWidth: 1200, gap: spacing.space6 },
   panel: { borderRadius: radii.card, borderWidth: 1, padding: spacing.space5, gap: spacing.space3 },
