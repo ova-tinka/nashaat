@@ -6,29 +6,9 @@ import process from 'node:process';
 
 const DEFAULT_SOURCE_URL =
   'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/dist/exercises.json';
-const DEFAULT_OUT_PATH = 'docs/db/seed-exercises-free-exercise-db.sql';
-
-const VALID_DIFFICULTIES = new Set(['easy', 'medium', 'hard']);
-const VALID_MEASUREMENT_TYPES = new Set([
-  'reps_weight',
-  'time_distance',
-  'time_only',
-  'reps_only',
-]);
-
-const DISTANCE_CARDIO_PATTERN =
-  /\b(run|running|walk|walking|treadmill|cycl|bike|biking|rowing|rower|swim|hiking|ski|skating|elliptical)\b/i;
-
-const WEIGHTED_EQUIPMENT = new Set([
-  'barbell',
-  'dumbbell',
-  'kettlebells',
-  'cable',
-  'machine',
-  'medicine ball',
-  'e-z curl bar',
-  'bands',
-]);
+const SOURCE_IMAGE_BASE_URL =
+  'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/';
+const DEFAULT_OUT_PATH = 'docs/db/enrich-exercises-free-exercise-db.sql';
 
 function parseArgs(argv) {
   const options = {
@@ -36,6 +16,7 @@ function parseArgs(argv) {
     outPath: DEFAULT_OUT_PATH,
     download: false,
     sourceUrl: DEFAULT_SOURCE_URL,
+    sourceLabel: null,
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -59,6 +40,12 @@ function parseArgs(argv) {
 
     if (arg === '--source-url') {
       options.sourceUrl = requireValue(argv, i, '--source-url');
+      i += 1;
+      continue;
+    }
+
+    if (arg === '--source-label') {
+      options.sourceLabel = requireValue(argv, i, '--source-label');
       i += 1;
       continue;
     }
@@ -91,13 +78,14 @@ function requireValue(argv, index, flag) {
 
 function printUsage() {
   console.log(`Usage:
-  node scripts/import-free-exercise-db.mjs <path-to-exercises.json> [--out docs/db/seed-exercises-free-exercise-db.sql]
-  node scripts/import-free-exercise-db.mjs --download [--out docs/db/seed-exercises-free-exercise-db.sql]
+  node scripts/import-free-exercise-db.mjs <path-to-exercises.json> [--out docs/db/enrich-exercises-free-exercise-db.sql]
+  node scripts/import-free-exercise-db.mjs --download [--out docs/db/enrich-exercises-free-exercise-db.sql]
 
 Options:
   --download         Download the free-exercise-db combined JSON from GitHub.
   --source-url URL   Override the download URL.
-  --out PATH         Output SQL seed path.
+  --source-label TXT Label recorded in the generated SQL.
+  --out PATH         Output SQL metadata update path.
 `);
 }
 
@@ -110,13 +98,13 @@ async function loadSource(options) {
       );
     }
     return {
-      label: options.sourceUrl,
+      label: options.sourceLabel ?? options.sourceUrl,
       json: await response.text(),
     };
   }
 
   return {
-    label: options.sourcePath,
+    label: options.sourceLabel ?? options.sourcePath,
     json: await readFile(options.sourcePath, 'utf8'),
   };
 }
@@ -135,30 +123,30 @@ function normalizeExercise(raw) {
   const primaryMuscles = normalizeStringArray(raw.primaryMuscles);
   const secondaryMuscles = normalizeStringArray(raw.secondaryMuscles);
   const muscleGroups = unique([...primaryMuscles, ...secondaryMuscles].map(titleCase));
-  const category = normalizeText(raw.category).toLowerCase();
-  const equipment = normalizeText(raw.equipment).toLowerCase();
-  const steps = normalizeStringArray(raw.instructions);
-  const difficultyLevel = normalizeDifficulty(raw.level);
-  const measurementType = inferMeasurementType({
-    name,
-    category,
-    equipment,
-  });
+  const primaryMuscleGroup = primaryMuscles.length ? titleCase(primaryMuscles[0]) : null;
+  const instructions = normalizeStringArray(raw.instructions);
+  const mediaLink = normalizeImageUrl(raw.id, raw.images);
 
   return {
     name,
-    description: normalizeDescription({
-      name,
-      rawDescription: raw.description,
-      category,
-      equipment,
-      muscleGroups,
-    }),
+    primaryMuscleGroup,
     muscleGroups,
-    steps,
-    difficultyLevel,
-    measurementType,
+    mediaLink,
+    instructions,
   };
+}
+
+function normalizeImageUrl(exerciseId, images) {
+  const id = normalizeText(exerciseId);
+  const firstImage = normalizeText(Array.isArray(images) ? images[0] : null);
+  if (!id || !firstImage) return null;
+
+  const [directory, fileName, ...extraSegments] = firstImage.split('/');
+  if (directory !== id || extraSegments.length > 0
+    || !/^[a-z0-9_-]+$/i.test(directory)
+    || !/^\d+\.(?:jpe?g|png|webp)$/i.test(fileName ?? '')) return null;
+
+  return `${SOURCE_IMAGE_BASE_URL}${encodeURIComponent(directory)}/${encodeURIComponent(fileName)}`;
 }
 
 function normalizeText(value) {
@@ -196,48 +184,6 @@ function titleCase(value) {
         .join('-'),
     )
     .join(' ');
-}
-
-function normalizeDifficulty(level) {
-  const normalized = normalizeText(level).toLowerCase();
-  if (normalized === 'beginner') return 'easy';
-  if (normalized === 'intermediate') return 'medium';
-  if (normalized === 'expert') return 'hard';
-  return 'medium';
-}
-
-function inferMeasurementType({ name, category, equipment }) {
-  if (category === 'cardio') {
-    return DISTANCE_CARDIO_PATTERN.test(name) ? 'time_distance' : 'time_only';
-  }
-
-  if (category === 'stretching') return 'time_only';
-  if (equipment === 'body only') return 'reps_only';
-  if (WEIGHTED_EQUIPMENT.has(equipment)) return 'reps_weight';
-  if (category === 'plyometrics') return 'reps_only';
-
-  return 'reps_weight';
-}
-
-function normalizeDescription({ name, rawDescription, category, equipment, muscleGroups }) {
-  const description = normalizeText(rawDescription);
-  if (description) return description;
-
-  const parts = [];
-  if (category) parts.push(`${category.replaceAll('_', ' ')} exercise`);
-  if (equipment && equipment !== 'body only' && equipment !== 'other') {
-    parts.push(`using ${equipment}`);
-  }
-  if (equipment === 'body only') parts.push('using body weight');
-  if (muscleGroups.length > 0) {
-    parts.push(`targeting ${muscleGroups.slice(0, 3).join(', ')}`);
-  }
-
-  if (parts.length === 0) {
-    return `${name} is an imported exercise from free-exercise-db.`;
-  }
-
-  return `${name} is a ${parts.join(' ')}.`;
 }
 
 function dedupeExercises(exercises) {
@@ -278,16 +224,8 @@ function validateRows(rows) {
     }
     names.add(nameKey);
 
-    if (!VALID_DIFFICULTIES.has(row.difficultyLevel)) {
-      throw new Error(`Invalid difficulty for ${row.name}: ${row.difficultyLevel}`);
-    }
-
-    if (!VALID_MEASUREMENT_TYPES.has(row.measurementType)) {
-      throw new Error(`Invalid measurement type for ${row.name}: ${row.measurementType}`);
-    }
-
-    if (!Array.isArray(row.steps)) {
-      throw new Error(`Steps must be an array for ${row.name}`);
+    if (!Array.isArray(row.instructions)) {
+      throw new Error(`Instructions must be an array for ${row.name}`);
     }
 
     if (!Array.isArray(row.muscleGroups)) {
@@ -306,42 +244,31 @@ function sqlTextArray(values) {
 }
 
 function renderSql(rows, sourceLabel, skipped) {
+  const safeSourceLabel = normalizeText(sourceLabel).replace(/[\r\n]+/g, ' ');
   const values = rows
-    .map(
-      (row) =>
-        `(${sqlString(row.name)}, ${sqlString(row.description)}, ${sqlTextArray(
-          row.muscleGroups,
-        )}, ${sqlTextArray(row.steps)}, ${sqlString(
-          row.difficultyLevel,
-        )}, ${sqlString(row.measurementType)}, NULL, true)`,
-    )
+    .map((row) => `  (${sqlString(row.name)}, ${row.primaryMuscleGroup ? sqlString(row.primaryMuscleGroup) : 'NULL'}, ${sqlTextArray(row.muscleGroups)}, ${sqlTextArray(row.instructions)}, ${row.mediaLink ? sqlString(row.mediaLink) : 'NULL'})`)
     .join(',\n');
 
   return `-- Generated by scripts/import-free-exercise-db.mjs
--- Source: ${sourceLabel}
+-- Source: ${safeSourceLabel}
 -- Rows: ${rows.length}
 -- Skipped source records: ${skipped}
--- Media is intentionally not imported; exercise media should use the media table later.
+-- Updates matching system exercises only; source fields absent from the app schema are left untouched.
+-- The source has no measurement_type, so this importer never assigns or changes one.
+-- Image URLs are external; the upstream maintainer has not verified their rights or origin.
 
-INSERT INTO exercises (
-  name,
-  description,
-  muscle_groups,
-  instructions,
-  difficulty_level,
-  measurement_type,
-  media_id,
-  is_system
-) VALUES
+with source(name, muscle_group, muscle_groups, instructions, media_link) as (
+values
 ${values}
-ON CONFLICT (name) DO UPDATE SET
-  description = EXCLUDED.description,
-  muscle_groups = EXCLUDED.muscle_groups,
-  instructions = EXCLUDED.instructions,
-  difficulty_level = EXCLUDED.difficulty_level,
-  measurement_type = EXCLUDED.measurement_type,
-  media_id = COALESCE(exercises.media_id, EXCLUDED.media_id),
-  is_system = EXCLUDED.is_system;
+)
+update public.exercises as exercise
+set muscle_group = coalesce(source.muscle_group, exercise.muscle_group),
+    muscle_groups = case when cardinality(source.muscle_groups) > 0 then source.muscle_groups else exercise.muscle_groups end,
+    instructions = case when coalesce(cardinality(exercise.instructions), 0) = 0 and cardinality(source.instructions) > 0
+      then source.instructions else exercise.instructions end,
+    media_link = coalesce(nullif(trim(exercise.media_link), ''), source.media_link)
+from source
+where exercise.is_system is true and exercise.name = source.name;
 `;
 }
 
@@ -361,7 +288,7 @@ async function main() {
   await mkdir(path.dirname(outPath), { recursive: true });
   await writeFile(outPath, renderSql(rows, source.label, skipped));
 
-  console.log(`Wrote ${rows.length} exercise(s) to ${options.outPath}`);
+  console.log(`Wrote metadata for ${rows.length} source exercise(s) to ${options.outPath}`);
   if (skipped > 0) console.log(`Skipped ${skipped} duplicate or invalid source record(s).`);
 }
 

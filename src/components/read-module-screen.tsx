@@ -10,7 +10,7 @@ import { GrowthDocumentLibraryPanel } from './growth-document-panels';
 import { GrowthRecordPanel, ReadingDiscoveryPanel } from './growth-feature-panels';
 import { WeeklyPillarPlanner } from './weekly-pillar-planner';
 import {
-  cancelGrowthSession, createGrowthItem, finishGrowthSession, formatElapsed, loadGrowthDocuments, loadGrowthModule,
+  cancelGrowthSession, createGrowthItem, finishGrowthSession, formatElapsed, GrowthDataQueryError, loadGrowthDocuments, loadGrowthModule,
   loadGrowthRewards, loadReadSessionsSince, loadWeeklyPillarGoals, startGrowthSession, updateGrowthItem,
   updateGrowthReadingDetails, type GrowthDocument, type GrowthItem, type GrowthRecord, type GrowthRewardEvent,
   type GrowthRewardRule, type GrowthSession, type ReadingKind, type ReadingStatus, type WeeklyPillarGoal,
@@ -151,8 +151,12 @@ export function ReadModuleScreen({ sectionId }: { sectionId?: string }) {
       setGoals(nextGoals);
       setReportSessions(nextReportSessions);
       setTick(Date.now());
-    } catch {
-      if (version === requestVersion.current) setError('Read data isn’t available right now. Retry when your connection is back.');
+    } catch (cause) {
+      if (version === requestVersion.current) {
+        const diagnostic = __DEV__ && cause instanceof GrowthDataQueryError
+          ? ` [${cause.resource}${cause.code ? ` · ${cause.code}` : ''}]` : '';
+        setError(`Read data isn’t available right now. Retry when your connection is back.${diagnostic}`);
+      }
     } finally {
       if (version === requestVersion.current) setLoading(false);
     }
@@ -636,7 +640,10 @@ function ReadingCollection({ items, filter, saving, searchTerm, onOpen, onStart,
 }) {
   const { theme } = useBloomTheme();
   const emptyCopy = filter === 'want_to_read' ? 'Save a book or article you want to read next.' : filter === 'finished' ? 'Finished books and articles will collect here.' : 'Move a title here when you begin reading.';
-  if (!items.length) return <Panel><Eyebrow>{searchTerm?.trim() ? 'Search results' : statusLabel(filter)}</Eyebrow><Label>{searchTerm?.trim() ? 'No matching items' : 'Your shelf is ready'}</Label><Body>{searchTerm?.trim() ? 'Try another title, author, or topic, or clear the search.' : emptyCopy}</Body>{!searchTerm?.trim() && <Button label="Add a book or article" variant="secondary" onPress={() => router.push(routeFor('add'))} />}</Panel>;
+  if (!items.length) return <Panel><Eyebrow>{searchTerm?.trim() ? 'Search results' : statusLabel(filter)}</Eyebrow><Label>{searchTerm?.trim() ? 'No matching items' : 'Your shelf is ready'}</Label><Body>{searchTerm?.trim() ? 'Try another title, author, or topic, or clear the search.' : emptyCopy}</Body>{!searchTerm?.trim() && <>
+    <Button label="Add a book or article" variant="secondary" onPress={() => router.push(routeFor('add'))} />
+    <Button label="Browse the Discover catalog" variant="tertiary" onPress={() => router.push(routeFor('discover'))} />
+  </>}</Panel>;
   return <View style={styles.collection}>
     {items.map((item) => <Panel key={item.id}>
       <Pressable accessibilityRole="button" onPress={() => onOpen(item)} style={styles.collectionTop}>

@@ -396,3 +396,27 @@ INSERT INTO exercises (name, description, muscle_groups, instructions, difficult
  'easy', 'time_only', true)
 
 ON CONFLICT (name) DO NOTHING;
+
+
+-- Populate runtime primary-muscle metadata and source images for curated rows with an exact upstream match.
+with source(name, muscle_group, media_link) as (
+values
+  ('Barbell Curl', 'Biceps', 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/Barbell_Curl/0.jpg'),
+  ('Cable Crossover', 'Chest', 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/Cable_Crossover/0.jpg'),
+  ('Crunches', 'Abdominals', 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/Crunches/0.jpg'),
+  ('Dead Bug', 'Abdominals', 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/Dead_Bug/0.jpg'),
+  ('Dumbbell Flyes', 'Chest', 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/Dumbbell_Flyes/0.jpg'),
+  ('Hanging Leg Raise', 'Abdominals', 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/Hanging_Leg_Raise/0.jpg'),
+  ('Incline Dumbbell Curl', 'Biceps', 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/Incline_Dumbbell_Curl/0.jpg'),
+  ('Leg Press', 'Quadriceps', 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/Leg_Press/0.jpg'),
+  ('Mountain Climbers', 'Quadriceps', 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/Mountain_Climbers/0.jpg'),
+  ('Plank', 'Abdominals', 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/Plank/0.jpg'),
+  ('Romanian Deadlift', 'Hamstrings', 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/Romanian_Deadlift/0.jpg'),
+  ('Russian Twist', 'Abdominals', 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/Russian_Twist/0.jpg'),
+  ('World''s Greatest Stretch', 'Hamstrings', 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/Worlds_Greatest_Stretch/0.jpg')
+)
+update public.exercises as exercise
+set muscle_group = coalesce(source.muscle_group, exercise.muscle_group),
+    media_link = coalesce(nullif(trim(exercise.media_link), ''), source.media_link)
+from source
+where exercise.is_system is true and exercise.name = source.name;

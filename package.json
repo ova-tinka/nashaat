@@ -62,6 +62,7 @@
     "test:blocking-rules-sync": "node --experimental-strip-types --test tests/blocking-rules-coordinator.test.mjs",
     "test:desktop-csp": "node --test tests/desktop-csp.test.cjs",
     "test:database-diagnostics": "node --experimental-strip-types --test tests/database-diagnostics.test.mjs",
+    "test:exercise-import": "node --test tests/import-free-exercise-db.test.mjs",
     "test:filter-version": "node --test tests/filter-version.test.mjs",
     "desktop": "node scripts/desktop-tauri.cjs dev",
     "desktop:build": "node scripts/desktop-tauri.cjs build",

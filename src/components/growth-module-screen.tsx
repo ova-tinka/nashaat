@@ -5,19 +5,20 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, ImageBackground, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams, type Href } from 'expo-router';
 import { Body, Button, ErrorText, Eyebrow, FeatureTile, Field, Heading, Label, Panel, ProgressBar, Screen, sharedStyles } from './bloom-ui';
-import { cancelGrowthSession, createGrowthItem, createGrowthProject, finishGrowthSession, formatElapsed, loadGrowthDocuments, loadGrowthModule, loadGrowthRewards, startGrowthSession, updateGrowthItem, updateGrowthReadingDetails, updateGrowthTaskMetadata, type GrowthDocument, type GrowthItem, type GrowthModuleId, type GrowthSession, type GrowthRecord, type GrowthRecordAttachment, type StudyPlanChange, type StudyPlanSlot, type TaskFocusSession, type TaskPriority, type ReadingStatus, type GrowthRewardEvent } from '../lib/growth-modules';
+import { cancelGrowthSession, createGrowthItem, createGrowthProject, finishGrowthSession, formatElapsed, GrowthDataQueryError, loadGrowthDocuments, loadGrowthModule, loadGrowthRewards, startGrowthSession, updateGrowthItem, updateGrowthReadingDetails, updateGrowthTaskMetadata, type GrowthDocument, type GrowthItem, type GrowthModuleId, type GrowthSession, type GrowthRecord, type GrowthRecordAttachment, type StudyPlanChange, type StudyPlanSlot, type TaskFocusSession, type TaskPriority, type ReadingStatus, type GrowthRewardEvent } from '../lib/growth-modules';
 import { GrowthHierarchyPanel, GrowthRecordPanel, ReadingDiscoveryPanel, StudyPlanPanel, StudyPracticeReviewPanel, StudyTutorPanel, TaskBreakdownPanel, TaskFocusPanel } from './growth-feature-panels';
 import { MockExamPanel } from './mock-exam-panel';
 import { GrowthDocumentLibraryPanel, StudyDocumentHelpPanel } from './growth-document-panels';
 import { growthModuleSnapshotKey } from '../lib/growth-module-state';
 import { useAuth } from '../lib/auth';
 import { useBloomTheme } from '../lib/theme-context';
-import { loadStudySubjectArtworkPreferences, saveStudySubjectArtworkPreferences } from '../lib/study-subject-artwork';
+import { loadStudySubjectArtworkPreferences, saveStudySubjectArtworkPreference } from '../lib/study-subject-artwork';
+import { studySubjectArtworks } from '../lib/study-subject-artworks';
 import { useBloom } from '../lib/bloom-context';
 import { dateKeyInTimeZone, formatDateOnly } from '../lib/date-utils';
 import { getCurrentDeviceIdentity } from '../lib/devices';
 import { bloomPillarImages } from '../assets/bloom-images';
-import { SubjectArtwork, studySubjectArtworks, suggestStudySubjectArtwork } from './study-subject-artwork';
+import { SubjectArtwork, suggestStudySubjectArtwork } from './study-subject-artwork';
 
 const moduleContent: Record<GrowthModuleId, { title: string; description: string; icon: 'school' | 'menu-book' | 'check-box' }> = {
   study: {
@@ -151,6 +152,7 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
     if (!profileId || !targetKey) {
       viewedTargetRef.current = null;
       snapshotTargetRef.current = null;
+      setSubjectArtworkById({});
       setItems([]); setSessions([]); setRecords([]); setRecordAttachments([]); setDocuments([]); setStudyPlan([]); setStudyPlanChanges([]); setTaskFocusSessions([]); setStudyRewardEvents(null); setSnapshotTargetKey(null); setLastSyncCheckedAt(null);
       setLoading(false); setHasStaleSnapshot(false); setError('Your Bloom profile is unavailable. Refresh your profile and try again.');
       return;
@@ -158,6 +160,7 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
     if (viewedTargetRef.current !== targetKey) {
       viewedTargetRef.current = targetKey;
       snapshotTargetRef.current = null;
+      setSubjectArtworkById({});
       pendingCreate.current = null; pendingStart.current = null;
       setItems([]); setSessions([]); setRecords([]); setRecordAttachments([]); setDocuments([]); setStudyPlan([]); setStudyPlanChanges([]); setTaskFocusSessions([]); setStudyRewardEvents(null); setSnapshotTargetKey(null); setLastSyncCheckedAt(null);
       setTitle(''); setNotes(''); setDueDate(''); setTargetMinutes(''); setAuthor(''); setGenre(''); setPageCount(''); setReadingStatus('want_to_read'); setProjectTitle(''); setProjectNotes(''); setTaskFilter('today'); setTaskPriority('medium');
@@ -168,7 +171,12 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
         loadGrowthModule(profileId, moduleId), moduleId === 'tasks' ? Promise.resolve([]) : loadGrowthDocuments(moduleId),
       ]);
       if (request !== refreshRequest.current) return;
+      const nextSubjectArtwork = moduleId === 'study'
+        ? await loadStudySubjectArtworkPreferences(profileId, result.items)
+        : null;
+      if (request !== refreshRequest.current) return;
       setItems(result.items);
+      if (nextSubjectArtwork) setSubjectArtworkById(nextSubjectArtwork);
       setSessions(result.sessions);
       setRecords(result.records);
       setRecordAttachments(result.recordAttachments);
@@ -188,10 +196,12 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
       const now = Date.now();
       setTick(now);
       setLastSyncCheckedAt(now);
-    } catch {
+    } catch (cause) {
       if (request !== refreshRequest.current) return;
       setHasStaleSnapshot(snapshotTargetRef.current === targetKey);
-      setError(`${content.title} data isn’t available right now. Retry in a moment.`);
+      const diagnostic = __DEV__ && cause instanceof GrowthDataQueryError
+        ? ` [${cause.resource}${cause.code ? ` · ${cause.code}` : ''}]` : '';
+      setError(`${content.title} data isn’t available right now. Retry in a moment.${diagnostic}`);
     } finally { if (request === refreshRequest.current) setLoading(false); }
   }, [content.title, moduleId, profileId]);
 
@@ -199,15 +209,6 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
     void refresh();
     return () => { refreshRequest.current += 1; };
   }, [refresh]));
-  useEffect(() => {
-    let active = true;
-    void loadStudySubjectArtworkPreferences(profileId).then((preferences) => {
-      if (active) setSubjectArtworkById(preferences);
-    }).catch(() => {
-      if (active) setSubjectArtworkById({});
-    });
-    return () => { active = false; };
-  }, [profileId]);
   const activeSession = useMemo(() => sessions.find((session) => session.status === 'in_progress') ?? null, [sessions]);
   useEffect(() => {
     if (error) return;
@@ -236,9 +237,10 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
       const createdId = await createGrowthItem({ moduleId, title: cleanTitle, notes: notes.trim(), dueDate: moduleId === 'tasks' ? dueDate.trim() || null : null, targetMinutes: parsedTarget, requestId: pendingCreate.current.requestId });
       let subjectArtworkSaved = true;
       if (moduleId === 'study' && profileId) {
-        const nextPreferences = { ...subjectArtworkById, [createdId]: selectedSubjectArtwork };
-        setSubjectArtworkById(nextPreferences);
-        try { await saveStudySubjectArtworkPreferences(profileId, nextPreferences); }
+        try {
+          await saveStudySubjectArtworkPreference(createdId, selectedSubjectArtwork);
+          setSubjectArtworkById((current) => ({ ...current, [createdId]: selectedSubjectArtwork }));
+        }
         catch { subjectArtworkSaved = false; }
       }
       if (moduleId === 'tasks') await updateGrowthTaskMetadata(createdId, taskPriority, null);
@@ -248,7 +250,7 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
       setTitle(''); setNotes(''); setDueDate(''); setTargetMinutes(''); setTaskPriority('medium'); setAuthor(''); setGenre(''); setPageCount(''); setReadingStatus('want_to_read');
       setSelectedSubjectArtwork('literature'); setSubjectArtworkChosen(false);
       if (moduleId === 'study') { setShowAddSubject(false); setShowStudyStartSetup(false); }
-      setNotice(moduleId === 'study' ? subjectArtworkSaved ? 'Subject added. Its artwork is saved on this device.' : 'Subject added, but its artwork choice could not be saved on this device.' : moduleId === 'read' ? 'Added to your reading list.' : 'Task added.');
+      setNotice(moduleId === 'study' ? subjectArtworkSaved ? 'Subject added. Its artwork is saved across your devices.' : 'Subject added, but its artwork could not sync. You can retry by changing the image.' : moduleId === 'read' ? 'Added to your reading list.' : 'Task added.');
       await refresh();
     } catch {
       setError('Could not save this item. Your entry is still in the form; check your connection and try again.');
@@ -276,13 +278,13 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
     const nextPreferences = { ...subjectArtworkById, [imageEditingSubject.id]: imageEditingDraft };
     setSavingSubjectArtwork(true);
     try {
-      await saveStudySubjectArtworkPreferences(profileId, nextPreferences);
+      await saveStudySubjectArtworkPreference(imageEditingSubject.id, imageEditingDraft);
       setSubjectArtworkById(nextPreferences);
-      setNotice(`${imageEditingSubject.title} artwork updated on this device.`);
+      setNotice(`${imageEditingSubject.title} artwork updated across your devices.`);
       setImageEditingSubject(null);
       setSubjectArtworkSaveError(null);
     } catch {
-      setSubjectArtworkSaveError('Could not save this artwork choice on this device. Try again.');
+      setSubjectArtworkSaveError('Could not sync this artwork choice. Check your connection and try again.');
     } finally { setSavingSubjectArtwork(false); }
   }
 

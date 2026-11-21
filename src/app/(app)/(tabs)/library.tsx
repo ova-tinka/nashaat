@@ -45,7 +45,7 @@ export default function ExerciseLibraryScreen() {
     return exercises.filter((exercise) => {
       if (filter === 'timed' && !isTimed(exercise)) return false;
       if (filter === 'reps' && isTimed(exercise)) return false;
-      return !term || [exercise.name, exercise.description ?? '', exercise.muscle_group ?? '']
+      return !term || [exercise.name, exercise.description ?? '', exercise.muscle_group ?? '', ...(exercise.muscle_groups ?? [])]
         .some((value) => value.toLowerCase().includes(term));
     });
   }, [exercises, filter, query]);
@@ -98,7 +98,7 @@ export default function ExerciseLibraryScreen() {
           <ExerciseArtwork exercise={exercise} size="small" />
           <View style={sharedStyles.grow}>
             <Label>{exercise.name}</Label>
-            <Body>{exercise.bloom_owner_user_id ? 'Custom exercise' : exercise.muscle_group || (isTimed(exercise) ? 'Timed exercise' : 'Repetition exercise')}</Body>
+            <Body>{exercise.bloom_owner_user_id ? 'Custom exercise' : exercise.muscle_groups?.length ? exercise.muscle_groups.join(' · ') : exercise.muscle_group || (isTimed(exercise) ? 'Timed exercise' : 'Repetition exercise')}</Body>
           </View>
           <MaterialIcons name="chevron-right" color={theme.colors.inkMuted} size={24} style={I18nManager.isRTL ? styles.directionalIcon : undefined} />
         </View>
