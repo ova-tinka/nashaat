@@ -2,7 +2,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { randomUUID } from 'expo-crypto';
 import type { ComponentProps } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, ImageBackground, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, ImageBackground, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams, type Href } from 'expo-router';
 import { Body, Button, ErrorText, Eyebrow, FeatureTile, Field, Heading, Label, Panel, ProgressBar, Screen, sharedStyles } from './bloom-ui';
 import { cancelGrowthSession, createGrowthItem, createGrowthProject, finishGrowthSession, formatElapsed, loadGrowthDocuments, loadGrowthModule, loadGrowthRewards, startGrowthSession, updateGrowthItem, updateGrowthReadingDetails, updateGrowthTaskMetadata, type GrowthDocument, type GrowthItem, type GrowthModuleId, type GrowthSession, type GrowthRecord, type GrowthRecordAttachment, type StudyPlanChange, type StudyPlanSlot, type TaskFocusSession, type TaskPriority, type ReadingStatus, type GrowthRewardEvent } from '../lib/growth-modules';
@@ -12,10 +12,12 @@ import { GrowthDocumentLibraryPanel, StudyDocumentHelpPanel } from './growth-doc
 import { growthModuleSnapshotKey } from '../lib/growth-module-state';
 import { useAuth } from '../lib/auth';
 import { useBloomTheme } from '../lib/theme-context';
+import { loadStudySubjectArtworkPreferences, saveStudySubjectArtworkPreferences } from '../lib/study-subject-artwork';
 import { useBloom } from '../lib/bloom-context';
 import { dateKeyInTimeZone, formatDateOnly } from '../lib/date-utils';
 import { getCurrentDeviceIdentity } from '../lib/devices';
 import { bloomPillarImages } from '../assets/bloom-images';
+import { SubjectArtwork, studySubjectArtworks, suggestStudySubjectArtwork } from './study-subject-artwork';
 
 const moduleContent: Record<GrowthModuleId, { title: string; description: string; icon: 'school' | 'menu-book' | 'check-box' }> = {
   study: {
@@ -119,6 +121,13 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
   const [taskPriority, setTaskPriority] = useState<TaskPriority>('medium');
   const [showStudyStartSetup, setShowStudyStartSetup] = useState(false);
   const [showAddSubject, setShowAddSubject] = useState(false);
+  const [selectedSubjectArtwork, setSelectedSubjectArtwork] = useState('literature');
+  const [subjectArtworkChosen, setSubjectArtworkChosen] = useState(false);
+  const [subjectArtworkById, setSubjectArtworkById] = useState<Record<string, string>>({});
+  const [imageEditingSubject, setImageEditingSubject] = useState<GrowthItem | null>(null);
+  const [imageEditingDraft, setImageEditingDraft] = useState('literature');
+  const [subjectArtworkSaveError, setSubjectArtworkSaveError] = useState<string | null>(null);
+  const [savingSubjectArtwork, setSavingSubjectArtwork] = useState(false);
   const snapshotTargetRef = useRef<string | null>(null);
   const viewedTargetRef = useRef<string | null>(null);
   const refreshRequest = useRef(0);
@@ -190,6 +199,15 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
     void refresh();
     return () => { refreshRequest.current += 1; };
   }, [refresh]));
+  useEffect(() => {
+    let active = true;
+    void loadStudySubjectArtworkPreferences(profileId).then((preferences) => {
+      if (active) setSubjectArtworkById(preferences);
+    }).catch(() => {
+      if (active) setSubjectArtworkById({});
+    });
+    return () => { active = false; };
+  }, [profileId]);
   const activeSession = useMemo(() => sessions.find((session) => session.status === 'in_progress') ?? null, [sessions]);
   useEffect(() => {
     if (error) return;
@@ -216,13 +234,21 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
     setSaving(true); setError(null); setNotice(null);
     try {
       const createdId = await createGrowthItem({ moduleId, title: cleanTitle, notes: notes.trim(), dueDate: moduleId === 'tasks' ? dueDate.trim() || null : null, targetMinutes: parsedTarget, requestId: pendingCreate.current.requestId });
+      let subjectArtworkSaved = true;
+      if (moduleId === 'study' && profileId) {
+        const nextPreferences = { ...subjectArtworkById, [createdId]: selectedSubjectArtwork };
+        setSubjectArtworkById(nextPreferences);
+        try { await saveStudySubjectArtworkPreferences(profileId, nextPreferences); }
+        catch { subjectArtworkSaved = false; }
+      }
       if (moduleId === 'tasks') await updateGrowthTaskMetadata(createdId, taskPriority, null);
       if (moduleId === 'read') await updateGrowthReadingDetails(createdId, { author: author.trim(), genre: genre.trim(), pageCount: parsedPageCount,
         currentPage: parsedPageCount ? (readingStatus === 'finished' ? parsedPageCount : 0) : null, status: readingStatus });
       pendingCreate.current = null;
       setTitle(''); setNotes(''); setDueDate(''); setTargetMinutes(''); setTaskPriority('medium'); setAuthor(''); setGenre(''); setPageCount(''); setReadingStatus('want_to_read');
+      setSelectedSubjectArtwork('literature'); setSubjectArtworkChosen(false);
       if (moduleId === 'study') { setShowAddSubject(false); setShowStudyStartSetup(false); }
-      setNotice(moduleId === 'study' ? 'Subject added.' : moduleId === 'read' ? 'Added to your reading list.' : 'Task added.');
+      setNotice(moduleId === 'study' ? subjectArtworkSaved ? 'Subject added. Its artwork is saved on this device.' : 'Subject added, but its artwork choice could not be saved on this device.' : moduleId === 'read' ? 'Added to your reading list.' : 'Task added.');
       await refresh();
     } catch {
       setError('Could not save this item. Your entry is still in the form; check your connection and try again.');
@@ -237,6 +263,27 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
       setProjectTitle(''); setProjectNotes(''); setNotice('Project added. Add milestones and tasks underneath it.'); await refresh();
     } catch { setError('Could not save this project. Your entry is still in the form; check your connection and try again.'); }
     finally { setSaving(false); }
+  }
+
+  function openSubjectArtworkPicker(item: GrowthItem) {
+    setSubjectArtworkSaveError(null);
+    setImageEditingSubject(item);
+    setImageEditingDraft(subjectArtworkById[item.id] ?? suggestStudySubjectArtwork(item.title));
+  }
+
+  async function saveSubjectArtwork() {
+    if (!profileId || !imageEditingSubject) return;
+    const nextPreferences = { ...subjectArtworkById, [imageEditingSubject.id]: imageEditingDraft };
+    setSavingSubjectArtwork(true);
+    try {
+      await saveStudySubjectArtworkPreferences(profileId, nextPreferences);
+      setSubjectArtworkById(nextPreferences);
+      setNotice(`${imageEditingSubject.title} artwork updated on this device.`);
+      setImageEditingSubject(null);
+      setSubjectArtworkSaveError(null);
+    } catch {
+      setSubjectArtworkSaveError('Could not save this artwork choice on this device. Try again.');
+    } finally { setSavingSubjectArtwork(false); }
   }
 
   async function beginSession(item: GrowthItem) {
@@ -480,7 +527,15 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
 
       {showAddSubject && <Panel>
         <View style={sharedStyles.row}><Label>Add a subject</Label><Button label="Close" variant="tertiary" onPress={() => setShowAddSubject(false)} /></View>
-        <Field label="Subject" value={title} onChangeText={setTitle} placeholder="e.g. Biology" maxLength={120} editable={!readOnly} />
+        <Field label="Subject" value={title} onChangeText={(value) => {
+          setTitle(value);
+          if (!subjectArtworkChosen) setSelectedSubjectArtwork(suggestStudySubjectArtwork(value));
+        }} placeholder="e.g. Biology" maxLength={120} editable={!readOnly} />
+        <View style={styles.subjectArtworkChooser}>
+          <View style={sharedStyles.column}><Label>Choose a subject image</Label><Body>Pick the visual identity that fits this subject.</Body></View>
+          <SubjectArtworkPicker selectedArtwork={selectedSubjectArtwork} onSelect={(id) => { setSelectedSubjectArtwork(id); setSubjectArtworkChosen(true); }} disabled={readOnly} />
+          <Body>Your image choice is saved on this device.</Body>
+        </View>
         <Field label="Weekly study target in minutes" value={targetMinutes} onChangeText={setTargetMinutes} keyboardType="number-pad" placeholder="e.g. 240" editable={!readOnly} />
         <Field label="Notes (optional)" value={notes} onChangeText={setNotes} multiline maxLength={2000} placeholder="Topics or a short plan" editable={!readOnly} />
         <Button label="Add subject" onPress={() => void addItem()} busy={saving} disabled={readOnly} />
@@ -494,18 +549,27 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
             const nextLesson = children.find((entry) => entry.item_type === 'course') ?? children[0];
             const dueAssignments = items.filter((entry) => entry.item_type === 'assignment' && entry.state === 'active' && entry.due_date
               && findRootSubject(items, entry.id)?.id === item.id).length;
-            return <ImageBackground key={item.id} source={bloomPillarImages.study} resizeMode="cover" imageStyle={styles.subjectImage} style={styles.subjectCard}>
-              <View style={styles.subjectShade} />
-              <View style={styles.subjectCardContent}>
-                <Text style={styles.subjectEyebrow}>SUBJECT</Text><Text numberOfLines={2} style={styles.subjectTitle}>{item.title}</Text>
-                <Text numberOfLines={2} style={styles.subjectDetail}>{nextLesson ? `Next · ${nextLesson.title}` : item.target_minutes ? `${formatMinutes(item.target_minutes)} weekly target` : 'No weekly target'}</Text>
-                {dueAssignments > 0 && <Text style={styles.subjectDetail}>{dueAssignments} assignment{dueAssignments === 1 ? '' : 's'} due</Text>}
+            return <View key={item.id} style={[styles.subjectCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+              <View style={styles.subjectCardTop}>
+                <SubjectArtwork artworkId={subjectArtworkById[item.id] ?? suggestStudySubjectArtwork(item.title)} size={72} />
+                <View style={sharedStyles.grow}>
+                  <Text style={[styles.subjectEyebrow, { color: accent.deep }]}>SUBJECT</Text>
+                  <Text numberOfLines={2} style={[styles.subjectTitle, { color: theme.colors.ink }]}>{item.title}</Text>
+                  <Text numberOfLines={2} style={[styles.subjectDetail, { color: theme.colors.inkMuted }]}>{nextLesson ? `Next · ${nextLesson.title}` : item.target_minutes ? `${formatMinutes(item.target_minutes)} weekly target` : 'No weekly target'}</Text>
+                  {dueAssignments > 0 && <Text style={[styles.subjectDetail, { color: theme.colors.inkMuted }]}>{dueAssignments} assignment{dueAssignments === 1 ? '' : 's'} due</Text>}
+                </View>
+              </View>
+              <View style={styles.subjectCardActions}>
                 <Pressable accessibilityRole="button" accessibilityLabel={`Open ${item.title} courses`} onPress={() => router.push(sectionHref('study', 'courses'))}
-                  style={({ pressed }) => [styles.subjectOpenAction, pressed && { opacity: 0.82 }]}>
-                  <Text style={styles.subjectOpenText}>Open</Text>
+                  style={({ pressed }) => [styles.subjectOpenAction, { backgroundColor: accent.surface }, pressed && { opacity: 0.82 }]}>
+                  <Text style={[styles.subjectOpenText, { color: accent.deep }]}>Open courses</Text>
+                </Pressable>
+                <Pressable accessibilityRole="button" accessibilityLabel={`Change image for ${item.title}`} onPress={() => openSubjectArtworkPicker(item)}
+                  style={({ pressed }) => [styles.subjectImageAction, { borderColor: theme.colors.border }, pressed && { opacity: 0.82 }]}>
+                  <MaterialIcons name="palette" size={18} color={accent.deep} />
                 </Pressable>
               </View>
-            </ImageBackground>;
+            </View>;
           })}
         </ScrollView> : <Panel><Body>Your subjects will appear here.</Body><Button label="Add subject" variant="secondary" onPress={() => setShowAddSubject(true)} disabled={readOnly} /></Panel>}
       </View>
@@ -621,7 +685,7 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
         <View style={styles.filterRow} accessibilityRole="radiogroup" accessibilityLabel="New reading status">
           {(['want_to_read', 'currently_reading', 'finished'] as const).map((status) => <Pressable key={status} accessibilityRole="radio"
             accessibilityState={{ selected: readingStatus === status }} disabled={readOnly || saving} onPress={() => setReadingStatus(status)}
-            style={[styles.filter, { backgroundColor: readingStatus === status ? theme.colors.surfaceTinted : theme.colors.surface, borderColor: readingStatus === status ? accent.deep : theme.colors.border }]}>
+            style={[styles.filter, { backgroundColor: readingStatus === status ? accent.surface : theme.colors.surface, borderColor: readingStatus === status ? accent.deep : theme.colors.border }]}>
             <Label>{readingStatusLabel(status)}</Label>
           </Pressable>)}
         </View>
@@ -663,7 +727,7 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
         <Field label="Task" value={title} onChangeText={setTitle} placeholder="A small next step" maxLength={120} editable={!readOnly} />
         <Body>Priority</Body>
         <View style={styles.filterRow} accessibilityRole="radiogroup" accessibilityLabel="New task priority">
-          {(['low', 'medium', 'high', 'urgent'] as const).map((value) => <Pressable key={value} accessibilityRole="radio" accessibilityState={{ selected: taskPriority === value }} onPress={() => setTaskPriority(value)} style={[styles.filter, { backgroundColor: taskPriority === value ? theme.colors.surfaceTinted : theme.colors.surface, borderColor: taskPriority === value ? accent.deep : theme.colors.border }]}>
+          {(['low', 'medium', 'high', 'urgent'] as const).map((value) => <Pressable key={value} accessibilityRole="radio" accessibilityState={{ selected: taskPriority === value }} onPress={() => setTaskPriority(value)} style={[styles.filter, { backgroundColor: taskPriority === value ? accent.surface : theme.colors.surface, borderColor: taskPriority === value ? accent.deep : theme.colors.border }]}>
             <Label>{value[0].toUpperCase() + value.slice(1)}</Label>
           </Pressable>)}
         </View>
@@ -674,7 +738,7 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
       <Panel>
         <Eyebrow>Tasks · {items.filter((item) => item.item_type === 'task' && item.state === 'active').length} open · {items.filter((item) => item.item_type === 'task' && item.state === 'completed').length} completed</Eyebrow>
         <View style={styles.filterRow} accessibilityRole="tablist" accessibilityLabel="Task view">
-          {(['today', 'overdue', 'upcoming', 'postponed', 'completed', 'archived'] as const).map((filter) => <Pressable key={filter} accessibilityRole="tab" accessibilityState={{ selected: taskFilter === filter }} onPress={() => setTaskFilter(filter)} style={[styles.filter, { backgroundColor: taskFilter === filter ? theme.colors.surfaceTinted : theme.colors.surface, borderColor: taskFilter === filter ? accent.deep : theme.colors.border }]}>
+          {(['today', 'overdue', 'upcoming', 'postponed', 'completed', 'archived'] as const).map((filter) => <Pressable key={filter} accessibilityRole="tab" accessibilityState={{ selected: taskFilter === filter }} onPress={() => setTaskFilter(filter)} style={[styles.filter, { backgroundColor: taskFilter === filter ? accent.surface : theme.colors.surface, borderColor: taskFilter === filter ? accent.deep : theme.colors.border }]}>
             <Label>{filter[0].toUpperCase() + filter.slice(1)}</Label>
           </Pressable>)}
         </View>
@@ -723,7 +787,47 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
     {!loading && moduleId === 'tasks' && sectionId === 'breakdown' && <>
       <TaskBreakdownPanel key={profileId} profileId={profileId} items={items} readOnly={readOnly} onSaved={() => void refresh()} />
     </>}
+
+    <Modal visible={imageEditingSubject !== null} transparent animationType="slide" onRequestClose={() => setImageEditingSubject(null)} statusBarTranslucent>
+      <View style={styles.subjectArtworkModal}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Close subject image picker" style={StyleSheet.absoluteFill}
+          onPress={() => { if (!savingSubjectArtwork) setImageEditingSubject(null); }} />
+        <View style={[styles.subjectArtworkSheet, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+          <View style={sharedStyles.column}>
+            <Eyebrow>Subject image</Eyebrow>
+            <Heading>{imageEditingSubject ? imageEditingSubject.title : 'Choose artwork'}</Heading>
+            <Body>Choose from 25 built-in study images. This choice is saved on this device.</Body>
+          </View>
+          <ScrollView contentContainerStyle={styles.subjectArtworkSheetContent}>
+            <SubjectArtworkPicker selectedArtwork={imageEditingDraft} onSelect={setImageEditingDraft} disabled={savingSubjectArtwork} />
+          </ScrollView>
+          {subjectArtworkSaveError && <ErrorText>{subjectArtworkSaveError}</ErrorText>}
+          <View style={styles.subjectArtworkActions}>
+            <Button label="Cancel" variant="secondary" onPress={() => setImageEditingSubject(null)} disabled={savingSubjectArtwork} />
+            <Button label="Save image" onPress={() => void saveSubjectArtwork()} busy={savingSubjectArtwork} />
+          </View>
+        </View>
+      </View>
+    </Modal>
   </Screen>;
+}
+
+function SubjectArtworkPicker({ selectedArtwork, onSelect, disabled = false }: {
+  selectedArtwork: string; onSelect: (id: string) => void; disabled?: boolean;
+}) {
+  const { theme } = useBloomTheme();
+  const accent = theme.modules.study;
+  return <View style={styles.subjectArtworkGrid}>
+    {studySubjectArtworks.map((artwork) => {
+      const selected = selectedArtwork === artwork.id;
+      return <Pressable key={artwork.id} accessibilityRole="radio" accessibilityLabel={`Use ${artwork.label} image`}
+        accessibilityState={{ checked: selected, disabled }} disabled={disabled} onPress={() => onSelect(artwork.id)}
+        style={[styles.subjectArtworkChoice, { borderColor: selected ? accent.deep : theme.colors.border, backgroundColor: selected ? accent.surface : theme.colors.surface }]}>
+        <SubjectArtwork artworkId={artwork.id} size={54} />
+        <Text numberOfLines={2} style={[styles.subjectArtworkLabel, { color: selected ? accent.deep : theme.colors.inkMuted }]}>{artwork.label}</Text>
+      </Pressable>;
+    })}
+  </View>;
 }
 
 function StudyLocalNavigation({ selected, accent, surface, onSelect }: {
@@ -971,6 +1075,7 @@ const styles = StyleSheet.create({
   studyHeroEyebrow: { color: '#FFFFFF', fontSize: 12, fontWeight: '800', letterSpacing: 1.2 },
   studyHeroTitle: { color: '#FFFFFF', fontSize: 25, lineHeight: 31, fontWeight: '800', maxWidth: 280 },
   studySection: { gap: 12 },
+  subjectArtworkChooser: { gap: 10 },
   todayMetrics: { flexDirection: 'row', gap: 10 },
   studyMetric: { flex: 1, gap: 2 },
   studyMetricValue: { fontSize: 23, lineHeight: 28, fontWeight: '800', fontVariant: ['tabular-nums'] },
@@ -978,15 +1083,22 @@ const styles = StyleSheet.create({
   todayPercent: { fontSize: 28, lineHeight: 34, fontWeight: '800', fontVariant: ['tabular-nums'] },
   studyPicker: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#E4E8F3', paddingTop: 12, gap: 4 },
   subjectCards: { gap: 12, paddingEnd: 3 },
-  subjectCard: { width: 252, minHeight: 196, borderRadius: 22, overflow: 'hidden', justifyContent: 'flex-end' },
-  subjectImage: { borderRadius: 22 },
-  subjectShade: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(15, 28, 58, 0.43)' },
-  subjectCardContent: { padding: 16, gap: 4, alignItems: 'flex-start' },
-  subjectEyebrow: { color: 'rgba(255,255,255,0.86)', fontSize: 10, fontWeight: '800', letterSpacing: 1.1 },
-  subjectTitle: { color: '#FFFFFF', fontSize: 21, lineHeight: 26, fontWeight: '800' },
-  subjectDetail: { color: 'rgba(255,255,255,0.94)', fontSize: 13, lineHeight: 18, fontWeight: '600' },
-  subjectOpenAction: { minHeight: 40, paddingHorizontal: 17, justifyContent: 'center', alignItems: 'center', borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.96)', marginTop: 5 },
-  subjectOpenText: { color: '#17203B', fontSize: 13, fontWeight: '800' },
+  subjectCard: { width: 286, minHeight: 154, borderWidth: 1, borderRadius: 21, padding: 13, gap: 11 },
+  subjectCardTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 11 },
+  subjectEyebrow: { fontSize: 10, fontWeight: '800', letterSpacing: 1.1 },
+  subjectTitle: { fontSize: 18, lineHeight: 23, fontWeight: '800' },
+  subjectDetail: { fontSize: 12, lineHeight: 17, fontWeight: '600' },
+  subjectCardActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  subjectOpenAction: { minHeight: 40, flex: 1, paddingHorizontal: 14, justifyContent: 'center', alignItems: 'center', borderRadius: 13 },
+  subjectOpenText: { fontSize: 13, fontWeight: '800' },
+  subjectImageAction: { width: 42, height: 42, borderWidth: 1, justifyContent: 'center', alignItems: 'center', borderRadius: 14 },
+  subjectArtworkGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  subjectArtworkChoice: { width: '22%', minWidth: 60, minHeight: 78, borderWidth: 1, borderRadius: 14, padding: 6, alignItems: 'center', gap: 4 },
+  subjectArtworkLabel: { minHeight: 26, fontSize: 9, lineHeight: 12, fontWeight: '700', textAlign: 'center' },
+  subjectArtworkModal: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(9, 17, 32, 0.48)' },
+  subjectArtworkSheet: { maxHeight: '92%', borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, padding: 20, paddingBottom: 26, gap: 14 },
+  subjectArtworkSheetContent: { paddingBottom: 5 },
+  subjectArtworkActions: { gap: 8 },
   liveIndicator: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, alignItems: 'center', flexDirection: 'row', gap: 6 },
   liveDot: { width: 7, height: 7, borderRadius: 4 },
   liveText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.8 },

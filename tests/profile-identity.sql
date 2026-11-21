@@ -4,6 +4,10 @@ do $$ begin
       ('00000000-0000-0000-0000-000000000111', '00000000-0000-0000-0000-000000000112') and profile_id = user_id) <> 2 then
     raise exception 'Existing accounts were not backfilled';
   end if;
+  if exists (select 1 from public.bloom_growth_memory where profile_id in
+      ('00000000-0000-0000-0000-000000000111', '00000000-0000-0000-0000-000000000112')) then
+    raise exception 'The memory default changed existing profiles';
+  end if;
   if not exists (select 1 from public.bloom_workout_plans where id = '11000000-0000-0000-0000-000000000111' and user_id = '00000000-0000-0000-0000-000000000112')
     or not exists (select 1 from public.bloom_workout_sessions where id = '11000000-0000-0000-0000-000000000112' and status = 'completed')
     or not exists (select 1 from public.bloom_credit_ledger where idempotency_key = 'identity-fixture' and amount_minutes = 10)

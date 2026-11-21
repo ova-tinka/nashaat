@@ -11,6 +11,7 @@ import { isFamilySpaceRoute, moduleForPath } from '../lib/route-access';
 import { moduleManifest } from '../lib/module-manifest';
 import { useBloomTheme } from '../lib/theme-context';
 import { useModuleVisibility } from '../lib/module-visibility';
+import { showNavigationItem } from '../lib/module-visibility-state';
 import { bloomHomeImage } from '../assets/bloom-images';
 
 export function BloomDesktopNavigation() {
@@ -68,11 +69,9 @@ export function BloomBottomNavigation() {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const activeModule = moduleForPath(pathname);
-  const items = mobilePrimaryRoutes.filter((item) => item.moduleId === null || (
-    moduleManifest.some((module) => module.id === item.moduleId && module.available)
-    && visibleModules.includes(item.moduleId)
-    && (!childProfile || assignedModules.includes(item.moduleId))
-  ));
+  const items = mobilePrimaryRoutes.filter((item) => showNavigationItem(item.moduleId,
+    item.moduleId === null || moduleManifest.some((module) => module.id === item.moduleId && module.available),
+    visibleModules, childProfile, assignedModules));
 
   return <View pointerEvents="box-none" style={[styles.dockFrame, { paddingBottom: Math.max(insets.bottom + 4, 12) }]}>
     <View style={[styles.dock, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]} accessibilityRole="tablist">
@@ -176,7 +175,10 @@ export function BloomAppHeader() {
   return <>
     <View style={[styles.header, { paddingTop: Platform.OS === 'web' ? 0 : insets.top, backgroundColor: theme.colors.canvas }]}>
       <View style={styles.headerInner}>
-        <BloomWordmark size={32} />
+        <View style={styles.brandBlock}>
+          <BloomWordmark size={32} />
+          {moduleForPath(pathname) === 'exercise' && <Text style={[styles.brandSubtitle, { color: theme.modules.exercise.deep }]}>Exercise</Text>}
+        </View>
         <View style={styles.headerSpacer} />
         <Pressable
           ref={noticeTriggerRef}
@@ -282,6 +284,8 @@ function SpaceOption({ title, message, icon, selected = false, disabled = false,
 const styles = StyleSheet.create({
   header: {},
   headerInner: { minHeight: 72, width: '100%', maxWidth: 1280, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 22, paddingVertical: 8 },
+  brandBlock: { alignItems: 'flex-start', justifyContent: 'center' },
+  brandSubtitle: { marginStart: 40, marginTop: -1, fontSize: 12, lineHeight: 15, fontWeight: '700', letterSpacing: 0.2 },
   avatarButton: { width: 46, height: 46, overflow: 'hidden', borderRadius: 17 },
   avatarImage: { width: '100%', height: '100%' },
   noticeBadge: { position: 'absolute', top: 7, right: 8, width: 11, height: 11, borderRadius: 6, borderWidth: 2 },

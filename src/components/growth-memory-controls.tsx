@@ -16,7 +16,7 @@ const emptyMemory = (profileId: string): GrowthMemory => ({
   summaries: { exercise: '', study: '', read: '', tasks: '' }, updated_at: null,
 });
 
-export function GrowthMemoryControls({ profileId }: { profileId: string }) {
+export function GrowthMemoryControls({ profileId, onStatusChange }: { profileId: string; onStatusChange?: (enabled: boolean | null) => void }) {
   const { theme } = useBloomTheme();
   const [draft, setDraft] = useState<GrowthMemory>(() => emptyMemory(profileId));
   const [loading, setLoading] = useState(true);
@@ -26,10 +26,10 @@ export function GrowthMemoryControls({ profileId }: { profileId: string }) {
   const [notice, setNotice] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    try { setDraft(await loadGrowthMemory(profileId)); setError(null); }
-    catch { setError('Could not load your shared memory settings.'); }
+    try { const memory = await loadGrowthMemory(profileId); setDraft(memory); onStatusChange?.(memory.enabled); setError(null); }
+    catch { onStatusChange?.(null); setError('Could not load your shared memory settings.'); }
     finally { setLoading(false); }
-  }, [profileId]);
+  }, [onStatusChange, profileId]);
   useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
 
   function updateSummary(domain: GrowthMemoryDomain, summary: string) {
@@ -57,7 +57,7 @@ export function GrowthMemoryControls({ profileId }: { profileId: string }) {
   async function clear() {
     setBusy(true); setError(null); setNotice(null);
     try {
-      await deleteGrowthMemory(); setDraft(emptyMemory(profileId)); setConfirmDelete(false);
+      await deleteGrowthMemory(); setDraft(emptyMemory(profileId)); onStatusChange?.(false); setConfirmDelete(false);
       setNotice('All shared memory summaries and permissions were deleted.');
     } catch { setError('Could not delete your shared memory.'); }
     finally { setBusy(false); }
@@ -66,7 +66,7 @@ export function GrowthMemoryControls({ profileId }: { profileId: string }) {
   return <Panel>
     <Eyebrow>Personal memory</Eyebrow>
     <Label>Shared growth summaries</Label>
-    <Body>Memory is off until you turn it on. When enabled, approved AI features can use only the domains you select, and only when that feature has separate consent. Family members cannot read this memory. You can edit or delete it any time.</Body>
+    <Body>When enabled, approved AI features can use only the domains you select, and only when that feature has separate consent. No domains are shared until you choose them. Family members cannot read this memory. You can edit or delete it any time.</Body>
     {loading && <ActivityIndicator color={theme.colors.action} />}
     <View style={sharedStyles.row}>
       <View style={sharedStyles.grow}><Label>Enable shared memory</Label><Body>{draft.enabled ? 'Selected summaries may be used by AI features.' : 'Off. No summary is shared with AI.'}</Body></View>

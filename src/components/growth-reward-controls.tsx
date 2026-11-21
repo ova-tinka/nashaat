@@ -156,9 +156,9 @@ export function GrowthRewardControls({
           variant={dirty(moduleId) ? 'primary' : 'secondary'} onPress={() => void save(moduleId)} />}
       </View>;
     })}
-    {events.length > 0 && <View style={[sharedStyles.column, { borderTopWidth: 1, borderTopColor: theme.colors.border, paddingTop: 14 }]}>
+    {events.some((event) => modules.includes(event.module_id)) && <View style={[sharedStyles.column, { borderTopWidth: 1, borderTopColor: theme.colors.border, paddingTop: 14 }]}>
       <Eyebrow>Recent eligible completions</Eyebrow>
-      {events.map((event) => <View key={event.id} style={sharedStyles.column}>
+      {events.filter((event) => modules.includes(event.module_id)).map((event) => <View key={event.id} style={sharedStyles.column}>
         <Body>{moduleLabels[event.module_id]} · {event.source_type === 'session' ? 'completed session' : 'completed task'} · {event.status === 'awarded'
           ? `+${event.awarded_minutes} min` : event.status.replaceAll('_', ' ')}</Body>
         <Body>{new Date(event.created_at).toLocaleString()}</Body>

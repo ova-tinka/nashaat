@@ -8,7 +8,16 @@ export type BlockingStatus = {
   serviceConnected?: boolean;
   serviceHealth?: 'connected' | 'stopped' | 'serviceUnavailable' | 'permissionRequired';
   supportedBrowsers?: string[];
+  scheduledActiveCount?: number;
+  scheduleError?: boolean;
+  manualFocusActive?: boolean;
+  manualFocusError?: boolean;
 };
+
+export type IosManualFocus = { appCount: number; websiteCount: number; categoryCount: number; active: boolean };
+export type IosFocusRoutineSelection = { appCount: number; websiteCount: number; categoryCount: number };
+
+export type AppAccessDecision = { blocked: boolean; reasons: string[]; enforceable: boolean };
 
 export type AppCandidate = { id: string; name: string };
 

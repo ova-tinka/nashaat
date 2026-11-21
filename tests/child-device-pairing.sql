@@ -42,6 +42,9 @@ do $$ begin
     or not exists (select 1 from public.bloom_settings where user_id = current_setting('bloom.pair_profile')::uuid) then
     raise exception 'Managed child identity was not linked atomically';
   end if;
+  if exists (select 1 from public.bloom_growth_memory where profile_id = current_setting('bloom.pair_profile')::uuid) then
+    raise exception 'Managed child memory should not be enabled automatically';
+  end if;
 end $$;
 set local role authenticated;
 select set_config('request.jwt.claim.sub', current_setting('bloom.pair_profile'), true);

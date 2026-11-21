@@ -24,12 +24,12 @@ export function ThemeProvider({ children, initialMode = 'light' }: PropsWithChil
     let mounted = true;
     void AsyncStorage.getItem(themeStorageKey).then((saved) => {
       if (!mounted) return;
-      if (saved === 'dark') {
+      if (saved === 'dark' || saved === 'highContrast') {
         setModeState('light');
         void AsyncStorage.setItem(themeStorageKey, 'light').catch(() => undefined);
         return;
       }
-      if (saved === 'light' || saved === 'highContrast') setModeState(saved);
+      if (saved === 'light') setModeState(saved);
     }).catch(() => undefined);
     return () => { mounted = false; };
   }, []);

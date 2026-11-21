@@ -1,12 +1,11 @@
 import { randomUUID } from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 import { useCallback, useEffect, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, View } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Body, Button, ErrorText, Eyebrow, Field, Heading, Label, Panel, Screen, sharedStyles } from '../../components/bloom-ui';
 import BloomBlocking from '../../../modules/bloom-blocking/src/BloomBlockingModule';
 import type { AppCandidate, BlockingStatus, SafariContentBlockerState, UsageAccess } from '../../../modules/bloom-blocking/src/BloomBlocking.types';
-import { useBloomTheme } from '../../lib/theme-context';
 import { useBloom } from '../../lib/bloom-context';
 import { useAuth } from '../../lib/auth';
 import { findUsageSession, finishUsageSession, startEnforcedCreditSession, startUsageSession } from '../../lib/bloom';
@@ -15,13 +14,14 @@ import { MacosFocus } from '../../components/macos-focus';
 import { addWebsiteRule, deleteWebsiteRule, loadWebsiteRules, type ChildRule, type WebsiteRule, type WebsiteRuleScope } from '../../lib/family';
 import { syncBlockingRules } from '../../lib/blocking-rules-sync';
 import { FocusSectionNavigation, type FocusSettingsSection } from '../../components/focus-section-navigation';
+import { FocusAppPicker } from '../../components/focus-app-picker';
+import { FocusAppAccess } from '../../components/focus-app-access';
 
 const emptyStatus: BlockingStatus = { supported: false, authorized: false, active: false, appCount: 0, websiteCount: 0, categoryCount: 0 };
 type UsageRequest = { requestId: string; deviceKey: string; requestedMillis: number };
 
 export default function FocusScreen() {
   const params = useLocalSearchParams<{ section?: string }>();
-  const { theme } = useBloomTheme();
   const { profileId, childProfile } = useAuth();
   const userId = profileId;
   const { creditsEnabled, creditSettings, creditBalance, refresh, blockingRules, blockingRulesSyncError, blockingRulesSyncedAt } = useBloom();
@@ -137,12 +137,14 @@ export default function FocusScreen() {
     try {
       const current = await BloomBlocking.getStatus();
       if (!current.active || !current.authorized) throw new Error('Start blocking and allow device access first.');
+      if (Platform.OS === 'android' && (!profileId || BloomBlocking.getFocusAccount() !== profileId)) throw new Error('Sync this device to your profile before using screen time.');
       const request = pending ?? { requestId: randomUUID(), deviceKey: randomUUID(), minutes: amount };
       if (!pending) { await SecureStore.setItemAsync(pendingKey, JSON.stringify(request)); setPending(request); }
       const clock = BloomBlocking.getCreditClock();
       if (clock.boot < 0) throw new Error('Could not verify this device’s uptime.');
       const availableMillis = await startEnforcedCreditSession(request.requestId, request.deviceKey, request.minutes);
-      await BloomBlocking.startCreditAccess(availableMillis, clock.elapsedMillis, clock.boot);
+      if (Platform.OS === 'android' && profileId) await BloomBlocking.startCreditAccessForAccount(profileId, availableMillis, clock.elapsedMillis, clock.boot);
+      else await BloomBlocking.startCreditAccess(availableMillis, clock.elapsedMillis, clock.boot);
       await SecureStore.deleteItemAsync(pendingKey);
       setPending(null);
       setRemaining(BloomBlocking.getCreditAccessRemaining());
@@ -161,6 +163,7 @@ export default function FocusScreen() {
     try {
       const current = await BloomBlocking.getStatus();
       if (!current.active || !current.authorized) throw new Error(Platform.OS === 'ios' ? 'Start blocking and allow Screen Time access first.' : 'Start blocking and allow Accessibility access first.');
+      if (Platform.OS === 'android' && BloomBlocking.getFocusAccount() !== userId) throw new Error('Sync this device to your profile before using screen time.');
       const request = usageRequest ?? { requestId: randomUUID(), deviceKey: randomUUID(), requestedMillis };
       if (!usageRequest) { await SecureStore.setItemAsync(usageKey, JSON.stringify(request)); setUsageRequest(request); }
       const clock = BloomBlocking.getCreditClock();
@@ -370,10 +373,6 @@ export default function FocusScreen() {
     } finally { setBusy(false); }
   }
 
-  function toggleApp(id: string) {
-    setSelected((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
-  }
-
   const nativePlatform = Platform.OS === 'ios' || Platform.OS === 'android';
   const selectSection = (next: FocusSettingsSection) => router.setParams({ section: next });
   if (isMacDesktop()) return <MacosFocus section={section} onSelectSection={selectSection} />;
@@ -391,7 +390,7 @@ export default function FocusScreen() {
     </Panel> : <>
       <Panel>
         <Eyebrow>{Platform.OS === 'ios' ? 'iPhone and iPad' : 'Android device'}</Eyebrow>
-        <Label>{loading ? 'Checking device access…' : status.active ? Platform.OS === 'android' && status.serviceConnected === false ? 'Blocking service needs attention' : 'Focus blocking is on' : 'Focus blocking is off'}</Label>
+        <Label>{deviceFocusStatus(status, loading)}</Label>
         <Body>{Platform.OS === 'ios'
           ? 'Apple’s Screen Time controls block selected apps. Typed website rules are managed separately for Safari below.'
           : 'Bloom blocks selected apps and checks website addresses in supported browsers while focus blocking is on.'}</Body>
@@ -454,7 +453,7 @@ export default function FocusScreen() {
         <Eyebrow>Earned screen time</Eyebrow>
         {creditSettings.credit_mode === 'easy' ? <>
           <Label>{usage ? `${Math.ceil(usage.remainingMillis / 60000)} minutes left in this reservation` : `${Math.round(creditBalance * 100) / 100} minutes in your shared balance`}</Label>
-          <Body>Easy is a server-timed access window. Time runs continuously from reservation, including while the selected target is idle. Finish early to return the unused portion calculated by the server.</Body>
+          <Body>Easy is a server-timed access window. Time runs continuously from reservation, including while the selected target is idle or blocked by a routine or parent rule. Finish early to return the unused portion calculated by the server.</Body>
           {usage && usage.userId !== profileId ? <Body>Another account has a session on this device. Sign in to that account to finish it.</Body> : usage ? <>
             <Body>{usage.closed ? 'This access window has ended. Sync it to settle the server-timed amount.' : usage.tracking ? 'A selected target is currently detected. The access timer runs either way.' : 'No selected target is currently detected. The access timer continues while idle.'}</Body>
             <Button label={usage.closed ? 'Sync screen-time session' : 'Finish screen-time session'} onPress={() => void finishActualUsage()} busy={busy} />
@@ -475,15 +474,7 @@ export default function FocusScreen() {
       {Platform.OS === 'android' && section === 'apps' && <Panel>
         <Eyebrow>Blocked apps</Eyebrow>
         <Label>Choose apps for focus time</Label>
-        {apps.length === 0 && <Body>No launchable apps were found on this device.</Body>}
-        {apps.map((app) => {
-          const parentRequired = managedRules.some((rule) => rule.target_type === 'app' && rule.target_identifier === app.id);
-          const checked = parentRequired || selected.includes(app.id);
-          return <Pressable key={app.id} accessibilityRole="checkbox" accessibilityState={{ checked, disabled: parentRequired }} onPress={() => toggleApp(app.id)} disabled={parentRequired} style={[styles.appRow, { borderColor: theme.colors.border }]}>
-            <Text style={[styles.appName, { color: theme.colors.ink }]}>{app.name}{parentRequired ? ' · Parent rule' : ''}</Text>
-            <Text style={[styles.check, { color: theme.colors.ink, borderColor: theme.colors.inkMuted }, checked && { backgroundColor: theme.colors.action, borderColor: theme.colors.action, color: theme.colors.onAction }, checked && styles.checked]}>{checked ? '✓' : ''}</Text>
-          </Pressable>;
-        })}
+        <FocusAppPicker apps={apps} selected={selected} onChange={setSelected} requiredIds={managedRules.filter((rule) => rule.target_type === 'app').map((rule) => rule.target_identifier)} />
         <Button label="Save app selection" secondary onPress={() => void saveSelection()} busy={busy} disabled={loading} />
       </Panel>}
       {Platform.OS === 'android' && section === 'websites' && <Panel>
@@ -505,6 +496,7 @@ export default function FocusScreen() {
         <Eyebrow>Focus rules</Eyebrow>
         <Label>Rules for this device</Label>
         <Body>Selected apps and websites are blocked while Focus protection is active. Parent-set rules stay managed by the parent profile.</Body>
+        {Platform.OS === 'android' && profileId && <FocusAppAccess profileId={profileId} apps={apps} />}
         {managedRules.map((rule) => <Body key={`managed:${rule.id}`}>{rule.target_type === 'app' ? 'App' : 'Website'} · {rule.target_identifier} · Parent rule</Body>)}
         {blockingRulesSyncedAt && !blockingRulesSyncError && <Body>Rules last refreshed {new Date(blockingRulesSyncedAt).toLocaleTimeString()}.</Body>}
         {Platform.OS === 'ios' && managedRules.some((rule) => rule.target_type === 'app') && <Body>Parent-set apps still need to be selected in Apple’s Screen Time picker on this iPhone.</Body>}
@@ -522,6 +514,20 @@ export default function FocusScreen() {
     </Screen>;
 }
 
+function deviceFocusStatus(status: BlockingStatus, loading: boolean): string {
+  if (loading) return 'Checking device access…';
+  if (!status.supported) return 'Blocking unavailable';
+  if (!status.authorized) return 'Screen Time or Accessibility permission needed';
+  if (status.scheduleError || status.manualFocusError) return 'Could not read Focus restrictions';
+  const scheduled = (status.scheduledActiveCount ?? 0) > 0;
+  const manual = status.manualFocusActive === true;
+  if (Platform.OS === 'android' && (status.active || manual || scheduled) && status.serviceConnected !== true) return 'Blocking service needs attention';
+  if ([status.active, manual, scheduled].filter(Boolean).length > 1) return Platform.OS === 'ios' ? 'Multiple Focus restrictions configured' : 'Multiple Focus restrictions active';
+  if (manual) return Platform.OS === 'ios' ? 'Manual Focus configured' : 'Manual Focus active';
+  if (scheduled) return 'Scheduled Focus active';
+  return status.active ? Platform.OS === 'ios' ? 'Focus restrictions configured' : 'Focus blocking is on' : 'Focus blocking is off';
+}
+
 function isFocusSection(value: unknown): value is FocusSettingsSection {
   return value === 'focus' || value === 'apps' || value === 'websites' || value === 'rules';
 }
@@ -534,10 +540,3 @@ function focusSectionTitle(section: FocusSettingsSection) {
     case 'rules': return 'Rules';
   }
 }
-
-const styles = StyleSheet.create({
-  appRow: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 8 },
-  appName: { fontSize: 15, flex: 1 },
-  check: { width: 24, height: 24, borderWidth: 1, borderRadius: 6, textAlign: 'center', overflow: 'hidden' },
-  checked: { fontWeight: '800' },
-});

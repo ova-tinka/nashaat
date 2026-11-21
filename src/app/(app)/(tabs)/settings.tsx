@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import { router, type Href } from 'expo-router';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { router, useFocusEffect, type Href } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { ActivityIndicator, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, LayoutAnimation, Platform, Pressable, StyleSheet, Switch, Text, UIManager, View } from 'react-native';
 import { Body, Button, ErrorText, Eyebrow, Heading, Label, Panel, Screen, sharedStyles } from '../../../components/bloom-ui';
 import { CreditRulesEditor } from '../../../components/credit-rules-editor';
 import { GrowthRewardControls } from '../../../components/growth-reward-controls';
@@ -14,28 +14,101 @@ import { closeDeviceAccess } from '../../../lib/close-device-access';
 import { useBloomTheme } from '../../../lib/theme-context';
 import { useModuleVisibility } from '../../../lib/module-visibility';
 import { moduleManifest } from '../../../lib/module-manifest';
-import type { ThemeMode } from '../../../theme';
+import BloomBlocking from '../../../../modules/bloom-blocking/src/BloomBlockingModule';
+import type { BlockingStatus } from '../../../../modules/bloom-blocking/src/BloomBlocking.types';
+import { isMacDesktop } from '../../../lib/macos-blocking';
+import type { GrowthModuleId } from '../../../lib/growth-modules';
 
-const appearanceOptions: { mode: ThemeMode; title: string; shortLabel: string }[] = [
-  { mode: 'light', title: 'Light', shortLabel: 'Light' },
-  { mode: 'highContrast', title: 'High contrast', shortLabel: 'High contrast' },
-];
+const rewardPillars = [
+  { id: 'exercise', title: 'Exercise', icon: 'fitness-center', color: '#19D96B' },
+  { id: 'study', title: 'Study', icon: 'school', color: '#247BFF' },
+  { id: 'read', title: 'Read', icon: 'menu-book', color: '#9155F7' },
+  { id: 'tasks', title: 'Tasks', icon: 'check-box', color: '#E743C8' },
+] as const;
+const growthPillars: GrowthModuleId[] = ['study', 'read', 'tasks'];
+const rewardModules: Record<GrowthModuleId, GrowthModuleId[]> = { study: ['study'], read: ['read'], tasks: ['tasks'] };
+type RewardPillar = (typeof rewardPillars)[number]['id'];
 
 export default function SettingsScreen() {
   const { profileId, managedChild, childProfile, assignedModules } = useAuth();
-  const { creditsEnabled, creditSettings, subscription, loading, error, refresh, setCreditsEnabled, saveCreditRules } = useBloom();
-  const { mode, setMode, theme } = useBloomTheme();
+  const { creditsEnabled, creditSettings, creditBalance, subscription, loading, error, refresh, setCreditsEnabled, saveCreditRules } = useBloom();
+  const { theme } = useBloomTheme();
   const { visibleModules, loaded: visibilityLoaded, setModuleVisibility } = useModuleVisibility();
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [showEarningRules, setShowEarningRules] = useState(false);
+  const [rewardSection, setRewardSection] = useState<RewardPillar | null>(null);
+  const [visitedRewards, setVisitedRewards] = useState<RewardPillar[]>([]);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
+  const [memoryEnabled, setMemoryEnabled] = useState<boolean | null>(null);
+  const [blockingStatus, setBlockingStatus] = useState<BlockingStatus | null>(null);
+  const [blockingBusy, setBlockingBusy] = useState(false);
+  const [routineCount, setRoutineCount] = useState<number | null>(null);
+  const [manualActive, setManualActive] = useState<boolean | null>(null);
+  const [manualTargets, setManualTargets] = useState<number | null>(null);
+  const [manualRemaining, setManualRemaining] = useState<number | null>(null);
+  const [manualBusy, setManualBusy] = useState(false);
+
+  useFocusEffect(useCallback(() => {
+    if (isMacDesktop() || (Platform.OS !== 'ios' && Platform.OS !== 'android')) return;
+    const check = () => {
+      try {
+        setBlockingStatus(BloomBlocking.getStatus());
+        if (Platform.OS === 'android' && profileId && BloomBlocking.getFocusAccount() === profileId) {
+          const routines: unknown = JSON.parse(BloomBlocking.getFocusRoutines(profileId));
+          setRoutineCount(Array.isArray(routines) ? routines.filter((item) => item?.enabled === true).length : null);
+          const manual: unknown = JSON.parse(BloomBlocking.getManualFocus(profileId));
+          const appCount = manual && typeof manual === 'object' && 'apps' in manual && Array.isArray(manual.apps) ? manual.apps.length : null;
+          const siteCount = manual && typeof manual === 'object' && 'websites' in manual && Array.isArray(manual.websites) ? manual.websites.length : null;
+          setManualTargets(appCount !== null && siteCount !== null ? appCount + siteCount : null);
+          setManualActive(manual && typeof manual === 'object' && 'active' in manual && typeof manual.active === 'boolean' ? manual.active : null);
+          setManualRemaining(manual && typeof manual === 'object' && 'remainingMillis' in manual && typeof manual.remainingMillis === 'number' ? manual.remainingMillis : null);
+        } else if (Platform.OS === 'ios' && profileId) {
+          const manual = BloomBlocking.getIosManualFocus(profileId);
+          setManualTargets(manual.appCount + manual.websiteCount + manual.categoryCount);
+          setManualActive(manual.active); setManualRemaining(null);
+          const routines: unknown = JSON.parse(BloomBlocking.getIosFocusRoutines(profileId));
+          setRoutineCount(Array.isArray(routines) ? routines.filter((item) => item?.enabled === true).length : null);
+        } else { setRoutineCount(null); setManualTargets(null); setManualRemaining(null); setManualActive(null); }
+      } catch {
+        try { setBlockingStatus(BloomBlocking.getStatus()); } catch { setBlockingStatus(null); }
+        setRoutineCount(null); setManualTargets(null); setManualRemaining(null); setManualActive(null);
+      }
+    };
+    check();
+    const timer = setInterval(check, 5000);
+    return () => clearInterval(timer);
+  }, [profileId]));
 
   async function changeCredits(value: boolean) {
     setSaving(true); setActionError(null);
     try { await setCreditsEnabled(value); }
     catch { setActionError('Could not save your setting. Please try again.'); }
     finally { setSaving(false); }
+  }
+
+  async function toggleManualFocus() {
+    if (!profileId || !blockingStatus) return;
+    setManualBusy(true); setActionError(null);
+    try {
+      if (Platform.OS === 'ios') {
+        if (manualActive) await BloomBlocking.stopIosManualFocus(profileId);
+        else await BloomBlocking.startIosManualFocus(profileId);
+      } else if (manualActive) await BloomBlocking.stopManualFocus(profileId);
+      else await BloomBlocking.startManualFocus(profileId, 0);
+      setManualActive(!manualActive); setBlockingStatus(BloomBlocking.getStatus()); setManualRemaining(null);
+    } catch (cause) { setActionError(cause instanceof Error ? cause.message : 'Could not update Manual Focus.'); }
+    finally { setManualBusy(false); }
+  }
+
+  async function toggleEarnedAccess() {
+    setBlockingBusy(true); setActionError(null);
+    try {
+      if (blockingStatus?.active) await BloomBlocking.stopBlocking();
+      else await BloomBlocking.startBlocking();
+      setBlockingStatus(BloomBlocking.getStatus());
+    } catch (cause) {
+      setActionError(cause instanceof Error ? cause.message : 'Could not update Earned Access.');
+    } finally { setBlockingBusy(false); }
   }
 
   async function signOut() {
@@ -58,28 +131,82 @@ export default function SettingsScreen() {
 
     {!loading && !error && <>
       <Panel>
-        <Eyebrow>Appearance & accessibility</Eyebrow>
-        <Label>Color and contrast</Label>
-        <Body>Choose the display that feels clearest. Text size follows your device settings and reduced motion follows your system preference.</Body>
-        <View style={styles.appearanceChoices} accessibilityRole="radiogroup" accessibilityLabel="Appearance mode">
-          {appearanceOptions.map((option) => {
-            const selected = mode === option.mode;
-            return <Pressable
-              key={option.mode}
-              accessibilityRole="radio"
-              accessibilityLabel={option.title}
-              accessibilityState={{ selected }}
-              onPress={() => setMode(option.mode)}
-              style={({ pressed }) => [styles.appearanceChoice, { backgroundColor: selected ? theme.colors.surfaceTinted : theme.colors.surface, borderColor: selected ? theme.colors.focusRing : theme.colors.border }, pressed && styles.pressed]}>
-              <Text style={[styles.appearanceText, { color: theme.colors.ink }]}>{option.shortLabel}</Text>
-            </Pressable>;
-          })}
+        <View style={styles.focusHeading}>
+          <View style={[styles.focusIcon, { backgroundColor: theme.colors.surfaceTinted }]}><MaterialIcons name="shield" size={22} color={theme.colors.action} /></View>
+          <View style={sharedStyles.grow}><Eyebrow>Focus & Blocking</Eyebrow><Label>{blockingStatusLabel(blockingStatus)}</Label></View>
+        </View>
+        <Body>Configure access, focus sessions, and routines for this device. Any active Focus or parent rule keeps its selected apps blocked.</Body>
+
+        <View style={[styles.modeCard, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
+          <View style={styles.modeHeading}>
+            <View style={[styles.modeIcon, { backgroundColor: theme.colors.surfaceTinted }]}><MaterialIcons name="schedule" size={19} color={theme.colors.action} /></View>
+            <View style={sharedStyles.grow}><Label>Earned Access</Label><Body>{blockingStatus?.active ? 'Enabled on this device' : 'Disabled on this device'}</Body></View>
+          </View>
+          <Body>Unlock selected apps using screen-time credits. {blockingStatus ? `${blockingStatus.appCount + blockingStatus.websiteCount + blockingStatus.categoryCount} apps, sites, or categories selected.` : 'Device selection status is unavailable.'}</Body>
+          <Body>{Math.round(creditBalance * 100) / 100} minutes in your shared balance. Credit earning rules are directly below.</Body>
+          <Button label={blockingStatus?.active ? 'Pause Earned Access' : 'Enable Earned Access'} onPress={() => void toggleEarnedAccess()} busy={blockingBusy} disabled={blockingBusy || !blockingStatus || (!blockingStatus.active && blockingStatus.appCount + blockingStatus.websiteCount + blockingStatus.categoryCount === 0)} />
+          <FocusSettingLink title="Choose apps and websites" icon="apps" section="apps" />
+          <FocusSettingLink title="Device permissions and rules" icon="rule" section="rules" />
+        </View>
+
+        <View style={[styles.modeCard, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
+          <View style={styles.modeHeading}>
+            <View style={[styles.modeIcon, { backgroundColor: theme.colors.surfaceTinted }]}><MaterialIcons name="center-focus-strong" size={19} color={theme.colors.action} /></View>
+            <View style={sharedStyles.grow}><Label>Manual Focus</Label><Body>{manualActive === null ? 'Status unavailable' : manualActive ? 'Active' : 'Inactive'}</Body></View>
+          </View>
+          {(Platform.OS === 'android' || Platform.OS === 'ios') && !isMacDesktop() ? <>
+            <Body>{manualTargets === null ? 'Sync this device to review your selection.' : `${manualTargets} apps and websites selected.`}</Body>
+            {manualActive && <Body>{manualRemaining === null ? 'Runs until stopped.' : `${Math.ceil(manualRemaining / 60000)} minutes remaining.`}</Body>}
+            <Button label={manualActive ? 'End Focus' : 'Start Focus'} onPress={() => void toggleManualFocus()} busy={manualBusy} disabled={manualBusy || manualActive === null || !blockingStatus || (!manualActive && (!blockingStatus.authorized || (Platform.OS === 'android' && blockingStatus.serviceConnected !== true) || !manualTargets))} />
+            <Button label="Configure Manual Focus" variant="secondary" onPress={() => router.push('/manual-focus' as Href)} />
+          </> : <Body>Independent Manual Focus is not available on this device.</Body>}
+        </View>
+
+        <View style={[styles.modeCard, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
+          <View style={styles.modeHeading}>
+            <View style={[styles.modeIcon, { backgroundColor: theme.colors.surfaceTinted }]}><MaterialIcons name="calendar-month" size={19} color={theme.colors.action} /></View>
+            <View style={sharedStyles.grow}><Label>Scheduled Focus</Label><Body>{routineCount === null ? 'Status unavailable' : `${routineCount} enabled routines · ${blockingStatus?.scheduledActiveCount ?? 0} active now`}</Body></View>
+          </View>
+          {(Platform.OS === 'android' || Platform.OS === 'ios') && !isMacDesktop() ? <>
+            <Body>Automatically block selected apps during your routines. Overlapping routines combine their restrictions.</Body>
+            <Button label="Manage routines" variant="secondary" onPress={() => router.push('/focus-routines' as Href)} />
+          </> : <Body>Recurring blocking routines are not available on this device.</Body>}
         </View>
       </Panel>
 
       <Panel>
-        <Eyebrow>Your home</Eyebrow>
-        <Label>Show pillars</Label>
+        <Eyebrow>Earned Screen-Time Credits</Eyebrow>
+        <View style={sharedStyles.row}>
+          <View style={sharedStyles.grow}><Label>Earn screen-time credits</Label><Body>{managedChild ? 'Your parent manages this setting.' : 'Change whether completed Exercise, Study, Read, and Tasks activity can earn credits.'}</Body></View>
+          <Switch accessibilityLabel="Earn screen-time credits" value={creditsEnabled} onValueChange={(value) => void changeCredits(value)} disabled={saving || managedChild} trackColor={{ false: theme.colors.border, true: theme.colors.action }} />
+        </View>
+        <Body>All four pillars contribute to your shared screen-time balance.</Body>
+        {rewardPillars.map((pillar) => <Pressable key={pillar.id} accessibilityRole="button" accessibilityLabel={`${pillar.title} reward settings`} accessibilityState={{ expanded: rewardSection === pillar.id }} onPress={() => {
+          setVisitedRewards((current) => current.includes(pillar.id) ? current : [...current, pillar.id]);
+          setRewardSection((current) => current === pillar.id ? null : pillar.id);
+        }} style={[styles.rewardLink, { borderTopColor: theme.colors.border }]}>
+          <MaterialIcons name={pillar.icon} size={22} color={pillar.color} />
+          <View style={sharedStyles.grow}><Label>{pillar.title}</Label></View>
+          <MaterialIcons name={rewardSection === pillar.id ? 'expand-less' : 'expand-more'} size={22} color={theme.colors.inkMuted} />
+        </Pressable>)}
+      </Panel>
+      {managedChild && rewardSection === 'exercise' && <Panel><Body>Your parent manages Exercise reward rules.</Body></Panel>}
+      {creditSettings && !managedChild && visitedRewards.includes('exercise') && <View style={rewardSection === 'exercise' ? undefined : { display: 'none' }}><CreditRulesEditor key={JSON.stringify(creditSettings)} settings={creditSettings} onSave={saveCreditRules} /></View>}
+      {profileId && growthPillars.filter((pillar) => visitedRewards.includes(pillar)).map((pillar) => <View key={`growth-rewards:${profileId}:${pillar}`} style={rewardSection === pillar ? undefined : { display: 'none' }}><GrowthRewardControls profileId={profileId} editable={!managedChild} approvalByDefault={childProfile} allowedModules={rewardModules[pillar]} heading={`${rewardPillars.find((entry) => entry.id === pillar)?.title} rewards`} /></View>)}
+      <Panel>
+        <Eyebrow>Bloom plan</Eyebrow>
+        <Label>{subscription ? `Status: ${subscription.status.replaceAll('_', ' ')}` : 'No subscription found'}</Label>
+        <Body>Purchase and plan management are not connected yet.</Body>
+      </Panel>
+
+      {profileId && <SettingsAccordion title="Personal Memory" icon="psychology" status={memoryEnabled === null ? 'Status unavailable' : memoryEnabled ? 'Enabled' : 'Disabled'}><GrowthMemoryControls key={`growth-memory:${profileId}`} profileId={profileId} onStatusChange={setMemoryEnabled} /></SettingsAccordion>}
+      <SettingsAccordion title="Devices & sync" icon="devices">
+        <Body>Review each device’s last report, Focus capability and sync status.</Body>
+        <Button label="Manage devices" variant="secondary" onPress={() => router.push('/devices' as Href)} />
+      </SettingsAccordion>
+
+      <Button label="Sign out" variant="secondary" onPress={() => void signOut()} />
+      <SettingsAccordion title="Show Pillars" icon="dashboard">
         <Body>Choose which Bloom spaces appear in your Home and main navigation. Your saved activity and goals stay in your profile.</Body>
         {!visibilityLoaded && <Body>Loading your saved choices.</Body>}
         {moduleManifest.filter((module) => module.available && (!childProfile || assignedModules.includes(module.id))).map((module) => {
@@ -102,78 +229,57 @@ export default function SettingsScreen() {
         })}
         {moduleManifest.every((module) => !module.available || (childProfile && !assignedModules.includes(module.id))) &&
           <Body>Your guardian can assign a Bloom pillar to your profile.</Body>}
-      </Panel>
+      </SettingsAccordion>
 
-      <Panel>
-        <Eyebrow>Devices & sync</Eyebrow>
-        <Label>Connected devices</Label>
-        <Body>Review each device’s last report, Focus capability and sync status.</Body>
-        <Button label="Manage devices" variant="secondary" onPress={() => router.push('/devices' as Href)} />
-      </Panel>
-
-      <Panel>
-        <Eyebrow>Focus & blocking</Eyebrow>
-        <Label>Choose what Focus blocks</Label>
-        <View style={styles.focusLinks}>
-          <FocusSettingLink title="Apps" icon="apps" section="apps" />
-          <FocusSettingLink title="Websites" icon="language" section="websites" />
-          <FocusSettingLink title="Rules" icon="rule" section="rules" />
-        </View>
-      </Panel>
-
-      <Panel>
-        <Eyebrow>Screen time</Eyebrow>
-        <View style={sharedStyles.row}>
-          <View style={sharedStyles.grow}><Label>Earn screen-time credits</Label><Body>{managedChild ? 'Your parent manages this setting.' : 'Change whether completed Exercise, Study, Read, and Tasks activity can earn credits.'}</Body></View>
-          <Switch accessibilityLabel="Earn screen-time credits" value={creditsEnabled} onValueChange={(value) => void changeCredits(value)} disabled={saving || managedChild} trackColor={{ false: theme.colors.border, true: theme.colors.action }} />
-        </View>
-        {!managedChild && <Button label={showEarningRules ? 'Hide Exercise earning rules' : 'Configure Exercise earning rules'} variant="tertiary" onPress={() => setShowEarningRules((visible) => !visible)} />}
-      </Panel>
-      {creditSettings && !managedChild && showEarningRules && <CreditRulesEditor key={JSON.stringify(creditSettings)} settings={creditSettings} onSave={saveCreditRules} />}
-      {profileId && <GrowthRewardControls key={`growth-rewards:${profileId}`} profileId={profileId} editable={!managedChild} approvalByDefault={childProfile} />}
-      {profileId && <GrowthMemoryControls key={`growth-memory:${profileId}`} profileId={profileId} />}
-
-      {!childProfile && <Panel>
-        <Eyebrow>Family & profiles</Eyebrow>
-        <Label>Personal and family spaces</Label>
-        <Body>Family is optional. Your personal space stays available alongside guardian tools.</Body>
-        <Button label="Manage Family Space" variant="secondary" onPress={() => router.push('/family' as Href)} />
-        <Button label="Profile switching and PIN" variant="tertiary" onPress={() => router.push('/profile-switch' as Href)} />
-      </Panel>}
-
-      {childProfile && managedChild && <Panel>
-        <Eyebrow>Profile</Eyebrow>
-        <Button label="Switch to parent" variant="secondary" onPress={() => router.push('/profile-switch' as Href)} />
-      </Panel>}
-
-      <Panel>
-        <Eyebrow>Privacy & coaching</Eyebrow>
-        <Label>Movement advice</Label>
-        <Body>Review coaching consent and preferences before using Bloom’s movement coach.</Body>
-        <Button label="Coach preferences" variant="secondary" onPress={() => router.push('/coach' as Href)} />
-      </Panel>
-
-      <Panel>
-        <Eyebrow>Bloom plan</Eyebrow>
-        <Label>{subscription ? `Status: ${subscription.status.replaceAll('_', ' ')}` : 'No subscription found'}</Label>
-        <Body>Purchase and plan management are not connected yet.</Body>
-      </Panel>
-
-      <Panel>
-        <Eyebrow>Community</Eyebrow>
-        <Label>Competitions</Label>
-        <Body>Join friends and review your movement challenges.</Body>
-        <Button label="Open competitions" variant="secondary" onPress={() => router.push('/competitions' as Href)} />
-      </Panel>
     </>}
 
+    {__DEV__ && <Eyebrow>Developer Tools</Eyebrow>}
     {__DEV__ && profileId && <View style={sharedStyles.column}>
       <Button label={showDiagnostics ? 'Hide developer diagnostics' : 'Show developer diagnostics'} variant="tertiary" onPress={() => setShowDiagnostics((visible) => !visible)} />
       {showDiagnostics && <DatabaseDiagnostics key={profileId} userId={profileId} />}
     </View>}
     {__DEV__ && <Button label="Design system gallery" variant="tertiary" onPress={() => router.push('/design-system' as Href)} />}
-    <Button label="Sign out" variant="secondary" onPress={() => void signOut()} />
   </Screen>;
+}
+
+function blockingStatusLabel(status: BlockingStatus | null): string {
+  if (isMacDesktop()) return 'Review this device’s Focus status';
+  if (Platform.OS !== 'ios' && Platform.OS !== 'android') return 'Blocking unavailable on this platform';
+  if (!status || !status.supported) return 'Enforcement unavailable';
+  if (!status.authorized) return 'Blocking permission needed';
+  if (status.scheduleError || status.manualFocusError) return 'Could not read Focus restrictions';
+  const scheduled = (status.scheduledActiveCount ?? 0) > 0;
+  const manual = status.manualFocusActive === true;
+  if (Platform.OS === 'android' && (status.active || scheduled || manual) && status.serviceConnected !== true) return 'Blocking service needs attention';
+  if ([scheduled, manual, status.active].filter(Boolean).length > 1) return Platform.OS === 'ios' ? 'Multiple Focus restrictions configured' : 'Multiple Focus restrictions active';
+  if (manual) return Platform.OS === 'ios' ? 'Manual Focus configured' : 'Manual Focus active';
+  if (scheduled) return 'Scheduled Focus active';
+  return status.active ? Platform.OS === 'ios' ? 'Focus restrictions configured' : 'Focus blocking is on' : 'Focus blocking is off';
+}
+
+function SettingsAccordion({ title, icon, status, children }: { title: string; icon: 'psychology' | 'devices' | 'dashboard'; status?: string; children: ReactNode }) {
+  const [expanded, setExpanded] = useState(false);
+  const [reduceMotion, setReduceMotion] = useState(true);
+  const { theme } = useBloomTheme();
+  useEffect(() => {
+    let mounted = true;
+    void AccessibilityInfo.isReduceMotionEnabled().then((value) => { if (mounted) setReduceMotion(value); }).catch(() => undefined);
+    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
+    if (Platform.OS === 'android') UIManager.setLayoutAnimationEnabledExperimental?.(true);
+    return () => { mounted = false; subscription.remove(); };
+  }, []);
+  function toggle() {
+    if (!reduceMotion && Platform.OS !== 'web') LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setExpanded((current) => !current);
+  }
+  return <Panel>
+    <Pressable accessibilityRole="button" accessibilityLabel={title} accessibilityState={{ expanded }} onPress={toggle} style={styles.accordionHeader}>
+      <MaterialIcons name={icon} size={22} color={theme.colors.action} />
+      <View style={sharedStyles.grow}><Label>{title}</Label>{status && <Body>{status}</Body>}</View>
+      <MaterialIcons name={expanded ? 'expand-less' : 'expand-more'} size={24} color={theme.colors.inkMuted} />
+    </Pressable>
+    <View style={expanded ? undefined : { display: 'none' }}>{children}</View>
+  </Panel>;
 }
 
 function FocusSettingLink({ title, icon, section }: { title: string; icon: 'apps' | 'language' | 'rule'; section: 'apps' | 'websites' | 'rules' }) {
@@ -190,12 +296,15 @@ function FocusSettingLink({ title, icon, section }: { title: string; icon: 'apps
 }
 
 const styles = StyleSheet.create({
-  appearanceChoices: { flexDirection: 'row', gap: 8 },
-  appearanceChoice: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderRadius: 12, paddingHorizontal: 6 },
-  appearanceText: { fontSize: 13, fontWeight: '700', textAlign: 'center' },
+  focusHeading: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  focusIcon: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  modeCard: { gap: 8, padding: 12, borderWidth: StyleSheet.hairlineWidth, borderRadius: 18 },
+  modeHeading: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  modeIcon: { width: 34, height: 34, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  rewardLink: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 12, borderTopWidth: StyleSheet.hairlineWidth },
+  accordionHeader: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 12 },
   pillarChoice: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 12, borderTopWidth: StyleSheet.hairlineWidth, paddingVertical: 12 },
   pillarDescription: { fontSize: 13, lineHeight: 19, marginTop: 3 },
-  focusLinks: { gap: 8, marginTop: 2 },
   focusLink: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 14, paddingHorizontal: 12 },
   focusLinkLabel: { flex: 1, fontSize: 15, fontWeight: '700' },
   pressed: { opacity: 0.76 },

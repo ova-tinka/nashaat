@@ -584,7 +584,7 @@ function ContinueCard({ item, saving, onOpen, onStart, onProgress }: {
   const accent = theme.modules.read;
   return <Panel>
     <Pressable accessibilityRole="button" accessibilityLabel={'Open ' + item.title} onPress={onOpen} style={styles.continueTop}>
-      <BookMark kind={item.reading_kind} />
+      <BookCover item={item} size="small" />
       <View style={sharedStyles.grow}>
         <Eyebrow>{kindLabel(item.reading_kind).toUpperCase()} · CURRENTLY READING</Eyebrow>
         <Label>{item.title}</Label>
@@ -608,10 +608,22 @@ function BookMark({ kind }: { kind: ReadingKind | null }) {
   </View>;
 }
 
+function BookCover({ item, size }: { item: GrowthItem; size: 'small' | 'large' }) {
+  const { theme } = useBloomTheme();
+  return <ImageBackground source={bloomPillarImages.read} resizeMode="cover" imageStyle={styles.bookCoverImage}
+    accessibilityRole="image" accessibilityLabel={`${item.title}, ${kindLabel(item.reading_kind).toLowerCase()} cover placeholder`}
+    style={[styles.bookCover, size === 'large' ? styles.bookCoverLarge : styles.bookCoverSmall]}>
+    <View style={[styles.bookCoverShade, { backgroundColor: 'rgba(25, 20, 47, 0.55)' }]} />
+    <Text numberOfLines={1} style={[styles.bookCoverKind, { color: '#F1E8FF' }]}>{kindLabel(item.reading_kind).toUpperCase()}</Text>
+    <Text numberOfLines={size === 'large' ? 4 : 3} style={[styles.bookCoverTitle, { color: '#FFFFFF' }]}>{item.title}</Text>
+    <Text numberOfLines={1} style={[styles.bookCoverAuthor, { color: theme.colors.surfaceSoft }]}>{item.author || 'Author not added'}</Text>
+  </ImageBackground>;
+}
+
 function ReadingShelfCard({ item, onPress }: { item: GrowthItem; onPress: () => void }) {
   const { theme } = useBloomTheme();
   return <Pressable accessibilityRole="button" onPress={onPress} style={[styles.shelfCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-    <BookMark kind={item.reading_kind} />
+    <BookCover item={item} size="large" />
     <Text numberOfLines={2} style={[styles.shelfTitle, { color: theme.colors.ink }]}>{item.title}</Text>
     <Text numberOfLines={1} style={[styles.shelfAuthor, { color: theme.colors.inkMuted }]}>{item.author || 'Author not added'}</Text>
     <Text style={[styles.shelfProgress, { color: theme.modules.read.deep }]}>{item.page_count ? Math.round(item.progress_percent) + '% · page ' + (item.current_page ?? 0) : 'Page progress unavailable'}</Text>
@@ -628,7 +640,7 @@ function ReadingCollection({ items, filter, saving, searchTerm, onOpen, onStart,
   return <View style={styles.collection}>
     {items.map((item) => <Panel key={item.id}>
       <Pressable accessibilityRole="button" onPress={() => onOpen(item)} style={styles.collectionTop}>
-        <BookMark kind={item.reading_kind} />
+        <BookCover item={item} size="small" />
         <View style={sharedStyles.grow}>
           <View style={styles.row}><Eyebrow>{kindLabel(item.reading_kind).toUpperCase()}</Eyebrow><View style={[styles.statusPill, { backgroundColor: theme.modules.read.surface }]}><Text style={[styles.statusPillText, { color: theme.modules.read.deep }]}>{statusLabel(statusOf(item))}</Text></View></View>
           <Label>{item.title}</Label><Body>{item.author || 'Author not added'}{item.genre ? ' · ' + item.genre : ''}</Body>
@@ -926,6 +938,14 @@ const styles = StyleSheet.create({
   continueTop: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 16 },
   bookMark: { width: 67, height: 88, borderRadius: 13, justifyContent: 'center', alignItems: 'center', gap: 8 },
   bookKind: { fontSize: 8, fontWeight: '700', letterSpacing: 1 },
+  bookCover: { overflow: 'hidden', justifyContent: 'flex-end', padding: 8, gap: 3 },
+  bookCoverSmall: { width: 76, height: 100, borderRadius: 14 },
+  bookCoverLarge: { width: 94, height: 126, borderRadius: 15 },
+  bookCoverImage: { borderRadius: 15 },
+  bookCoverShade: { ...StyleSheet.absoluteFill },
+  bookCoverKind: { fontSize: 7, lineHeight: 10, fontWeight: '800', letterSpacing: 0.7 },
+  bookCoverTitle: { fontSize: 10, lineHeight: 13, fontWeight: '800' },
+  bookCoverAuthor: { fontSize: 8, lineHeight: 11, fontWeight: '600' },
   metric: { fontSize: 33, lineHeight: 40, fontWeight: '700', letterSpacing: -0.8, marginTop: 5 },
   metricDivider: { borderBottomWidth: StyleSheet.hairlineWidth, marginVertical: 16 },
   metricPair: { flexDirection: 'row', gap: 22, justifyContent: 'space-between', marginTop: 13 },

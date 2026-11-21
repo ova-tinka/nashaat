@@ -3,6 +3,7 @@ import { router, type Href } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, I18nManager, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Body, Button, ErrorText, Eyebrow, Field, Heading, Label, Panel, Screen, sharedStyles } from '../../../components/bloom-ui';
+import { ExerciseArtwork } from '../../../components/exercise-artwork';
 import { createCustomExercise, loadCatalog, type Exercise, type Measurement } from '../../../lib/bloom';
 import { useBloomTheme } from '../../../lib/theme-context';
 
@@ -14,6 +15,7 @@ function isTimed(exercise: Exercise) {
 
 export default function ExerciseLibraryScreen() {
   const { theme } = useBloomTheme();
+  const exerciseColors = theme.modules.exercise;
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
@@ -72,7 +74,7 @@ export default function ExerciseLibraryScreen() {
       <Field label="Description (optional)" value={description} onChangeText={setDescription} maxLength={1000} multiline />
       <Label>Measurement</Label>
       <View style={styles.filters} accessibilityRole="radiogroup" accessibilityLabel="Exercise measurement">
-        {([['reps_only', 'Repetitions'], ['reps_weight', 'Reps and weight'], ['time_only', 'Time'], ['time_distance', 'Time and distance']] as const).map(([value, label]) => <Pressable key={value} accessibilityRole="radio" accessibilityState={{ checked: measurement === value }} onPress={() => setMeasurement(value)} style={[styles.filter, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }, measurement === value && { backgroundColor: theme.colors.action, borderColor: theme.colors.action }]}><Text style={[styles.filterText, { color: theme.colors.ink }, measurement === value && { color: theme.colors.onAction }]}>{label}</Text></Pressable>)}
+        {([['reps_only', 'Repetitions'], ['reps_weight', 'Reps and weight'], ['time_only', 'Time'], ['time_distance', 'Time and distance']] as const).map(([value, label]) => <Pressable key={value} accessibilityRole="radio" accessibilityState={{ checked: measurement === value }} onPress={() => setMeasurement(value)} style={[styles.filter, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }, measurement === value && { backgroundColor: exerciseColors.deep, borderColor: exerciseColors.deep }]}><Text style={[styles.filterText, { color: theme.colors.ink }, measurement === value && { color: '#FFFFFF' }]}>{label}</Text></Pressable>)}
       </View>
       {formError && <ErrorText>{formError}</ErrorText>}
       <Button label="Save exercise" onPress={() => void saveExercise()} busy={saving} />
@@ -82,17 +84,18 @@ export default function ExerciseLibraryScreen() {
     <View style={styles.filters} accessibilityRole="radiogroup" accessibilityLabel="Filter by exercise type">
       {([['all', 'All'], ['reps', 'Repetitions'], ['timed', 'Timed']] as const).map(([value, label]) => {
         const selected = filter === value;
-        return <Pressable key={value} accessibilityRole="radio" accessibilityState={{ checked: selected }} onPress={() => setFilter(value)} style={[styles.filter, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }, selected && { backgroundColor: theme.colors.action, borderColor: theme.colors.action }]}>
-          <Text style={[styles.filterText, { color: theme.colors.ink }, selected && { color: theme.colors.onAction }]}>{label}</Text>
+        return <Pressable key={value} accessibilityRole="radio" accessibilityState={{ checked: selected }} onPress={() => setFilter(value)} style={[styles.filter, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }, selected && { backgroundColor: exerciseColors.deep, borderColor: exerciseColors.deep }]}>
+          <Text style={[styles.filterText, { color: theme.colors.ink }, selected && { color: '#FFFFFF' }]}>{label}</Text>
         </Pressable>;
       })}
     </View>
-    {loading && <ActivityIndicator color={theme.colors.action} />}
+    {loading && <ActivityIndicator color={exerciseColors.deep} />}
     {error && <Panel><ErrorText>{error}</ErrorText><Button label="Try again" onPress={() => void load()} /></Panel>}
     {!loading && !error && matching.length === 0 && <Panel><Label>No exercises found</Label><Body>Try a different search or exercise type.</Body></Panel>}
     {!loading && !error && matching.map((exercise) => <Pressable key={exercise.id} onPress={() => openExercise(exercise)} accessibilityRole="button" accessibilityLabel={`View ${exercise.name}`}>
       <Panel>
-        <View style={sharedStyles.row}>
+        <View style={styles.exerciseRow}>
+          <ExerciseArtwork exercise={exercise} size="small" />
           <View style={sharedStyles.grow}>
             <Label>{exercise.name}</Label>
             <Body>{exercise.bloom_owner_user_id ? 'Custom exercise' : exercise.muscle_group || (isTimed(exercise) ? 'Timed exercise' : 'Repetition exercise')}</Body>
@@ -108,6 +111,7 @@ export default function ExerciseLibraryScreen() {
 
 const styles = StyleSheet.create({
   filters: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  exerciseRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   filter: { minHeight: 44, paddingHorizontal: 14, justifyContent: 'center', borderWidth: 1, borderRadius: 20 },
   filterText: { fontWeight: '700', fontSize: 13 },
   directionalIcon: { transform: [{ scaleX: -1 }] },

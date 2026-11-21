@@ -16,6 +16,13 @@ class CreditDeadlineTest {
     assertEquals(0L, CreditDeadline.remainingMillis(0, 3, 3, 100))
   }
 
+  @Test fun newCountdownIsBoundToTheActiveAccount() {
+    assertEquals(true, CreditDeadline.accountMatches("one", "one"))
+    assertEquals(false, CreditDeadline.accountMatches("one", "two"))
+    assertEquals(false, CreditDeadline.accountMatches("one", null))
+    assertEquals(true, CreditDeadline.accountMatches(null, "one")) // Pre-upgrade countdown.
+  }
+
   @Test fun serverDeadlineAccountsForRoundTripAndReboot() {
     assertEquals(11000L, CreditDeadline.fromServerRemaining(10000, 1000, 1500, 3, 3))
     assertEquals(0L, CreditDeadline.fromServerRemaining(10000, 1000, 12000, 3, 3))

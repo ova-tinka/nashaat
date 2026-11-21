@@ -26,6 +26,7 @@ export async function syncBlockingRules(userId: string, platform: BlockingRulesP
       ? websiteIdentifiers.flatMap((value) => { const domain = canonicalWebsiteDomain(value); return domain ? [domain] : []; })
       : websiteIdentifiers;
     if (platform === 'android') {
+      await BloomBlocking.setFocusAccount(userId);
       await BloomBlocking.setManagedTargets(apps, websites, userId);
       return BloomBlocking.getStatus().serviceHealth ?? null;
     }
@@ -33,6 +34,7 @@ export async function syncBlockingRules(userId: string, platform: BlockingRulesP
       const native = await macosFilter('syncManagedRules', websites, undefined, apps, undefined, undefined, userId);
       return native.status ?? 'synced';
     }
+    await BloomBlocking.setFocusAccount(userId);
     const always = websiteRules.filter((rule) => rule.scope === 'always').map((rule) => rule.domain);
     const focus = [...websites, ...websiteRules.filter((rule) => rule.scope === 'focus').map((rule) => rule.domain)];
     const websiteStatus = await BloomBlocking.setSafariWebsiteRules(always, focus, userId);
@@ -43,4 +45,9 @@ export async function syncBlockingRules(userId: string, platform: BlockingRulesP
 
 export function cancelBlockingRulesSync(userId: string, platform: BlockingRulesPlatform) {
   coordinator.cancel(scope(userId, platform));
+}
+
+/** Wait for an already-started native write before clearing account-local state. */
+export async function finishBlockingRulesSync(userId: string, platform: BlockingRulesPlatform) {
+  await coordinator.cancelAndWait(scope(userId, platform));
 }

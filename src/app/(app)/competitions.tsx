@@ -1,11 +1,11 @@
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, Share, Switch, Text, View } from 'react-native';
+import { useCallback, useState } from 'react';
+import { ActivityIndicator, Share, Text, View } from 'react-native';
 import { Body, Button, ErrorText, Eyebrow, Field, Heading, Label, Panel, Screen, sharedStyles } from '../../components/bloom-ui';
 import { useAuth } from '../../lib/auth';
 import { localCompetitionDate, parseCompetitionDate } from '../../lib/competition-dates';
 import { acceptCompetitionLink, acceptFriendInvite, competitionResults, createCompetitionLink, inviteFriend, joinPublicCompetition,
-  loadCompetitionHome, publishCompetition, removeFriend, respondFriend, saveCompetition, saveSocialProfile, searchPeople, sendFriendRequest,
+  loadCompetitionHome, publishCompetition, removeFriend, respondFriend, saveCompetition, searchPeople, sendFriendRequest,
   type Competition, type CompetitionResult, type Person } from '../../lib/competitions';
 import { useBloomTheme } from '../../lib/theme-context';
 
@@ -16,8 +16,6 @@ export default function CompetitionsScreen() {
   const { theme } = useBloomTheme();
   const { profileId, childProfile } = useAuth();
   const [home, setHome] = useState<Home | null>(null);
-  const [name, setName] = useState('');
-  const [searchable, setSearchable] = useState(false);
   const [search, setSearch] = useState('');
   const [people, setPeople] = useState<Person[]>([]);
   const [title, setTitle] = useState('');
@@ -36,13 +34,11 @@ export default function CompetitionsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
-  const initialized = useRef(false);
 
   const load = useCallback(async () => {
     if (!profileId) return;
     try {
       const data = await loadCompetitionHome(profileId); setHome(data);
-      if (!initialized.current) { setName(data.social?.display_name ?? ''); setSearchable(data.social?.searchable ?? false); initialized.current = true; }
     } catch { setError('Could not load competitions. Check your connection and try again.'); }
     finally { setLoading(false); }
   }, [profileId]);
@@ -55,7 +51,7 @@ export default function CompetitionsScreen() {
   }
   async function saveEvent() {
     if (!editing && visibility === 'private' && !home?.social?.display_name?.trim()) {
-      setError('Save a display name above before creating a private competition. Search can stay off.'); return;
+      setError('Save a display name in account privacy before creating a private competition. Search can stay off.'); return;
     }
     const start = parseCompetitionDate(starts); const end = parseCompetitionDate(ends); const max = Number(capacity);
     if (!title.trim() || !start || !end || !Number.isInteger(max) || max < 2 || max > 100 || new Date(end) <= new Date(start)) {
@@ -86,15 +82,10 @@ export default function CompetitionsScreen() {
 
   return <Screen safeAreaTop={false}>
     <View style={sharedStyles.column}><Eyebrow>Move together</Eyebrow><Heading>Competitions</Heading><Body>Workouts and active minutes are self-reported. Events award recognition and winner badges only.</Body></View>
-    <Button label="Back to profile" secondary onPress={() => router.replace('/settings')} disabled={busy} />
+    <Button label="Back to Exercise" secondary onPress={() => router.replace('/exercise')} disabled={busy} />
     {loading && <ActivityIndicator color={theme.colors.action} />}{error && <ErrorText>{error}</ErrorText>}{notice && <Body>{notice}</Body>}
     {home && <>
-      <Panel><Label>Display name and search</Label><Body>Save a display name before creating a private competition. Results use that name; search is optional.{childProfile ? ' A parent must also opt in before you appear in search.' : ''}</Body>
-        <Field label="Display name" value={name} onChangeText={setName} maxLength={60} />
-        <View style={sharedStyles.row}><Body>Allow people to find me</Body><Switch accessibilityLabel="Allow people to find me" value={searchable} onValueChange={setSearchable} disabled={busy} /></View>
-        {childProfile && <Body>Parent search permission: {home.social?.child_search_opt_in ? 'enabled' : 'not enabled'}</Body>}
-        <Button label="Save display name" onPress={() => void run(() => saveSocialProfile(name, searchable), 'Display name saved.')} disabled={!name.trim()} busy={busy} />
-      </Panel>
+      <Panel><Label>Competition identity</Label><Body>{home.social?.display_name ? `Display name: ${home.social.display_name}` : 'Add a display name before creating a private competition.'}</Body><Button label="Manage account privacy" variant="secondary" onPress={() => router.push('/privacy')} disabled={busy} /></Panel>
       <Panel><Label>Friends</Label><Field label="Search display names" value={search} onChangeText={setSearch} maxLength={60} /><Button label="Search" secondary onPress={() => void findPeople()} busy={busy} />
         {people.map((person) => <View key={person.profile_id} style={sharedStyles.column}><Body>{person.display_name}</Body><Button label={`Send friend request to ${person.display_name}`} secondary disabled={busy} onPress={() => void run(() => sendFriendRequest(person.profile_id), 'Friend request sent.')} /></View>)}
         {home.friends.map((friend) => <View key={friend.id} style={sharedStyles.column}><Body>{friend.display_name} · {friend.status}{friend.status === 'pending' ? friend.incoming ? ' · received' : ' · sent' : ''}</Body>

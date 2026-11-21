@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { moduleIds, moduleVisibilityStorageKey, parseVisibleModules } from '../src/lib/module-visibility-state.ts';
+import { moduleIds, moduleVisibilityStorageKey, parseVisibleModules, showNavigationItem } from '../src/lib/module-visibility-state.ts';
 
 test('all available pillars are initially visible', () => {
   assert.deepEqual(parseVisibleModules(null), ['exercise', 'study', 'read', 'tasks']);
@@ -23,4 +23,13 @@ test('invalid local preferences safely restore the default pillar list', () => {
 test('device preferences are scoped to the active profile', () => {
   assert.equal(moduleVisibilityStorageKey('profile-one'), 'bloom.visible-modules.v1:profile-one');
   assert.notEqual(moduleVisibilityStorageKey('profile-one'), moduleVisibilityStorageKey('profile-two'));
+});
+
+test('dock always keeps Home and follows visibility and guardian assignments', () => {
+  assert.equal(showNavigationItem(null, false, [], true, []), true);
+  assert.equal(showNavigationItem('read', true, ['read'], false, []), true);
+  assert.equal(showNavigationItem('read', true, [], false, []), false);
+  assert.equal(showNavigationItem('read', true, ['read'], true, []), false);
+  assert.equal(showNavigationItem('read', true, ['read'], true, ['read']), true);
+  assert.equal(showNavigationItem('read', false, ['read'], false, []), false);
 });

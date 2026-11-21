@@ -2,11 +2,10 @@ import { router, type Href } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useState } from 'react';
 import { ActivityIndicator, ImageBackground, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Body, Button, ErrorText, Eyebrow, Heading, Label, Panel, ProgressBar, Screen, sharedStyles } from './bloom-ui';
+import { Body, Button, ErrorText, Eyebrow, FeatureTile, Heading, Label, Panel, ProgressBar, Screen, sharedStyles } from './bloom-ui';
 import { GrowthModuleScreen } from './growth-module-screen';
 import { useBloom } from '../lib/bloom-context';
 import { useBloomTheme } from '../lib/theme-context';
-import { moduleManifest } from '../lib/module-manifest';
 import type { ModuleKey } from '../theme';
 import { bloomPillarImages } from '../assets/bloom-images';
 import { formatScheduledDays, SCHEDULE_DAYS, startWorkout, type WorkoutHistoryItem, type WorkoutPlan } from '../lib/bloom';
@@ -27,7 +26,6 @@ export function PillarHomeScreen({ moduleId }: { moduleId: ModuleKey }) {
 }
 
 function ExerciseHomeScreen() {
-  const module = moduleManifest.find((item) => item.id === 'exercise')!;
   const { plans, activeWorkout, workoutAnalytics, creditSettings, creditsEnabled, loading, error, refresh } = useBloom();
   const { theme } = useBloomTheme();
   const colors = theme.modules.exercise;
@@ -66,21 +64,16 @@ function ExerciseHomeScreen() {
   }
 
   return <Screen safeAreaTop={false}>
-    <View style={styles.moduleHeader}>
-      <View style={[styles.icon, { backgroundColor: colors.surface }]}><MaterialIcons name={module.icon} size={24} color={colors.deep} /></View>
-      <View style={sharedStyles.grow}>
-        <Eyebrow>Bloom</Eyebrow>
-        <Heading>{module.name}</Heading>
-      </View>
-      <Pressable accessibilityRole="button" accessibilityLabel="Open exercise library" onPress={() => router.push('/library' as Href)} style={styles.headerAction}>
-        <MaterialIcons name="search" size={23} color={colors.deep} />
-      </Pressable>
-    </View>
-
     {section === 'today' && <ImageBackground source={bloomPillarImages.exercise} resizeMode="cover" imageStyle={styles.heroImage} style={styles.hero}>
       <View style={styles.heroShade} />
       <View style={styles.heroContent}>
-        <Text style={styles.heroEyebrow}>Move. Train. Grow.</Text>
+        <View style={styles.heroTopRow}>
+          <Text style={styles.heroEyebrow}>Move. Train. Grow.</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="Search the exercise library" accessibilityHint="Opens the exercise library."
+            onPress={() => router.push('/library' as Href)} style={({ pressed }) => [styles.heroSearch, pressed && styles.pressed]}>
+            <MaterialIcons name="search" size={22} color={colors.deep} />
+          </Pressable>
+        </View>
         <Text style={styles.heroTitle}>{activeWorkout ? 'Pick up where you left off.' : 'A little movement goes a long way.'}</Text>
         <Text style={styles.heroSubtitle}>{activeWorkout ? 'Your workout is ready to continue.' : 'Build consistency, one workout at a time.'}</Text>
         {!activeWorkout && <Pressable accessibilityRole="button" onPress={() => scheduledToday[0] ? void startPlan(scheduledToday[0].id) : setSection('plans')}
@@ -177,7 +170,7 @@ function ExerciseHomeScreen() {
           <MaterialIcons name="add" size={22} color={colors.deep} />
         </Pressable>
       </View>
-      <WeeklyPillarPlanner allowedModules={['exercise']} />
+      <Body>Each workout plan has its own scheduled days. Your weekly activity goal lives in Progress.</Body>
       {plans.length === 0 ? <Panel><Label>No workout plans yet</Label><Body>Create a plan to schedule workouts and track each session.</Body><Button label="Create a plan" onPress={() => router.push('/new-plan' as Href)} /></Panel> : plans.map((plan) => <PlanCard key={plan.id} plan={plan} active={activeWorkout?.plan_id === plan.id} activeWorkout={Boolean(activeWorkout)} starting={startingId === plan.id} onStart={() => void startPlan(plan.id)} onEdit={() => router.push({ pathname: '/new-plan', params: { planId: plan.id } })} />)}
       {activeWorkout && <Body>Finish or cancel the active workout before starting a different plan.</Body>}
       <Button label="Manage all plans" variant="secondary" onPress={() => router.push('/workouts' as Href)} />
@@ -205,16 +198,20 @@ function ExerciseHomeScreen() {
         <Button label="Open full workout history" variant="secondary" onPress={() => router.push('/activity' as Href)} />
       </> : <Panel><Label>No completed workouts yet</Label><Body>Your workout history and records will appear here after your first session.</Body></Panel>}
       <Button label="Detailed progress" variant="tertiary" onPress={() => router.push('/progress' as Href)} />
+      <WeeklyPillarPlanner allowedModules={['exercise']} />
     </>}
 
     {!loading && !error && section === 'more' && <>
-      <View style={sharedStyles.column}><Eyebrow>Exercise tools</Eyebrow><Heading>Explore</Heading></View>
-      <Panel>
-        <MoreLink title="Exercise library" icon="search" onPress={() => router.push('/library' as Href)} />
-        <MoreLink title="Movement coach" icon="favorite-border" onPress={() => router.push('/coach' as Href)} />
-        <MoreLink title="Challenges" icon="emoji-events" onPress={() => router.push('/competitions' as Href)} />
-        {creditsEnabled && <MoreLink title="Credit history" icon="history" onPress={() => router.push('/credit-history' as Href)} />}
-      </Panel>
+      <View><Eyebrow>More</Eyebrow><Heading>Exercise tools</Heading></View>
+      <View style={styles.moreGrid}>{[
+        { title: 'Exercise library', subtitle: 'Browse movements and instructions', icon: 'search' as const, onPress: () => router.push('/library' as Href) },
+        { title: 'Movement coach', subtitle: 'Get help shaping your routine', icon: 'favorite-border' as const, onPress: () => router.push('/coach' as Href) },
+        { title: 'Competitions', subtitle: 'Join a friendly challenge', icon: 'emoji-events' as const, onPress: () => router.push('/competitions' as Href) },
+        ...(creditsEnabled ? [{ title: 'Credit history', subtitle: 'Review time earned from activity', icon: 'history' as const, onPress: () => router.push('/credit-history' as Href) }] : []),
+      ].map((item) => <View key={item.title} style={styles.moreTile}>
+        <FeatureTile title={item.title} subtitle={item.subtitle} icon={item.icon} accentColor={colors.deep}
+          backgroundColor={colors.surface} onPress={item.onPress} />
+      </View>)}</View>
     </>}
   </Screen>;
 }
@@ -309,23 +306,13 @@ function PlanCard({ plan, active, activeWorkout, starting, onStart, onEdit }: {
   </Panel>;
 }
 
-function MoreLink({ title, icon, onPress }: { title: string; icon: React.ComponentProps<typeof MaterialIcons>['name']; onPress: () => void }) {
-  const { theme } = useBloomTheme();
-  return <Pressable accessibilityRole="button" accessibilityLabel={title} onPress={onPress} style={[styles.moreLink, { borderBottomColor: theme.colors.border }]}>
-    <View style={[styles.smallIcon, { backgroundColor: theme.modules.exercise.surface }]}><MaterialIcons name={icon} size={20} color={theme.modules.exercise.deep} /></View>
-    <Text style={[styles.moreLinkText, { color: theme.colors.ink }]}>{title}</Text>
-    <MaterialIcons name="chevron-right" size={22} color={theme.colors.inkMuted} />
-  </Pressable>;
-}
-
 const styles = StyleSheet.create({
-  moduleHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  icon: { width: 48, height: 48, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  headerAction: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   hero: { minHeight: 184, borderRadius: 28, overflow: 'hidden', justifyContent: 'flex-end', padding: 20 },
   heroImage: { borderRadius: 28 },
   heroShade: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(17, 29, 44, 0.42)' },
   heroContent: { gap: 7, alignItems: 'flex-start' },
+  heroTopRow: { width: '100%', minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  heroSearch: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.96)' },
   heroEyebrow: { color: '#F4F7FC', fontSize: 11, lineHeight: 16, fontWeight: '800', letterSpacing: 1.2, textTransform: 'uppercase' },
   heroTitle: { color: '#FFFFFF', fontSize: 24, lineHeight: 29, fontWeight: '800', maxWidth: 430 },
   heroSubtitle: { color: '#F4F7FC', fontSize: 14, lineHeight: 19 },
@@ -359,7 +346,7 @@ const styles = StyleSheet.create({
   addButton: { width: 44, height: 44, borderRadius: 16, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#DCE8DF' },
   iconAction: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 14 },
   planPreview: { fontSize: 13, lineHeight: 18 },
-  moreLink: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: StyleSheet.hairlineWidth },
-  moreLinkText: { flex: 1, fontSize: 15, lineHeight: 21, fontWeight: '700' },
+  moreGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  moreTile: { flexGrow: 1, flexBasis: '46%', minWidth: 142 },
   pressed: { opacity: 0.82 },
 });

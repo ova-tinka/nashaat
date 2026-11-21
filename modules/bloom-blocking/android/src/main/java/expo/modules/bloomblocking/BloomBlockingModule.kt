@@ -29,6 +29,74 @@ class BloomBlockingModule : Module() {
       status(context, enabled, active && enabled, targets.size, websites.size)
     }
 
+    AsyncFunction("setFocusAccount") { accountId: String ->
+      val context = appContext.reactContext ?: throw IllegalStateException("Bloom is not available.")
+      FocusRoutineStore.setAccount(context, accountId)
+    }
+
+    Function("getFocusAccount") {
+      val context = appContext.reactContext ?: throw IllegalStateException("Bloom is not available.")
+      FocusRoutineStore.account(context)
+    }
+
+    AsyncFunction("clearFocusAccount") { accountId: String ->
+      val context = appContext.reactContext ?: throw IllegalStateException("Bloom is not available.")
+      FocusRoutineStore.clearAccount(context, accountId)
+    }
+
+    Function("getFocusRoutines") { accountId: String ->
+      val context = appContext.reactContext ?: throw IllegalStateException("Bloom is not available.")
+      FocusRoutineStore.json(context, accountId)
+    }
+
+    AsyncFunction("saveFocusRoutines") { accountId: String, raw: String ->
+      val context = appContext.reactContext ?: throw IllegalStateException("Bloom is not available.")
+      synchronized(FocusRoutineStore) {
+        val prefs = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
+        // Reject configurations that cannot enforce their enabled website targets.
+        val routines = FocusRoutineStore.parseForValidation(raw, context.packageName)
+        check(prefs.getBoolean(WEBSITE_CONSENT, false) || routines.none { it.enabled && it.websites.isNotEmpty() }) {
+          "Enable website checks before saving an enabled website routine."
+        }
+        FocusRoutineStore.write(context, accountId, raw)
+      }
+    }
+
+    Function("getManualFocus") { accountId: String ->
+      val context = appContext.reactContext ?: throw IllegalStateException("Bloom is not available.")
+      check(FocusRoutineStore.account(context) == accountId) { "The device account changed. Sync and try again." }
+      ManualFocusStore.json(ManualFocusStore.read(context, accountId))
+    }
+
+    AsyncFunction("saveManualFocus") { accountId: String, raw: String ->
+      val context = appContext.reactContext ?: throw IllegalStateException("Bloom is not available.")
+      ManualFocusStore.save(context, accountId, raw)
+    }
+
+    AsyncFunction("startManualFocus") { accountId: String, durationMillis: Double ->
+      val context = appContext.reactContext ?: throw IllegalStateException("Bloom is not available.")
+      require(durationMillis.isFinite() && durationMillis >= 0 && durationMillis <= 604800000 && durationMillis % 1.0 == 0.0) { "Invalid duration." }
+      check(isServiceConnected(context)) { "Enable the Android Accessibility service before starting Manual Focus." }
+      ManualFocusStore.start(context, accountId, durationMillis.toLong())
+    }
+
+    AsyncFunction("stopManualFocus") { accountId: String ->
+      val context = appContext.reactContext ?: throw IllegalStateException("Bloom is not available.")
+      ManualFocusStore.stop(context, accountId)
+    }
+
+    Function("getAppAccessDecision") { accountId: String, packageId: String ->
+      val context = appContext.reactContext ?: throw IllegalStateException("Bloom is not available.")
+      require(PACKAGE_ID.matches(packageId) && packageId != context.packageName) { "Choose an app on this device." }
+      targetDecision(context, accountId, packageId, false)
+    }
+
+    Function("getWebsiteAccessDecision") { accountId: String, address: String ->
+      val context = appContext.reactContext ?: throw IllegalStateException("Bloom is not available.")
+      val host = WebsiteDomains.host(address) ?: throw IllegalArgumentException("Enter a valid website domain.")
+      targetDecision(context, accountId, host, true)
+    }
+
     Function("getInstalledApps") {
       val context = appContext.reactContext ?: return@Function emptyList<Map<String, String>>()
       val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
@@ -81,16 +149,21 @@ class BloomBlockingModule : Module() {
     AsyncFunction("setWebsiteConsent") { enabled: Boolean ->
       val context = appContext.reactContext ?: throw IllegalStateException("Bloom is not available.")
       checkNoActiveAccess(context)
-      val prefs = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
-      check(enabled || prefs.getStringSet(MANAGED_WEBSITES, emptySet()).orEmpty().isEmpty()) { "Parent-set website rules require website checks to stay enabled." }
-      val edit = prefs.edit().putBoolean(WEBSITE_CONSENT, enabled)
-      if (enabled && (prefs.getStringSet(MANAGED_WEBSITES, emptySet()).orEmpty().isNotEmpty()
-        || prefs.getStringSet(MANAGED_APPS, emptySet()).orEmpty().isNotEmpty())) edit.putBoolean(BLOCKING_ACTIVE, true)
-      if (!enabled && prefs.getStringSet(BLOCKED_APPS, emptySet()).orEmpty().isEmpty()
-        && prefs.getStringSet(MANAGED_APPS, emptySet()).orEmpty().isEmpty()) {
-        edit.putBoolean(BLOCKING_ACTIVE, false)
+      synchronized(FocusRoutineStore) {
+        val prefs = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
+        check(enabled || prefs.getStringSet(MANAGED_WEBSITES, emptySet()).orEmpty().isEmpty()) { "Parent-set website rules require website checks to stay enabled." }
+        check(enabled || FocusRoutineStore.read(context).none { it.enabled && it.websites.isNotEmpty() }) { "Disable website routines before turning off website checks." }
+        val manual = ManualFocusStore.read(context)
+        check(enabled || manual?.active != true || manual.selection.websites.isEmpty()) { "Stop Manual Focus before turning off website checks." }
+        val edit = prefs.edit().putBoolean(WEBSITE_CONSENT, enabled)
+        if (enabled && (prefs.getStringSet(MANAGED_WEBSITES, emptySet()).orEmpty().isNotEmpty()
+          || prefs.getStringSet(MANAGED_APPS, emptySet()).orEmpty().isNotEmpty())) edit.putBoolean(BLOCKING_ACTIVE, true)
+        if (!enabled && prefs.getStringSet(BLOCKED_APPS, emptySet()).orEmpty().isEmpty()
+          && prefs.getStringSet(MANAGED_APPS, emptySet()).orEmpty().isEmpty()) {
+          edit.putBoolean(BLOCKING_ACTIVE, false)
+        }
+        edit.apply()
       }
-      edit.apply()
     }
 
     AsyncFunction("requestAccessibilityPermission") {
@@ -168,6 +241,7 @@ class BloomBlockingModule : Module() {
         .putBoolean(BLOCKING_ACTIVE, true)
         .remove(CREDIT_DEADLINE)
         .remove(CREDIT_BOOT)
+        .remove(CREDIT_ACCOUNT)
         .apply()
     }
 
@@ -184,16 +258,19 @@ class BloomBlockingModule : Module() {
 
     Function("getUsageAccess") {
       val context = appContext.reactContext ?: throw IllegalStateException("Bloom is not available.")
-      UsageTracker.state(context)?.let { usageStatus(it) }
+      UsageTracker.state(context)?.let { usageStatus(it, isServiceConnected(context)) }
     }
 
     AsyncFunction("startUsageAccess") { session: String, user: String, budget: Double, expiresIn: Double, requestElapsed: Double, requestBoot: Int ->
       val context = appContext.reactContext ?: throw IllegalStateException("Bloom is not available.")
-      val prefs = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
-      check(isAccessibilityEnabled(context) && prefs.getBoolean(BLOCKING_ACTIVE, false)) { "Start blocking before using screen time." }
-      check(creditRemaining(context) <= 0) { "A countdown is already active." }
-      require(budget.isFinite() && expiresIn.isFinite() && requestElapsed.isFinite()) { "Invalid screen-time reservation." }
-      UsageTracker.start(context, session, user, budget.toLong(), expiresIn.toLong(), requestElapsed.toLong(), requestBoot)
+      synchronized(FocusRoutineStore) {
+        check(FocusRoutineStore.account(context) == user) { "The device account changed. Sync and try again." }
+        val prefs = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
+        check(isAccessibilityEnabled(context) && prefs.getBoolean(BLOCKING_ACTIVE, false)) { "Start blocking before using screen time." }
+        check(creditRemaining(context) <= 0) { "A countdown is already active." }
+        require(budget.isFinite() && expiresIn.isFinite() && requestElapsed.isFinite()) { "Invalid screen-time reservation." }
+        UsageTracker.start(context, session, user, budget.toLong(), expiresIn.toLong(), requestElapsed.toLong(), requestBoot)
+      }
     }
 
     AsyncFunction("closeUsageAccess") { user: String ->
@@ -208,21 +285,18 @@ class BloomBlockingModule : Module() {
 
     AsyncFunction("startCreditAccess") { durationMillis: Double, requestElapsedMillis: Double, requestBoot: Int ->
       val context = appContext.reactContext ?: throw IllegalStateException("Bloom is not available.")
-      val prefs = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
-      check(isAccessibilityEnabled(context) && prefs.getBoolean(BLOCKING_ACTIVE, false)) { "Start blocking before using screen time." }
-      require(durationMillis.isFinite() && durationMillis >= 1000 && durationMillis <= 86400000 && requestElapsedMillis.isFinite() && requestElapsedMillis >= 0) { "Invalid screen-time duration." }
-      val boot = Settings.Global.getInt(context.contentResolver, Settings.Global.BOOT_COUNT, -1)
-      val now = SystemClock.elapsedRealtime()
-      check(boot >= 0 && boot == requestBoot && requestElapsedMillis <= now) { "Could not verify device uptime." }
-      val deadline = CreditDeadline.fromServerRemaining(durationMillis.toLong(), requestElapsedMillis.toLong(), now, requestBoot, boot)
-      check(deadline - now >= 1000) { "Screen-time session has ended." }
-      check(prefs.edit().putLong(CREDIT_DEADLINE, deadline).putInt(CREDIT_BOOT, boot).commit()) { "Could not save the screen-time deadline." }
+      startCreditWindow(context, durationMillis, requestElapsedMillis, requestBoot, null)
+    }
+
+    AsyncFunction("startCreditAccessForAccount") { accountId: String, durationMillis: Double, requestElapsedMillis: Double, requestBoot: Int ->
+      val context = appContext.reactContext ?: throw IllegalStateException("Bloom is not available.")
+      startCreditWindow(context, durationMillis, requestElapsedMillis, requestBoot, accountId)
     }
 
     AsyncFunction("endCreditAccess") {
       val context = appContext.reactContext ?: throw IllegalStateException("Bloom is not available.")
       check(context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).edit()
-        .remove(CREDIT_DEADLINE).remove(CREDIT_BOOT).commit()) { "Could not end screen time." }
+        .remove(CREDIT_DEADLINE).remove(CREDIT_BOOT).remove(CREDIT_ACCOUNT).commit()) { "Could not end screen time." }
     }
 
     AsyncFunction("stopBlocking") {
@@ -237,13 +311,51 @@ class BloomBlockingModule : Module() {
         .putBoolean(BLOCKING_ACTIVE, false)
         .remove(CREDIT_DEADLINE)
         .remove(CREDIT_BOOT)
+        .remove(CREDIT_ACCOUNT)
         .apply()
     }
+  }
+
+  private fun targetDecision(context: Context, accountId: String, target: String, website: Boolean): Map<String, Any> = synchronized(FocusRoutineStore) {
+    check(FocusRoutineStore.account(context) == accountId) { "The device account changed. Sync and try again." }
+    val prefs = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
+    fun matches(apps: Set<String>, sites: Set<String>): Boolean = if (website) WebsiteDomains.matches(target, sites) else target in apps
+    val active = prefs.getBoolean(BLOCKING_ACTIVE, false)
+    val guardian = if (active && matches(prefs.getStringSet(MANAGED_APPS, emptySet()).orEmpty(), prefs.getStringSet(MANAGED_WEBSITES, emptySet()).orEmpty())) target else null
+    val personal = if (active && matches(prefs.getStringSet(BLOCKED_APPS, emptySet()).orEmpty(), prefs.getStringSet(BLOCKED_WEBSITES, emptySet()).orEmpty())) target else null
+    val manual = ManualFocusStore.read(context, accountId)?.takeIf { it.active && matches(it.selection.apps, it.selection.websites) }?.let { target }
+    val scheduled = FocusSchedule.active(FocusRoutineStore.read(context)).filter { matches(it.apps, it.websites) }
+      .map { EffectiveAccess.Restriction(target, it.name) }
+    val usage = UsageTracker.state(context)
+    val creditAccess = creditRemaining(context) > 0 || (usage != null && usage.user == accountId && !usage.closed)
+    val decision = EffectiveAccess.evaluate(guardian, manual, scheduled, personal, creditAccess)
+    mapOf("blocked" to decision.blocked, "reasons" to decision.reasons,
+      "enforceable" to (isAccessibilityEnabled(context) && isServiceConnected(context) && (!website || prefs.getBoolean(WEBSITE_CONSENT, false))))
+  }
+
+  private fun startCreditWindow(context: Context, durationMillis: Double, requestElapsedMillis: Double, requestBoot: Int, expectedAccount: String?) = synchronized(FocusRoutineStore) {
+    val account = FocusRoutineStore.account(context)
+    check(expectedAccount == null || account == expectedAccount) { "The device account changed. Sync and try again." }
+    val prefs = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
+    check(isAccessibilityEnabled(context) && prefs.getBoolean(BLOCKING_ACTIVE, false)) { "Start blocking before using screen time." }
+    require(durationMillis.isFinite() && durationMillis >= 1000 && durationMillis <= 86400000 && requestElapsedMillis.isFinite() && requestElapsedMillis >= 0) { "Invalid screen-time duration." }
+    val boot = Settings.Global.getInt(context.contentResolver, Settings.Global.BOOT_COUNT, -1)
+    val now = SystemClock.elapsedRealtime()
+    check(boot >= 0 && boot == requestBoot && requestElapsedMillis <= now) { "Could not verify device uptime." }
+    val deadline = CreditDeadline.fromServerRemaining(durationMillis.toLong(), requestElapsedMillis.toLong(), now, requestBoot, boot)
+    check(deadline - now >= 1000) { "Screen-time session has ended." }
+    val edit = prefs.edit().putLong(CREDIT_DEADLINE, deadline).putInt(CREDIT_BOOT, boot)
+    if (account == null) edit.remove(CREDIT_ACCOUNT) else edit.putString(CREDIT_ACCOUNT, account)
+    check(edit.commit()) { "Could not save the screen-time deadline." }
   }
 
   private fun status(context: Context?, authorized: Boolean = false, active: Boolean = false,
     appCount: Int = 0, websiteCount: Int = 0): Map<String, Any> {
     val connected = context?.let(::isServiceConnected) ?: false
+    val routines = context?.let { runCatching { FocusRoutineStore.read(it) } }
+    val manual = context?.let { runCatching { ManualFocusStore.read(it) } }
+    val scheduledCount = routines?.getOrNull()?.let { FocusSchedule.active(it).size } ?: 0
+    val manualActive = manual?.getOrNull()?.active == true
     return mapOf(
       "supported" to true,
       "authorized" to authorized,
@@ -255,10 +367,14 @@ class BloomBlockingModule : Module() {
       "serviceHealth" to when {
         !authorized -> "permissionRequired"
         connected -> "connected"
-        active -> "serviceUnavailable"
+        active || manualActive || scheduledCount > 0 -> "serviceUnavailable"
         else -> "stopped"
       },
       "supportedBrowsers" to BrowserAddressIds.supportedNames,
+      "scheduleError" to (routines?.isFailure == true),
+      "manualFocusError" to (manual?.isFailure == true),
+      "manualFocusActive" to manualActive,
+      "scheduledActiveCount" to scheduledCount,
     )
   }
 
@@ -271,6 +387,7 @@ class BloomBlockingModule : Module() {
 
   private fun creditRemaining(context: Context): Long {
     val prefs = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
+    if (!CreditDeadline.accountMatches(prefs.getString(CREDIT_ACCOUNT, null), FocusRoutineStore.account(context))) return 0
     return CreditDeadline.remainingMillis(prefs.getLong(CREDIT_DEADLINE, 0), prefs.getInt(CREDIT_BOOT, -1),
       Settings.Global.getInt(context.contentResolver, Settings.Global.BOOT_COUNT, -1), SystemClock.elapsedRealtime())
   }
@@ -279,10 +396,10 @@ class BloomBlockingModule : Module() {
     check(creditRemaining(context) <= 0 && UsageTracker.state(context)?.closed != false) { "Finish screen time before changing blocking settings." }
   }
 
-  private fun usageStatus(state: UsageTracker.State) = mapOf(
+  private fun usageStatus(state: UsageTracker.State, serviceConnected: Boolean = true) = mapOf(
     "sessionId" to state.session, "userId" to state.user, "budgetMillis" to state.budget.toDouble(),
     "usedMillis" to state.used.toDouble(), "remainingMillis" to state.remaining.toDouble(),
-    "closed" to state.closed, "tracking" to state.tracking,
+    "closed" to state.closed, "tracking" to (state.tracking && serviceConnected),
   )
 
   private fun isAccessibilityEnabled(context: Context): Boolean {
@@ -314,6 +431,7 @@ class BloomBlockingModule : Module() {
     const val SERVICE_HEARTBEAT = "service_heartbeat_elapsed"
     const val CREDIT_DEADLINE = "credit_deadline_elapsed"
     const val CREDIT_BOOT = "credit_boot_count"
+    const val CREDIT_ACCOUNT = "credit_account"
     const val MAX_TARGETS = 500
     private const val SERVICE_HEARTBEAT_MAX_AGE = 15_000L
     private val PACKAGE_ID = Regex("^[A-Za-z0-9_]+(?:\\.[A-Za-z0-9_]+)+$")

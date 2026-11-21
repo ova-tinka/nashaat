@@ -2,6 +2,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Linking, View } from 'react-native';
 import { Body, Button, ErrorText, Eyebrow, Heading, Label, Panel, Screen, sharedStyles } from '../../../components/bloom-ui';
+import { ExerciseArtwork } from '../../../components/exercise-artwork';
 import { loadExercise, type Exercise } from '../../../lib/bloom';
 import { useBloomTheme } from '../../../lib/theme-context';
 
@@ -64,6 +65,7 @@ export default function ExerciseDetailScreen() {
     {loading && <ActivityIndicator color={theme.colors.action} />}
     {!loading && error && <Panel><ErrorText>{error}</ErrorText><Button label="Try again" onPress={() => void load()} /></Panel>}
     {!loading && exercise && <>
+      <ExerciseArtwork exercise={exercise} size="large" />
       <View style={sharedStyles.column}><Eyebrow>{exercise.muscle_group || 'Exercise'}</Eyebrow><Heading>{exercise.name}</Heading><Body>{measurementLabel(exercise)} · use a comfortable range and steady movement.</Body></View>
       {exercise.description && <Panel><Eyebrow>About this exercise</Eyebrow><Body>{exercise.description}</Body></Panel>}
       <Panel><Eyebrow>Instructions</Eyebrow>
