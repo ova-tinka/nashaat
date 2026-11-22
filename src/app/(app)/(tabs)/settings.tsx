@@ -135,7 +135,8 @@ export default function SettingsScreen() {
           <View style={[styles.focusIcon, { backgroundColor: theme.colors.surfaceTinted }]}><MaterialIcons name="shield" size={22} color={theme.colors.action} /></View>
           <View style={sharedStyles.grow}><Eyebrow>Focus & Blocking</Eyebrow><Label>{blockingStatusLabel(blockingStatus)}</Label></View>
         </View>
-        <Body>Configure access, focus sessions, and routines for this device. Any active Focus or parent rule keeps its selected apps blocked.</Body>
+        <Body>Choose what Bloom should block on this device and check whether protection is active.</Body>
+        <Button label="Manage blocking" onPress={() => router.push('/focus')} />
 
         <View style={[styles.modeCard, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
           <View style={styles.modeHeading}>
@@ -146,8 +147,6 @@ export default function SettingsScreen() {
           <Body>{Math.round(creditBalance * 100) / 100} minutes in your shared balance. Credit earning rules are directly below.</Body>
           <Body>Credit sessions currently consume their timed amount, including idle time or time when another Focus rule blocks the app.</Body>
           <Button label={blockingStatus?.active ? 'Pause Earned Access' : 'Enable Earned Access'} onPress={() => void toggleEarnedAccess()} busy={blockingBusy} disabled={blockingBusy || !blockingStatus || (!blockingStatus.active && blockingStatus.appCount + blockingStatus.websiteCount + blockingStatus.categoryCount === 0)} />
-          <FocusSettingLink title="Choose apps and websites" icon="apps" section="apps" />
-          <FocusSettingLink title="Device permissions and rules" icon="rule" section="rules" />
         </View>
 
         <View style={[styles.modeCard, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
@@ -285,19 +284,6 @@ function SettingsAccordion({ title, icon, status, children }: { title: string; i
   </Panel>;
 }
 
-function FocusSettingLink({ title, icon, section }: { title: string; icon: 'apps' | 'language' | 'rule'; section: 'apps' | 'websites' | 'rules' }) {
-  const { theme } = useBloomTheme();
-  return <Pressable
-    accessibilityRole="button"
-    accessibilityLabel={`${title} Focus settings`}
-    onPress={() => router.push({ pathname: '/focus', params: { section } } as Href)}
-    style={({ pressed }) => [styles.focusLink, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }, pressed && styles.pressed]}>
-    <MaterialIcons name={icon} size={20} color={theme.colors.action} />
-    <Text style={[styles.focusLinkLabel, { color: theme.colors.ink }]}>{title}</Text>
-    <MaterialIcons name="chevron-right" size={20} color={theme.colors.inkMuted} />
-  </Pressable>;
-}
-
 const styles = StyleSheet.create({
   focusHeading: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   focusIcon: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
@@ -308,7 +294,5 @@ const styles = StyleSheet.create({
   accordionHeader: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 12 },
   pillarChoice: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 12, borderTopWidth: StyleSheet.hairlineWidth, paddingVertical: 12 },
   pillarDescription: { fontSize: 13, lineHeight: 19, marginTop: 3 },
-  focusLink: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 14, paddingHorizontal: 12 },
-  focusLinkLabel: { flex: 1, fontSize: 15, fontWeight: '700' },
   pressed: { opacity: 0.76 },
 });

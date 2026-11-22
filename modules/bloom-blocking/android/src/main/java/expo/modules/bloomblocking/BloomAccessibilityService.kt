@@ -13,9 +13,11 @@ import android.os.Looper
 import android.os.PowerManager
 import android.os.SystemClock
 import android.provider.Settings
+import android.widget.Toast
 
 class BloomAccessibilityService : AccessibilityService() {
   private var lastBlockedTarget: String? = null
+  private var blockedOverlay: BloomBlockedOverlay? = null
   private var receiverRegistered = false
   private var heartbeatRunning = false
   private val handler = Handler(Looper.getMainLooper())
@@ -37,7 +39,11 @@ class BloomAccessibilityService : AccessibilityService() {
   }
   private val screenReceiver = object : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-      if (intent.action == Intent.ACTION_SCREEN_OFF) UsageTracker.setTracking(context, false)
+      if (intent.action == Intent.ACTION_SCREEN_OFF) {
+        UsageTracker.setTracking(context, false)
+        dismissBlockedOverlay()
+        lastBlockedTarget = null
+      }
       else handler.post(checkDeadline)
     }
   }
@@ -57,18 +63,31 @@ class BloomAccessibilityService : AccessibilityService() {
 
   override fun onAccessibilityEvent(event: AccessibilityEvent?) {
     if (!heartbeatRunning) startHeartbeat()
-    // An event may originate from a background window; only the active root
-    // is reliable enough to report a selected app as currently visible.
-    checkActiveWindow()
+    checkActiveWindow(event)
   }
 
-  private fun checkActiveWindow() {
-    val packageName = rootInActiveWindow?.packageName?.toString()
-    if (packageName == null) { UsageTracker.setTracking(this, false); lastBlockedTarget = null; return }
+  private fun checkActiveWindow(event: AccessibilityEvent? = null) {
+    // During an app transition Android can send the window-state event before
+    // rootInActiveWindow is ready. Use that event's package as the immediate
+    // fallback, while continuing to prefer the active root whenever available.
+    val packageName = ActivePackageResolver.resolve(
+      rootInActiveWindow?.packageName?.toString(),
+      event?.packageName?.toString(),
+      event?.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
+    )
+    if (packageName == null) {
+      UsageTracker.setTracking(this, false)
+      if (blockedOverlay == null) lastBlockedTarget = null
+      return
+    }
     checkWindow(packageName)
   }
 
   private fun checkWindow(packageName: String) {
+    // The notice is drawn by this service and should not hide itself when its
+    // own accessibility window becomes active.
+    if (packageName == this.packageName && blockedOverlay != null) return
+
     val preferences = getSharedPreferences(BloomBlockingModule.PREFERENCES, Context.MODE_PRIVATE)
     val active = preferences.getBoolean(BloomBlockingModule.BLOCKING_ACTIVE, false)
     val personalApps = preferences.getStringSet(BloomBlockingModule.BLOCKED_APPS, emptySet()).orEmpty()
@@ -79,6 +98,7 @@ class BloomAccessibilityService : AccessibilityService() {
       handler.removeCallbacks(checkDeadline)
       UsageTracker.setTracking(this, false)
       lastBlockedTarget = null
+      dismissBlockedOverlay()
       return
     }
     val remaining = if (CreditDeadline.accountMatches(preferences.getString(BloomBlockingModule.CREDIT_ACCOUNT, null), FocusRoutineStore.account(this))) CreditDeadline.remainingMillis(
@@ -143,25 +163,81 @@ class BloomAccessibilityService : AccessibilityService() {
     val target = decision.target
     if (target == null) {
       lastBlockedTarget = null
+      dismissBlockedOverlay()
       return
     }
-    if (target == lastBlockedTarget) return
+    val blockedKey = "$target|${decision.reasons.joinToString("|")}"
+    if (blockedKey == lastBlockedTarget && blockedOverlay != null) return
 
-    lastBlockedTarget = target
-    performGlobalAction(GLOBAL_ACTION_HOME)
+    lastBlockedTarget = blockedKey
+    UsageTracker.setTracking(this, false)
     try {
-      startActivity(Intent(this, BloomBlockedActivity::class.java).apply {
-        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-        putExtra(BloomBlockedActivity.EXTRA_APP, packageName)
-        putExtra(BloomBlockedActivity.EXTRA_REASONS, decision.reasons.joinToString(" and "))
-      })
-    } catch (_: SecurityException) {
-      // Android may reject a background activity launch; the home action still exits the blocked app.
+      val notice = BloomBlockedOverlay(this)
+      notice.show(
+        targetLabel = blockedTargetLabel(packageName, target),
+        reasons = decision.reasons,
+        onOpenBloom = ::openBloomFromNotice,
+        onGoHome = ::goHomeFromNotice,
+      )
+      blockedOverlay?.dismiss()
+      blockedOverlay = notice
+    } catch (_: RuntimeException) {
+      dismissBlockedOverlay()
+      Toast.makeText(
+        this,
+        BlockedNotice.message(blockedTargetLabel(packageName, target), decision.reasons),
+        Toast.LENGTH_LONG,
+      ).show()
+      performGlobalAction(GLOBAL_ACTION_HOME)
     }
+  }
+
+  private fun blockedTargetLabel(packageName: String, target: String): String {
+    val websitePrefix = "website:$packageName:"
+    if (target.startsWith(websitePrefix)) return target.removePrefix(websitePrefix)
+    if (target.startsWith("browser-unreadable:")) return "${applicationLabel(packageName)} website access"
+    return applicationLabel(packageName)
+  }
+
+  private fun applicationLabel(packageName: String): String = try {
+    @Suppress("DEPRECATION")
+    packageManager.getApplicationLabel(packageManager.getApplicationInfo(packageName, 0)).toString()
+  } catch (_: Exception) {
+    packageName.substringAfterLast('.')
+  }
+
+  private fun openBloomFromNotice() {
+    val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+    if (launchIntent == null) {
+      Toast.makeText(this, "Open Bloom from your app launcher to review blocking rules.", Toast.LENGTH_LONG).show()
+      return
+    }
+    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+    try {
+      // Keep the visible accessibility window until Android accepts this
+      // user-tapped launch, then uncover Bloom after its launch transition.
+      startActivity(launchIntent)
+      handler.postDelayed({ dismissBlockedOverlay() }, 300)
+    } catch (_: SecurityException) {
+      Toast.makeText(this, "Bloom could not open. Use Go to home screen to leave this app.", Toast.LENGTH_LONG).show()
+    }
+  }
+
+  private fun goHomeFromNotice() {
+    dismissBlockedOverlay()
+    lastBlockedTarget = null
+    performGlobalAction(GLOBAL_ACTION_HOME)
+  }
+
+  private fun dismissBlockedOverlay() {
+    blockedOverlay?.dismiss()
+    blockedOverlay = null
   }
 
   override fun onInterrupt() {
     UsageTracker.setTracking(this, false)
+    dismissBlockedOverlay()
+    lastBlockedTarget = null
     heartbeatRunning = false
     getSharedPreferences(BloomBlockingModule.PREFERENCES, Context.MODE_PRIVATE).edit()
       .putLong(BloomBlockingModule.SERVICE_HEARTBEAT, 0).apply()
@@ -171,6 +247,7 @@ class BloomAccessibilityService : AccessibilityService() {
 
   override fun onDestroy() {
     UsageTracker.setTracking(this, false)
+    dismissBlockedOverlay()
     if (receiverRegistered) unregisterReceiver(screenReceiver)
     val preferences = getSharedPreferences(BloomBlockingModule.PREFERENCES, Context.MODE_PRIVATE)
     preferences.edit().putLong(BloomBlockingModule.SERVICE_HEARTBEAT, 0).apply()

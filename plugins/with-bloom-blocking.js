@@ -3,7 +3,6 @@ const fs = require('fs');
 const path = require('path');
 
 const ANDROID_SERVICE = 'expo.modules.bloomblocking.BloomAccessibilityService';
-const ANDROID_BLOCKED_ACTIVITY = 'expo.modules.bloomblocking.BloomBlockedActivity';
 
 function withBloomAndroidBlocking(config) {
   return withAndroidManifest(config, (mod) => {
@@ -39,16 +38,6 @@ function withBloomAndroidBlocking(config) {
             'android:resource': '@xml/bloom_blocking_accessibility_service',
           },
         }],
-      });
-    }
-    application.activity ??= [];
-    if (!application.activity.some((activity) => activity.$?.['android:name'] === ANDROID_BLOCKED_ACTIVITY)) {
-      application.activity.push({
-        $: {
-          'android:name': ANDROID_BLOCKED_ACTIVITY,
-          'android:exported': 'false',
-          'android:excludeFromRecents': 'true',
-        },
       });
     }
     return mod;

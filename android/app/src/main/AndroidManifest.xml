@@ -38,6 +38,5 @@
         <data android:scheme="bloomexercise"/>
       </intent-filter>
     </activity>
-    <activity android:name="expo.modules.bloomblocking.BloomBlockedActivity" android:exported="false" android:excludeFromRecents="true"/>
   </application>
 </manifest>

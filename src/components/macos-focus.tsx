@@ -1,8 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { randomUUID } from 'expo-crypto';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { router, useFocusEffect } from 'expo-router';
-import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Body, Button, ErrorText, Eyebrow, Field, Heading, Label, Panel, Screen, sharedStyles } from './bloom-ui';
 import { macCreditMarker, macUsageKey, macosFilter, parseMacCreditMarker, type MacCreditMarker } from '../lib/macos-blocking';
 import { useAuth } from '../lib/auth';
@@ -10,17 +11,15 @@ import { useBloom } from '../lib/bloom-context';
 import { findUsageSession, finishUsageSession } from '../lib/bloom';
 import type { UsageAccess } from '../../modules/bloom-blocking/src/BloomBlocking.types';
 import { matchesMacUsageReservation, parseMacUsageRequest, recoverOrCreateMacUsageRequest } from '../lib/mac-credit-marker';
-import { FocusSectionNavigation, type FocusSettingsSection } from './focus-section-navigation';
+import type { FocusSettingsSection } from './focus-section-navigation';
+import { useBloomTheme } from '../lib/theme-context';
 
-export function MacosFocus({ section, onSelectSection }: {
-  section: FocusSettingsSection;
-  onSelectSection: (section: FocusSettingsSection) => void;
+export function MacosFocus({ initialSection }: {
+  initialSection: FocusSettingsSection;
 }) {
-  const { session, profileId, childProfile } = useAuth();
+  const { session, profileId } = useAuth();
   const userId = profileId;
   const { creditsEnabled, creditSettings, creditBalance, refresh, blockingRules, blockingRulesSyncError, blockingRulesSyncedAt, blockingRulesSyncStatus, loading, error: accountError } = useBloom();
-  const { width } = useWindowDimensions();
-  const wide = width >= 1100;
   const [sites, setSites] = useState<string[]>([]);
   const [input, setInput] = useState('');
   const [enabled, setEnabled] = useState(false);
@@ -34,6 +33,12 @@ export function MacosFocus({ section, onSelectSection }: {
   const [appCatalog, setAppCatalog] = useState<{ apps: { id: string; name: string }[]; truncated: boolean } | null>(null);
   const [appSearch, setAppSearch] = useState('');
   const [showAppPicker, setShowAppPicker] = useState(false);
+  const [showManualAppEntry, setShowManualAppEntry] = useState(false);
+  const [showAppSettings, setShowAppSettings] = useState(initialSection === 'apps');
+  const [showWebsiteSettings, setShowWebsiteSettings] = useState(initialSection === 'websites');
+  const [showWebsiteDetails, setShowWebsiteDetails] = useState(false);
+  const [showHostsAdvanced, setShowHostsAdvanced] = useState(false);
+  const [showEarnedAccess, setShowEarnedAccess] = useState(false);
   const [appEnabled, setAppEnabled] = useState(false);
   const [appConfigured, setAppConfigured] = useState(false);
   const [appService, setAppService] = useState('unavailable');
@@ -405,185 +410,243 @@ export function MacosFocus({ section, onSelectSection }: {
   const brokerNeedsApproval = websitePolicyBrokerStatus === 'needsApproval';
   const brokerUnavailable = websitePolicyBrokerStatus !== 'active';
 
-  const sectionTitle = section === 'focus' ? 'Make space to focus.' : section === 'apps' ? 'Choose apps' : section === 'websites' ? 'Choose websites' : 'Focus rules';
+  const appSummary = appCheck === 'checking'
+    ? 'Checking app protection…'
+    : appCheck === 'unavailable'
+      ? 'App protection status unavailable'
+      : appHideFailed
+        ? 'App protection needs attention'
+        : appEnabled
+          ? 'App protection is on'
+          : apps.length + managedApps.length > 0 ? 'Apps selected · protection off' : 'No apps selected';
+  const websiteSummary = websiteCheck === 'checking'
+    ? 'Checking website protection…'
+    : websiteCheck === 'unavailable'
+      ? 'Website protection status unavailable'
+      : enabled
+        ? websiteProviderHealthy ? 'Website protection is on' : 'Website protection needs attention'
+        : sites.length + managedSites.length > 0 ? 'Websites selected · protection off' : 'Optional';
+  const configuredTargetCount = new Set([...apps, ...managedApps]).size + new Set([...sites, ...managedSites]).size;
+  const appActionLabel = !accessibilityTrusted
+    ? 'Allow Accessibility access'
+    : appService !== 'active'
+      ? 'Set up app protection'
+      : apps.length === 0
+        ? 'Choose apps to block'
+        : appEnabled ? 'Turn off app blocking' : 'Turn on app blocking';
+  const handleAppAction = () => {
+    if (!accessibilityTrusted) { void openAccessibilitySettings(); return; }
+    if (appService !== 'active') { void run('activateApps'); return; }
+    if (apps.length === 0) { setShowAppSettings(true); void openAppPicker(); return; }
+    void run(appEnabled ? 'stopApps' : 'startApps');
+  };
+
   return <Screen safeAreaTop={false}>
-    <View style={sharedStyles.column}><Eyebrow>Focus settings</Eyebrow><Heading>{sectionTitle}</Heading>
+    <View style={sharedStyles.column}>
+      <Eyebrow>Focus</Eyebrow>
+      <Heading>Block distractions</Heading>
+      <Body>Choose apps or websites to block on this Mac.</Body>
       <Button label="Back to settings" variant="tertiary" onPress={() => router.replace('/settings')} />
     </View>
-    <FocusSectionNavigation selected={section} onSelect={onSelectSection} />
-    {message && <Body>{message}</Body>}{error && <ErrorText>{error}</ErrorText>}
+
+    {message && <Body>{message}</Body>}
+    {error && <ErrorText>{error}</ErrorText>}
     {blockingRulesSyncError && <ErrorText>{blockingRulesSyncError}</ErrorText>}
-    {section === 'focus' && <View style={[focusStyles.columns, wide && focusStyles.columnsWide]}>
-      <View style={[focusStyles.primaryColumn, wide && focusStyles.flexColumn]}>
-    {creditsEnabled && creditSettings && <Panel><Eyebrow>Earned screen time</Eyebrow>
-      {creditRecoveryStatus === 'checking' && <Body>Checking the original server session. Protection stays blocked until the same owner and expiry are confirmed.</Body>}
-      {creditRecoveryStatus === 'blocked' && <Body>Bloom could not validate the previous countdown. Access remains blocked. Reconnect to the internet and reopen Bloom to retry the same session.</Body>}
-      {creditRecoveryStatus === 'expired' && <Body>The previous server countdown has expired. Request a new session to use any remaining balance.</Body>}
-      {creditRecoveryStatus === 'rejected' && <Body>The server rejected the saved request. Any existing protection remains in place. Retry it only after checking the balance and account.</Body>}
-      {!enabled && !appEnabled && <Body>Start website or app protection before using earned minutes.</Body>}
-      {creditBalance <= 0 && !pending && !usageRequest && !usage && remaining <= 0 && <Body>Your balance is empty. Complete a workout to earn minutes.</Body>}
-      {creditSettings.credit_mode === 'easy' ? <>
-        <Label>{usage ? `${Math.ceil(usage.remainingMillis / 60000)} minutes left in this reservation` : `${Math.round(creditBalance * 100) / 100} minutes in your shared balance`}</Label>
-        <Body>Easy is a server-timed access window. Time runs continuously from reservation, including while the selected app or website is idle. Finish early to return the unused portion calculated by the server. Website addresses stay on this Mac.</Body>
-        {enabled && !websiteUsageAvailable && <Body>The background monitor or website policy service is not ready, so browser protection is degraded.</Body>}
-        {enabled && !accessibilityTrusted && <Body>Accessibility is off. Automation may still read supported browsers. Browser protection may be degraded; Easy time continues to run.</Body>}
-        {usage && usage.userId !== profileId ? <Body>Another account has a session on this Mac. Sign in to that account to finish it.</Body> : usage ? <>
-          {!usage.closed && usage.verified !== true && <><Body>This session needs server verification before it can grant access.</Body><Button label="Verify existing session" onPress={() => void startActualUsage()} busy={busy} /></>}
-          <Body>{usage.closed ? 'This access window has ended. Sync it to settle the server-timed amount.' : usage.tracking ? 'A selected target is currently detected. The access timer runs either way.' : 'No selected target is currently detected. The access timer continues while idle.'}</Body>
-          {!usage.closed && usage.verified === true && (visibleHostsPolicy === 'enrolled' || visibleHostsPolicy === 'enrolledEmpty')
-            && <Button label="Retry website access" secondary onPress={() => void startActualUsage()} busy={busy} />}
-          <Button label={usage.closed ? 'Sync screen-time session' : 'Finish screen-time session'} onPress={() => void finishActualUsage()} busy={busy} />
+
+    <Panel>
+      <Eyebrow>PROTECTION ON THIS MAC</Eyebrow>
+      <Label>{appCheck === 'checking' && websiteCheck === 'checking' ? 'Checking status…' : appCheck === 'unavailable' && websiteCheck === 'unavailable' ? 'Protection status unavailable' : appEnabled || enabled ? 'Protection is on' : 'Protection is off'}</Label>
+      <Body>Apps: {appCheck === 'available' ? appEnabled ? 'On' : 'Off' : 'Unknown'} · Websites: {websiteCheck === 'available' ? enabled ? 'On' : 'Off' : 'Unknown'}</Body>
+      {configuredTargetCount > 0 && <Body>{configuredTargetCount} {configuredTargetCount === 1 ? 'app or website' : 'apps and websites'} selected.</Body>}
+      {(appHideFailed || (enabled && (!websiteUsageAvailable || !websiteProviderHealthy))) && <Body>One protection service needs attention. Open its section below for the next step.</Body>}
+      {blockingRulesSyncedAt && !blockingRulesSyncError && <Body>Family rules last synced {new Date(blockingRulesSyncedAt).toLocaleTimeString()}.</Body>}
+      <Button label={appActionLabel} onPress={handleAppAction} disabled={busy || appCheck !== 'available'} busy={busy} />
+      <Button label="Refresh status" variant="tertiary" onPress={() => void refreshProtection()} />
+    </Panel>
+
+    <MacFocusDisclosure title="Apps to block" summary={`${apps.length + managedApps.length} selected · ${appSummary}`} expanded={showAppSettings} onPress={() => setShowAppSettings((open) => !open)}>
+      {showAppSettings && <View style={focusStyles.disclosureBody}>
+        <Body>Choose the apps Bloom should block. macOS needs Accessibility and Bloom’s background monitor to enforce this list.</Body>
+        {appHideFailed && <Body>A selected app is still running. Bloom may be warning it or trying to close it; protection needs attention until it has quit.</Body>}
+        {!accessibilityTrusted && <Body>Use the action above to open Accessibility settings. Bloom needs this permission to block apps.</Body>}
+        {appService !== 'active' && <Body>Use the action above to set up Bloom’s background monitor before relying on app blocking.</Body>}
+        <Button label={showAppPicker ? 'Refresh installed apps' : 'Choose installed apps'} variant="secondary" onPress={() => void openAppPicker()} busy={busy} />
+        {showAppPicker && <View style={focusStyles.disclosureBody}>
+          <Field label="Search installed apps" value={appSearch} onChangeText={setAppSearch} autoCapitalize="none" autoCorrect={false} placeholder="Search app names" />
+          {!appCatalog && busy && <Body>Loading installed apps…</Body>}
+          {!appCatalog && !busy && <Body>Could not load the list. Refresh it or use “App not listed?” below.</Body>}
+          {appCatalog && (() => {
+            const query = appSearch.trim().toLocaleLowerCase();
+            const matches = appCatalog.apps.filter((candidate) => `${candidate.name} ${candidate.id}`.toLocaleLowerCase().includes(query));
+            return <>
+              {matches.length === 0 ? <Body>No matching apps found. Try another search.</Body> : <ScrollView style={focusStyles.pickerList} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                {matches.slice(0, 50).map((candidate) => {
+                  const selected = apps.some((id) => id.toLowerCase() === candidate.id);
+                  return <View key={candidate.id} style={focusStyles.pickerRow}>
+                    <View style={sharedStyles.grow}><Label>{candidate.name}</Label></View>
+                    <Button label={selected ? 'Added' : 'Add'} accessibilityLabel={`${selected ? 'Added' : 'Add'} ${candidate.name}`} variant="secondary" disabled={selected || busy} onPress={() => setApps((current) => [...current, candidate.id])} />
+                  </View>;
+                })}
+              </ScrollView>}
+              {matches.length > 50 && <Body>Showing the first 50 matches. Refine your search to see more.</Body>}
+              {appCatalog.truncated && <Body>Some apps were not listed.</Body>}
+            </>;
+          })()}
+          <Button label="Close app list" variant="tertiary" onPress={() => setShowAppPicker(false)} />
+        </View>}
+
+        {apps.map((app) => {
+          const parentRule = managedApps.includes(app);
+          const appName = appCatalog?.apps.find((candidate) => candidate.id === app)?.name ?? app;
+          return <View key={app} style={sharedStyles.row}>
+            <View style={sharedStyles.grow}><Body>{appName}{parentRule ? ' · Family' : ''}</Body></View>
+            <Button label="Remove" accessibilityLabel={`Remove ${appName}`} variant="secondary" disabled={busy || parentRule} onPress={() => setApps((current) => current.filter((item) => item !== app))} />
+          </View>;
+        })}
+
+        <MacFocusDisclosure title="App not listed?" summary="Add it from a folder or enter its app identifier" expanded={showManualAppEntry} onPress={() => setShowManualAppEntry((open) => !open)}>
+          {showManualAppEntry && <View style={focusStyles.disclosureBody}>
+            <Button label="Choose an app from a folder" variant="secondary" onPress={() => void chooseApp()} busy={busy} />
+            <Field label="App identifier" value={appInput} onChangeText={setAppInput} autoCapitalize="none" autoCorrect={false} placeholder="com.example.app" />
+            <Button label="Add app" variant="secondary" disabled={!appInput.trim() || busy} onPress={() => { setApps((current) => [...new Set([...current, appInput.trim()])]); setAppInput(''); }} />
+          </View>}
+        </MacFocusDisclosure>
+
+        <Button label="Save and start app blocking" onPress={() => void run('startApps')} disabled={apps.length === 0 || busy} busy={busy} />
+        {appConfigured && managedApps.length === 0 && <Button label="Turn off app blocking" variant="secondary" onPress={() => void run('stopApps')} busy={busy} />}
+      </View>}
+    </MacFocusDisclosure>
+
+    <MacFocusDisclosure title="Websites to block" summary={`${sites.length + managedSites.length} saved · ${websiteSummary}`} expanded={showWebsiteSettings} onPress={() => setShowWebsiteSettings((open) => !open)}>
+      {showWebsiteSettings && <View style={focusStyles.disclosureBody}>
+        <Body>Add domains and start website protection. Website addresses are checked on this Mac.</Body>
+        <Label>{websiteCheck === 'checking' ? 'Checking website filter…' : websiteCheck === 'unavailable' ? 'Website filter status unavailable' : enabled ? websiteUsageAvailable && websiteProviderHealthy ? 'Filter active' : 'Filter active · needs attention' : activationStatus === 'active' ? 'Ready to start' : 'Setup needed'}</Label>
+        {activationStatus === 'needsApproval' && <Body>Approve Bloom in System Settings → Privacy & Security, then return here.</Body>}
+        {brokerNeedsApproval && <Body>Approve Bloom’s website service in System Settings → General → Login Items &amp; Extensions.</Body>}
+        {activationStatus === 'needsRestart' && <Body>Restart your Mac, then return here to start protection.</Body>}
+        {!enabled && activationStatus !== 'active' && <Button label="Set up website protection" variant="secondary" onPress={() => void run('activate')} busy={busy} />}
+        <Field label="Website domain" value={input} onChangeText={setInput} autoCapitalize="none" autoCorrect={false} placeholder="example.com" />
+        <Button label="Add website" variant="secondary" disabled={!input.trim() || busy} onPress={() => { setSites((current) => [...new Set([...current, input.trim()])]); setInput(''); }} />
+        {sites.map((site) => {
+          const parentRule = managedSites.includes(site);
+          return <View key={site} style={sharedStyles.row}>
+            <View style={sharedStyles.grow}><Body>{site}{parentRule ? ' · Family' : ''}</Body></View>
+            <Button label="Remove" accessibilityLabel={`Remove ${site}`} variant="secondary" disabled={busy || parentRule} onPress={() => setSites((current) => current.filter((item) => item !== site))} />
+          </View>;
+        })}
+        <Button label="Save and start website blocking" onPress={() => void run('start')} disabled={sites.length === 0 || busy} busy={busy} />
+        {enabled && managedSites.length === 0 && <Button label="Turn off website blocking" variant="secondary" onPress={() => void run('stop')} busy={busy} />}
+
+        <MacFocusDisclosure title="Protection details" summary="Browser coverage, permissions, and service status" expanded={showWebsiteDetails} onPress={() => setShowWebsiteDetails((open) => !open)}>
+          {showWebsiteDetails && <View style={focusStyles.disclosureBody}>
+            <Body>The filter checks website names macOS exposes. If Bloom cannot read a recognized browser’s address, it may block that whole browser. Other browser and app-created network traffic may not be covered.</Body>
+            {enabled && !websiteUsageAvailable && <Body>Website protection is degraded until Bloom’s background monitor and local policy service are ready.</Body>}
+            {enabled && !websiteProviderHealthy && <Body>Bloom has not received a recent filter-provider heartbeat. Refresh status before relying on website blocking.</Body>}
+            {enabled && brokerUnavailable && <Button label={brokerNeedsApproval ? 'Check website service approval' : 'Set up website policy service'} variant="secondary" onPress={() => void run('activate')} busy={busy} />}
+            {enabled && !websiteUsageAvailable && appService !== 'active' && <Button label="Enable background monitor" variant="secondary" onPress={() => void run('activateApps')} busy={busy} />}
+            {supportedBrowsers.length > 0 && <Body>Recognized browsers: {supportedBrowsers.join(', ')}.</Body>}
+            {browserName && <Body>Last checked: {browserName} · {browserAddressStatus}.</Body>}
+            {browserAutomationStatus === 'permissionRequired' && <Body>Allow Bloom under System Settings → Privacy &amp; Security → Automation. Accessibility is used as a fallback when available.</Body>}
+            {browserAutomationStatus === 'unavailable' && <Body>Bloom could not read this browser through Automation. It may block the browser while its address is unreadable.</Body>}
+            {browserAddressStatus === 'unsupported' && <Body>This browser is not recognized for address checks.</Body>}
+            {enabled && browserAddressStatus === 'unreadable' && <Body>Bloom cannot read the active address and website coverage is degraded.</Body>}
+            {browserHideFailed && <Body>Bloom could not confirm that the affected browser was hidden.</Body>}
+            {!accessibilityTrusted && <Button label="Open Accessibility settings" variant="secondary" onPress={() => void openAccessibilitySettings()} busy={busy} />}
+            <Button label="Refresh status" variant="tertiary" onPress={() => void refreshProtection()} />
+          </View>}
+        </MacFocusDisclosure>
+
+        <MacFocusDisclosure title="Website fallback and recovery" summary="Advanced system settings" expanded={showHostsAdvanced} onPress={() => setShowHostsAdvanced((open) => !open)}>
+          {showHostsAdvanced && <View style={focusStyles.disclosureBody}>
+            <Body>Hosts fallback and recovery are advanced options. Administrator approval may be required, and changes can affect restrictions for all accounts on this Mac.</Body>
+            {visibleHostsPolicy === 'notConfigured' && <Body>Hosts fallback is not configured.</Body>}
+            {(visibleHostsPolicy === 'enrolled' || visibleHostsPolicy === 'enrolledEmpty') && <Body>Hosts fallback is configured. This does not confirm website coverage.</Body>}
+            {visibleHostsPolicy === 'otherAccount' && <Body>Hosts fallback is configured for another account.</Body>}
+            {visibleHostsPolicy === 'needsEnrollment' && <Body>Hosts fallback needs setup for this account.</Body>}
+            {visibleHostsPolicy === 'cleanupPending' && <Body>Hosts cleanup is pending.</Body>}
+            {hostsManagedSync?.account === profileId && hostsManagedSync.status === 'pending' && <Body>Family rules could not be refreshed. Bloom will retry while you are signed in.</Body>}
+            {visibleHostsPolicy === 'unavailable' && <Body>Bloom could not check hosts fallback setup.</Body>}
+            {hostsRecovery === 'checking' && <Body>Checking for interrupted hosts updates…</Body>}
+            {hostsRecovery === 'review' && <ErrorText>An interrupted or conflicting hosts update needs administrator review. Do not share the files in /private/etc/.bloom-hosts.</ErrorText>}
+            {hostsRecovery === 'busy' && <Body>A hosts update is in progress. Check again shortly.</Body>}
+            {hostsRecovery === 'unsafe' && <ErrorText>Bloom cannot safely inspect its hosts recovery directory. Ask an administrator to review it.</ErrorText>}
+            {hostsRecovery === 'unavailable' && <Body>Bloom cannot check hosts recovery. Enable the background service and try again.</Body>}
+            {hostsRecovery === 'clear' && <Body>No interrupted Bloom hosts update needs review.</Body>}
+            {(visibleHostsPolicy === 'notConfigured' || visibleHostsPolicy === 'needsEnrollment' || visibleHostsPolicy === 'enrolled' || visibleHostsPolicy === 'enrolledEmpty') && <>
+              <Body>{visibleHostsPolicy === 'enrolled' || visibleHostsPolicy === 'enrolledEmpty' ? 'Update fallback rules from saved and family-managed websites.' : 'Add saved and family-managed websites to Bloom’s hosts rules.'}</Body>
+              <Button label={visibleHostsPolicy === 'enrolled' || visibleHostsPolicy === 'enrolledEmpty' ? 'Update fallback rules' : 'Enable hosts fallback'} variant="secondary" onPress={() => void enrollHosts()} disabled={!profileId || !session?.access_token || !enabled || sites.length === 0 || remaining > 0 || (!!usage && !usage.closed) || !!pending || !!usageRequest} busy={busy} />
+            </>}
+            <Button label="Check hosts recovery" variant="secondary" onPress={() => void refreshHostsRecovery()} />
+            <Button label="Remove Bloom hosts entries" variant="secondary" onPress={() => void cleanupHosts()} busy={busy} />
+          </View>}
+        </MacFocusDisclosure>
+      </View>}
+    </MacFocusDisclosure>
+
+    <MacFocusDisclosure title="Earned screen time" summary={creditSettings ? `${Math.round(creditBalance * 100) / 100} minutes in your shared balance` : 'Optional'} expanded={showEarnedAccess} onPress={() => setShowEarnedAccess((open) => !open)}>
+      {showEarnedAccess && <View style={focusStyles.disclosureBody}>
+        {creditsEnabled && creditSettings ? <>
+          {creditRecoveryStatus === 'checking' && <Body>Checking the original server session. Protection stays blocked until the owner and expiry are confirmed.</Body>}
+          {creditRecoveryStatus === 'blocked' && <Body>Bloom could not validate the previous countdown. Access remains blocked. Reconnect and reopen Bloom to retry.</Body>}
+          {creditRecoveryStatus === 'expired' && <Body>The previous countdown expired. Request a new session to use any remaining balance.</Body>}
+          {creditRecoveryStatus === 'rejected' && <Body>The server rejected this request. Check the balance and account before retrying.</Body>}
+          {creditSettings.credit_mode === 'easy' ? <>
+            <Label>{usage ? `${Math.ceil(usage.remainingMillis / 60000)} minutes left in this reservation` : `${Math.round(creditBalance * 100) / 100} minutes available`}</Label>
+            <Body>This server-timed window continues while the selected app or website is idle. Finishing early returns unused time according to the server.</Body>
+            {usage && usage.userId !== profileId ? <Body>Another account has a session on this Mac. Sign in to finish it.</Body> : usage ? <>
+              {!usage.closed && usage.verified !== true && <><Body>This session needs server verification before granting access.</Body><Button label="Verify session" onPress={() => void startActualUsage()} busy={busy} /></>}
+              <Body>{usage.closed ? 'The access window ended. Sync it to settle the session.' : usage.tracking ? 'A selected target is detected.' : 'No selected target is detected. The timer continues while idle.'}</Body>
+              <Button label={usage.closed ? 'Sync screen-time session' : 'Finish screen-time session'} onPress={() => void finishActualUsage()} busy={busy} />
+            </> : <>
+              {usageRequest ? <Body>Retrying a previous reservation.</Body> : <Field label="Minutes to reserve" value={minutes} onChangeText={setMinutes} keyboardType="decimal-pad" />}
+              <Button label={usageRequest ? 'Retry reservation' : 'Use screen time'} onPress={() => void startActualUsage()} disabled={!appEnabled && !enabled || !usageAvailable || (enabled && !websiteUsageAvailable)} busy={busy} />
+              {usageRequest && <Button label="Cancel reservation" variant="secondary" onPress={() => void cancelPendingUsage()} busy={busy} />}
+            </>}
+          </> : <>
+            <Label>{remaining > 0 ? `${Math.ceil(remaining / 60000)} minutes left` : `${Math.round(creditBalance * 100) / 100} minutes available`}</Label>
+            {pending ? <Body>Retrying the previous request for {pending.minutes} minutes.</Body> : <Field label="Minutes to use" value={minutes} onChangeText={setMinutes} keyboardType="decimal-pad" />}
+            <Button label={pending ? 'Retry screen-time request' : 'Use screen time'} onPress={() => void startScreenTime()} disabled={!enabled && !appEnabled || remaining > 0} busy={busy} />
+            {pending && <Button label="Clear request" variant="secondary" onPress={() => void AsyncStorage.removeItem(pendingKey).then(() => setPending(null)).catch(() => setError('Could not clear the request.'))} disabled={busy} />}
+          </>}
         </> : <>
-          {usageRequest ? <Body>Retrying a previous screen-time reservation.</Body> : <Field label="Minutes to reserve" value={minutes} onChangeText={setMinutes} keyboardType="decimal-pad" />}
-          <Button label={usageRequest ? 'Retry reservation' : 'Use screen time'} onPress={() => void startActualUsage()} disabled={(!appEnabled && !enabled) || !usageAvailable || (enabled && !websiteUsageAvailable)} busy={busy} />
-          {usageRequest && <Button label="Cancel pending reservation" secondary onPress={() => void cancelPendingUsage()} busy={busy} />}
+          <Label>{loading ? 'Loading balance…' : 'Screen time is unavailable'}</Label>
+          <Body>{accountError ?? 'Enable credits in account settings to use earned minutes.'}</Body>
+          {!loading && <Button label="Try again" variant="secondary" onPress={() => void refresh()} />}
         </>}
-      </> : <>
-        <Label>{remaining > 0 ? `${Math.ceil(remaining / 60000)} minutes left` : `${Math.round(creditBalance * 100) / 100} minutes in your shared balance`}</Label>
-        <Body>The countdown runs until its scheduled end, including after sign-out, restart, or setup failure. The daily limit may shorten the request.</Body>
-        {pending ? <Body>Retrying your previous request for {pending.minutes} minutes.</Body> : <Field label="Minutes to use" value={minutes} onChangeText={setMinutes} keyboardType="decimal-pad" />}
-        <Button label={pending ? 'Retry screen-time request' : 'Use screen time'} onPress={() => void startScreenTime()} disabled={(!enabled && !appEnabled) || remaining > 0} busy={busy} />
-        {pending && <><Body>Clearing this request does not cancel a countdown that already started.</Body><Button label="Clear request" secondary onPress={() => void AsyncStorage.removeItem(pendingKey).then(() => setPending(null)).catch(() => setError('Could not clear the request.'))} disabled={busy} /></>}
-      </>}
-    </Panel>}
-    {!loading && !creditSettings && <Panel><Eyebrow>Earned screen time</Eyebrow><Label>Balance unavailable</Label><Body>{accountError ?? 'Your screen-time settings could not be loaded.'}</Body><Button label="Try again" secondary onPress={() => void refresh()} /></Panel>}
-    {!loading && creditSettings && !creditsEnabled && <Panel><Eyebrow>Earned screen time</Eyebrow><Label>Screen time is unavailable</Label><Body>Enable credits in your account settings to use earned minutes.</Body></Panel>}
-        {loading && <Panel><Eyebrow>Earned screen time</Eyebrow><Body>Loading your balance…</Body></Panel>}
-      </View>
-      <View style={[focusStyles.secondaryColumn, wide && focusStyles.flexColumn]}>
-        <Panel><Eyebrow>Movement</Eyebrow><Label>Earn time by moving.</Label><Body>Choose a workout to add to your shared screen-time balance.</Body><Button label="View workouts" secondary onPress={() => router.push('/workouts')} /></Panel>
-        <Panel><Eyebrow>Protection on this Mac</Eyebrow>
-          <Label>{appCheck === 'checking' ? 'Checking app protection…' : appCheck === 'unavailable' ? 'App protection status unavailable' : appEnabled && !appHideFailed ? 'App protection enabled' : appHideFailed ? 'App protection needs attention' : 'App protection needs setup'}</Label>
-          <Body>{websiteCheck === 'checking' ? 'Checking website protection…' : websiteCheck === 'unavailable' || appCheck === 'unavailable' ? 'Website protection status unavailable.' : enabled ? websiteProviderHealthy ? 'Website filter responding · browser coverage is not yet verified.' : 'Website filter configured, but its provider has not reported healthy.' : 'Website filter needs setup.'}</Body>
-          <Body>Website filtering can affect other accounts on this Mac. An administrator can change or remove Bloom’s permissions.</Body>
-          <Body>Status is checked while Focus is open and when you refresh it here.</Body>
-          <Button label="Refresh protection status" secondary onPress={() => void refreshProtection()} />
-        </Panel>
-      </View>
-    </View>}
-    {section === 'rules' && <Panel><Eyebrow>Focus rules</Eyebrow><Label>Rules applied on this Mac</Label>
-      {apps.filter((app) => !managedApps.includes(app)).map((app) => <Body key={`app:${app}`}>App · {app}</Body>)}
-      {sites.filter((site) => !managedSites.includes(site)).map((site) => <Body key={`site:${site}`}>Website · {site}</Body>)}
-      {managedApps.map((app) => <Body key={`managed-app:${app}`}>App · {app} · Parent rule</Body>)}
-      {managedSites.map((site) => <Body key={`managed-site:${site}`}>Website · {site} · Parent rule</Body>)}
-      {managedApps.length + managedSites.length > 0
-        ? <Body>Parent-set rules sync from the child account and cannot be removed on this Mac.</Body>
-        : <Body>Selected apps and websites are blocked only while their protection services are active.</Body>}
-      {apps.length + sites.length + managedApps.length + managedSites.length === 0 && <Body>No apps or websites are selected yet.</Body>}
-      {blockingRulesSyncedAt && !blockingRulesSyncError && <Body>Last checked {new Date(blockingRulesSyncedAt).toLocaleTimeString()}.</Body>}
-      {blockingRulesSyncError && <Body>Bloom could not confirm the latest parent rules. Check protection and try again.</Body>}
-      {!childProfile && <Button label="Manage family Focus rules" secondary onPress={() => router.push('/family')} />}
-    </Panel>}
-    {section === 'websites' && <View style={[focusStyles.columns, wide && focusStyles.columnsWide]}>
-      <View style={[focusStyles.protectionColumn, wide && focusStyles.flexColumn]}>
-    <Panel><Eyebrow>Websites</Eyebrow><Label>{websiteCheck === 'checking' ? 'Checking website filter…' : websiteCheck === 'unavailable' || appCheck === 'unavailable' ? 'Website filter status unavailable' : enabled ? websiteUsageAvailable && websiteProviderHealthy ? 'Enabled · filter responding' : 'Enabled · provider or broker degraded' : activationStatus === 'active' ? websiteUsageAvailable ? 'Ready · website filter' : 'Setup · coverage incomplete' : 'Needs attention · website filter'}</Label>
-      <Body>1. Set up the system extension and approve Bloom in Privacy & Security.  2. Add a domain.  3. Start protection and allow the content filter when macOS asks.</Body>
-      {activationStatus === 'needsApproval' && <Body>Approval is pending. Open System Settings → Privacy & Security, approve Bloom, then return and set up the filter again.</Body>}
-      {brokerNeedsApproval && <Body>macOS is waiting for approval of Bloom’s website protection service. Open System Settings → General → Login Items &amp; Extensions, allow Bloom, then return and set up the filter again.</Body>}
-      {activationStatus === 'needsRestart' && <Body>Restart your Mac, then return here to start protection.</Body>}
-      <Body>The macOS filter needs system approval. It checks website names provided by macOS or visible in an HTTPS connection on this device. If Bloom cannot read a recognized browser’s active address, it blocks that whole browser until screen time is available.</Body>
-      {enabled && !websiteUsageAvailable && <Body>Website protection is degraded until Bloom’s background monitor and local policy service are both ready. Some browsers use encrypted or unidentified network flows that macOS does not expose with a website name.</Body>}
-      {enabled && !websiteProviderHealthy && <Body>Bloom has not received a recent filter-provider heartbeat. Check website setup and refresh protection status. This does not prove that browser traffic is blocked.</Body>}
-      {enabled && brokerUnavailable && <Button label={brokerNeedsApproval ? 'Check website service approval' : 'Set up website policy service'} secondary onPress={() => void run('activate')} busy={busy} />}
-      {enabled && !websiteUsageAvailable && appService !== 'active' && <Button label="Enable background monitor" secondary onPress={() => void run('activateApps')} busy={busy} />}
-      {supportedBrowsers.length > 0 && <Body>Recognized browsers: {supportedBrowsers.join(', ')}. Other browsers and some app-created network flows may not be covered.</Body>}
-      {browserName && <Body>Last checked browser: {browserName} · address check: {browserAddressStatus}.</Body>}
-      {browserAutomationStatus === 'permissionRequired' && <Body>Browser automation permission is off. Allow Bloom under System Settings → Privacy &amp; Security → Automation. Bloom uses Accessibility as a fallback when available.</Body>}
-      {browserAutomationStatus === 'unavailable' && <Body>Bloom could not read this browser through Automation. It will block the whole recognized browser while its address remains unreadable.</Body>}
-      {browserAddressStatus === 'unsupported' && <Body>This browser is not in Bloom’s recognized browser list. Website rules can only block hostnames that the macOS filter identifies.</Body>}
-      {enabled && browserAddressStatus === 'unreadable' && <Body>Bloom cannot read this browser’s active address. It hides the recognized browser while the address is unreadable and allows network flows whose source app macOS does not identify, so website coverage is degraded and unrelated apps keep network access. An existing connection may continue.</Body>}
-      {browserHideFailed && <Body>Bloom could not confirm that the affected browser became hidden. Website protection is degraded until the monitor confirms enforcement.</Body>}
-      {!accessibilityTrusted && <><Body>Accessibility is needed to block selected apps and to read Firefox and other browser address fields when Automation is unavailable.</Body><Button label="Open Accessibility settings" secondary onPress={() => void openAccessibilitySettings()} busy={busy} /></>}
-      <Button label="Set up website filter" secondary onPress={() => void run('activate')} busy={busy} />
-      <Field label="Website domain" value={input} onChangeText={setInput} autoCapitalize="none" autoCorrect={false} placeholder="example.com" />
-      <Button label="Add website" secondary disabled={!input.trim() || busy} onPress={() => { setSites((current) => [...new Set([...current, input.trim()])]); setInput(''); }} />
-      {sites.map((site) => { const parentRule = managedSites.includes(site); return <View key={site} style={sharedStyles.row}><View style={sharedStyles.grow}><Body>{site}{parentRule ? ' · Parent rule' : ''}</Body></View><Button label="Remove" accessibilityLabel={`Remove ${site}`} secondary disabled={busy || parentRule} onPress={() => setSites((current) => current.filter((item) => item !== site))} /></View>; })}
-      {!enabled && sites.some((site) => !managedSites.includes(site)) && <Button label="Clear saved manual domains" secondary onPress={() => void run('clearManualDomains')} busy={busy} />}
-      <Button label="Save and start blocking" onPress={() => void run('start')} disabled={sites.length === 0} busy={busy} />
-      {enabled && managedSites.length === 0 && <Button label="Stop blocking" secondary onPress={() => void run('stop')} busy={busy} />}
-      <Body>For removal or recovery, an administrator can remove Bloom-marked hosts entries. This can affect website restrictions for every account on this Mac.</Body>
-      {visibleHostsPolicy === 'notConfigured' && <Body>Hosts fallback is not configured for this Mac.</Body>}
-      {(visibleHostsPolicy === 'enrolled' || visibleHostsPolicy === 'enrolledEmpty') && <Body>Hosts fallback is configured for this account. Configuration alone does not confirm website coverage.</Body>}
-      {visibleHostsPolicy === 'otherAccount' && <Body>Hosts fallback is configured for another account on this Mac.</Body>}
-      {visibleHostsPolicy === 'needsEnrollment' && <Body>Hosts fallback needs setup before it can follow this account.</Body>}
-      {visibleHostsPolicy === 'cleanupPending' && <Body>Hosts cleanup is still pending.</Body>}
-      {hostsManagedSync?.account === profileId && hostsManagedSync.status === 'pending'
-        && (visibleHostsPolicy === 'enrolled' || visibleHostsPolicy === 'enrolledEmpty')
-        && <Body>Bloom could not refresh parent-managed hosts rules. It will retry while you are signed in.</Body>}
-      {visibleHostsPolicy === 'unavailable' && <Body>Bloom could not check hosts fallback setup for this account.</Body>}
-      {hostsRecovery === 'checking' && <Body>Checking for interrupted hosts updates…</Body>}
-      {hostsRecovery === 'review' && <ErrorText>An interrupted or conflicting hosts update needs administrator review. Compare the current hosts file with the preserved file in /private/etc/.bloom-hosts before removing the conflict artifact. Do not share their contents.</ErrorText>}
-      {hostsRecovery === 'busy' && <Body>A hosts update is in progress. Check again shortly.</Body>}
-      {hostsRecovery === 'unsafe' && <ErrorText>Bloom cannot safely inspect its hosts recovery directory. An administrator should review its permissions and links before continuing.</ErrorText>}
-      {hostsRecovery === 'unavailable' && <Body>Bloom cannot currently check hosts recovery. Enable its background service and try again before removing Bloom.</Body>}
-      {hostsRecovery === 'clear' && <Body>No interrupted Bloom hosts update needs review. This check does not establish website coverage.</Body>}
-      {(visibleHostsPolicy === 'notConfigured' || visibleHostsPolicy === 'needsEnrollment'
-        || visibleHostsPolicy === 'enrolled' || visibleHostsPolicy === 'enrolledEmpty') && <>
-        <Body>{visibleHostsPolicy === 'enrolled' || visibleHostsPolicy === 'enrolledEmpty'
-          ? 'Update fallback rules from your saved websites and current parent-managed websites. macOS may ask for administrator approval.'
-          : 'Enable this fallback to add saved websites and current parent-managed websites to Bloom’s hosts rules. macOS will ask for administrator approval.'} Parent rules refresh while Focus is open and you are signed in.</Body>
-        <Button label={visibleHostsPolicy === 'enrolled' || visibleHostsPolicy === 'enrolledEmpty'
-          ? 'Update hosts fallback rules' : 'Enable hosts fallback'} secondary onPress={() => void enrollHosts()}
-          disabled={!profileId || !session?.access_token || !enabled || sites.length === 0 || remaining > 0
-            || (!!usage && !usage.closed) || !!pending || !!usageRequest} busy={busy} />
-      </>}
-      <Button label="Check hosts recovery" secondary onPress={() => void refreshHostsRecovery()} />
-      <Button label="Remove Bloom hosts entries" secondary onPress={() => void cleanupHosts()} busy={busy} />
-    </Panel>
-      </View>
-    </View>}
-    {section === 'apps' && <View style={[focusStyles.columns, wide && focusStyles.columnsWide]}>
-      <View style={[focusStyles.protectionColumn, wide && focusStyles.flexColumn]}>
-    <Panel><Eyebrow>Apps</Eyebrow><Label>{appCheck === 'checking' ? 'Checking app protection…' : appCheck === 'unavailable' ? 'App protection status unavailable' : appHideFailed ? 'Needs attention · App protection' : appEnabled ? 'Active · App protection' : appService === 'active' && accessibilityTrusted ? 'Ready · App protection' : 'Needs attention · App protection'}</Label>
-      {appHideFailed && <Body>A selected app is still running. Bloom may be warning it or trying to close it; protection remains degraded until it has quit.</Body>}
-      <Body>1. Choose an installed app.  2. Enable the background monitor and Accessibility.  3. Start protection.</Body>
-      {!accessibilityTrusted && <Button label="Open Accessibility settings" secondary onPress={() => void openAccessibilitySettings()} busy={busy} />}
-      <Body>Enable Bloom’s background monitor in macOS settings. Already-open selected apps receive a 30-second warning before Bloom asks them to quit. Bloom may force close apps that remain open.</Body>
-      <Button label={appService === 'active' ? 'Background monitor enabled' : 'Set up app blocking'} secondary onPress={() => void run('activateApps')} busy={busy} />
-      <Button label={showAppPicker ? 'Refresh installed apps' : 'Browse installed apps'} secondary onPress={() => void openAppPicker()} busy={busy} />
-      {showAppPicker && <>
-        <Field label="Search installed apps" value={appSearch} onChangeText={setAppSearch} autoCapitalize="none" autoCorrect={false} placeholder="App name or bundle identifier" />
-        {!appCatalog && busy && <Body>Loading installed apps…</Body>}
-        {!appCatalog && !busy && <Body>Could not load the list. Refresh it or choose an app from a folder.</Body>}
-        {appCatalog && (() => {
-          const query = appSearch.trim().toLocaleLowerCase();
-          const matches = appCatalog.apps.filter((candidate) => `${candidate.name} ${candidate.id}`.toLocaleLowerCase().includes(query));
-          return <>
-            {matches.length === 0 ? <Body>No matching apps found. Try a different search or choose an app from a folder.</Body> : <ScrollView style={focusStyles.pickerList} nestedScrollEnabled keyboardShouldPersistTaps="handled">
-              {matches.slice(0, 50).map((candidate) => {
-                const selected = apps.some((id) => id.toLowerCase() === candidate.id);
-                return <View key={candidate.id} style={focusStyles.pickerRow}><View style={sharedStyles.grow}><Label>{candidate.name}</Label><Body>{candidate.id}</Body></View>
-                  <Button label={selected ? 'Added' : 'Add'} accessibilityLabel={`${selected ? 'Added' : 'Add'} ${candidate.name}`} secondary disabled={selected || busy} onPress={() => setApps((current) => [...current, candidate.id])} />
-                </View>;
-              })}
-            </ScrollView>}
-            {matches.length > 50 && <Body>Showing the first 50 matches. Refine your search to see more.</Body>}
-            {appCatalog.truncated && <Body>Some apps were not listed. Use the folder picker to choose one directly.</Body>}
-          </>;
-        })()}
-        <Button label="Close app picker" secondary onPress={() => setShowAppPicker(false)} />
-      </>}
-      <Button label="Choose an app from a folder" secondary onPress={() => void chooseApp()} busy={busy} />
-      <Field label="App bundle identifier" value={appInput} onChangeText={setAppInput} autoCapitalize="none" autoCorrect={false} placeholder="com.example.app" />
-      <Button label="Add app" secondary disabled={!appInput.trim() || busy} onPress={() => { setApps((current) => [...new Set([...current, appInput.trim()])]); setAppInput(''); }} />
-      {apps.map((app) => { const parentRule = managedApps.includes(app); return <View key={app} style={sharedStyles.row}><View style={sharedStyles.grow}><Body>{app}{parentRule ? ' · Parent rule' : ''}</Body></View><Button label="Remove" accessibilityLabel={`Remove ${app}`} secondary disabled={busy || parentRule} onPress={() => setApps((current) => current.filter((item) => item !== app))} /></View>; })}
-      {!appConfigured && <Button label="Clear saved manual apps" secondary onPress={() => void run('clearManualApps')} busy={busy} />}
-      <Button label="Save and start app blocking" onPress={() => void run('startApps')} disabled={apps.length === 0} busy={busy} />
-      {appConfigured && managedApps.length === 0 && <Button label="Stop app blocking" secondary onPress={() => void run('stopApps')} busy={busy} />}
-    </Panel>
-      </View>
-    </View>}
+      </View>}
+    </MacFocusDisclosure>
   </Screen>;
 }
 
+function MacFocusDisclosure({ title, summary, expanded, onPress, children }: {
+  title: string;
+  summary: string;
+  expanded: boolean;
+  onPress: () => void;
+  children: ReactNode;
+}) {
+  const { theme } = useBloomTheme();
+  return <View style={[focusStyles.disclosure, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityState={{ expanded }}
+      onPress={onPress}
+      style={focusStyles.disclosureHeader}>
+      <View style={sharedStyles.grow}>
+        <Label>{title}</Label>
+        <Body>{summary}</Body>
+      </View>
+      <MaterialIcons name={expanded ? 'expand-less' : 'expand-more'} size={24} color={theme.colors.inkMuted} />
+    </Pressable>
+    {expanded && <View style={focusStyles.disclosureBody}>{children}</View>}
+  </View>;
+}
 
 const focusStyles = StyleSheet.create({
-  columns: { gap: 18 },
-  columnsWide: { flexDirection: 'row', alignItems: 'flex-start' },
-  primaryColumn: { minWidth: 0, gap: 18 },
-  secondaryColumn: { minWidth: 0, gap: 18 },
-  protectionColumn: { minWidth: 0 },
-  flexColumn: { flex: 1 },
+  disclosure: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 12 },
+  disclosureHeader: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  disclosureBody: { gap: 12, paddingTop: 12 },
   pickerList: { maxHeight: 320 },
   pickerRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
 });
