@@ -1,3 +1,4 @@
+import { getAppLocale } from '../../../lib/locale-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router, useFocusEffect } from 'expo-router';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
@@ -38,15 +39,15 @@ export default function ActivityScreen() {
   }, [profileId]));
 
   const renderDetails = (item: (typeof history)[number]) => <Panel>
-    <Eyebrow>{new Date(item.completed_at).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</Eyebrow>
+    <Eyebrow>{new Date(item.completed_at).toLocaleDateString(getAppLocale(), { weekday: 'short', month: 'short', day: 'numeric' })}</Eyebrow>
     <Label>{item.plan_title}</Label>
     <View style={sharedStyles.row}><View style={sharedStyles.grow}><Body>Exercises completed</Body></View><Label>{item.exercises_completed}</Label></View>
     <View style={sharedStyles.row}><View style={sharedStyles.grow}><Body>Sets completed</Body></View><Label>{item.sets_completed}</Label></View>
     {item.reps_completed > 0 && <View style={sharedStyles.row}><View style={sharedStyles.grow}><Body>Repetitions</Body></View><Label>{item.reps_completed}</Label></View>}
-    {item.exercise_seconds > 0 && <View style={sharedStyles.row}><View style={sharedStyles.grow}><Body>Timed exercise</Body></View><Label>{(item.exercise_seconds / 60).toLocaleString(undefined, { maximumFractionDigits: 1 })} min</Label></View>}
-    {item.distance_km > 0 && <View style={sharedStyles.row}><View style={sharedStyles.grow}><Body>Distance</Body></View><Label>{item.distance_km.toLocaleString(undefined, { maximumFractionDigits: 2 })} km</Label></View>}
-    {item.weight_volume_kg > 0 && <View style={sharedStyles.row}><View style={sharedStyles.grow}><Body>Weight volume</Body></View><Label>{item.weight_volume_kg.toLocaleString(undefined, { maximumFractionDigits: 1 })} kg</Label></View>}
-    {item.credits_earned_minutes > 0 && <View style={sharedStyles.row}><View style={sharedStyles.grow}><Body>Credits earned</Body></View><Label>+{item.credits_earned_minutes.toLocaleString(undefined, { maximumFractionDigits: 2 })} min</Label></View>}
+    {item.exercise_seconds > 0 && <View style={sharedStyles.row}><View style={sharedStyles.grow}><Body>Timed exercise</Body></View><Label>{(item.exercise_seconds / 60).toLocaleString(getAppLocale(), { maximumFractionDigits: 1 })} min</Label></View>}
+    {item.distance_km > 0 && <View style={sharedStyles.row}><View style={sharedStyles.grow}><Body>Distance</Body></View><Label>{item.distance_km.toLocaleString(getAppLocale(), { maximumFractionDigits: 2 })} km</Label></View>}
+    {item.weight_volume_kg > 0 && <View style={sharedStyles.row}><View style={sharedStyles.grow}><Body>Weight volume</Body></View><Label>{item.weight_volume_kg.toLocaleString(getAppLocale(), { maximumFractionDigits: 1 })} kg</Label></View>}
+    {item.credits_earned_minutes > 0 && <View style={sharedStyles.row}><View style={sharedStyles.grow}><Body>Credits earned</Body></View><Label>+{item.credits_earned_minutes.toLocaleString(getAppLocale(), { maximumFractionDigits: 2 })} min</Label></View>}
   </Panel>;
 
   return <Screen safeAreaTop={false}>
@@ -68,8 +69,8 @@ export default function ActivityScreen() {
       ? <View style={styles.workspace}>
         <View style={styles.list}><Panel>
           <Eyebrow>Workout history · {history.length}</Eyebrow>
-          {history.map((item) => <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={`${item.plan_title}, completed ${new Date(item.completed_at).toLocaleDateString()}`} accessibilityState={{ selected: selected?.id === item.id }} onFocus={() => setFocusedId(item.id)} onBlur={() => setFocusedId(null)} onPress={() => setSelectedId(item.id)} style={[styles.eventChoice, { backgroundColor: selected?.id === item.id ? theme.colors.surfaceTinted : theme.colors.surface, borderColor: focusedId === item.id ? theme.colors.focusRing : theme.colors.border }]}>
-            <View style={sharedStyles.grow}><Label>{item.plan_title}</Label><Body>{new Date(item.completed_at).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })} · {item.exercises_completed} exercises · {item.sets_completed} sets</Body></View>
+          {history.map((item) => <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={`${item.plan_title}, completed ${new Date(item.completed_at).toLocaleDateString(getAppLocale())}`} accessibilityState={{ selected: selected?.id === item.id }} onFocus={() => setFocusedId(item.id)} onBlur={() => setFocusedId(null)} onPress={() => setSelectedId(item.id)} style={[styles.eventChoice, { backgroundColor: selected?.id === item.id ? theme.colors.surfaceTinted : theme.colors.surface, borderColor: focusedId === item.id ? theme.colors.focusRing : theme.colors.border }]}>
+            <View style={sharedStyles.grow}><Label>{item.plan_title}</Label><Body>{new Date(item.completed_at).toLocaleDateString(getAppLocale(), { weekday: 'short', month: 'short', day: 'numeric' })} · {item.exercises_completed} exercises · {item.sets_completed} sets</Body></View>
           </Pressable>)}
         </Panel></View>
         <View style={styles.detail}>{selected ? renderDetails(selected) : <Panel><Body>Select a workout to view its recorded details.</Body></Panel>}</View>
@@ -86,7 +87,7 @@ export default function ActivityScreen() {
             <View style={[styles.growthDot, { backgroundColor: theme.modules[event.moduleId].surface }]}>
               <MaterialIcons name={event.moduleId === 'study' ? 'school' : event.moduleId === 'read' ? 'menu-book' : 'check-box'} size={18} color={theme.modules[event.moduleId].deep} />
             </View>
-            <View style={sharedStyles.grow}><Label>{event.label}</Label><Body>{event.detail}</Body><Body>{new Date(event.occurredAt).toLocaleString()}</Body></View>
+            <View style={sharedStyles.grow}><Label>{event.label}</Label><Body>{event.detail}</Body><Body>{new Date(event.occurredAt).toLocaleString(getAppLocale())}</Body></View>
           </View>)}
     </Panel>}
   </Screen>;

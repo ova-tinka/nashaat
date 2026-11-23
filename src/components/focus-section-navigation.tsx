@@ -1,4 +1,5 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { LocalizedText as Text } from './bloom-ui';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { useBloomTheme } from '../lib/theme-context';
 
 export type FocusSettingsSection = 'focus' | 'apps' | 'websites' | 'rules';

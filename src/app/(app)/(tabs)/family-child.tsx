@@ -1,9 +1,10 @@
+import { getAppLocale } from '../../../lib/locale-context';
 import { randomUUID } from 'expo-crypto';
 import { router, useFocusEffect, useLocalSearchParams, type Href } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { ActivityIndicator, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
-import { Body, Button, ErrorText, Eyebrow, Field, Heading, Label, Panel, Screen, sharedStyles, useIsDesktopLayout } from '../../../components/bloom-ui';
+import { ActivityIndicator, Pressable, StyleSheet, Switch, View } from 'react-native';
+import { Body, Button, ErrorText, Eyebrow, Field, Heading, Label, Panel, Screen, sharedStyles, useIsDesktopLayout, LocalizedText as Text } from '../../../components/bloom-ui';
 import { CreditRulesEditor } from '../../../components/credit-rules-editor';
 import { GrowthRewardControls } from '../../../components/growth-reward-controls';
 import { ChildGrowthAiConsentControls, ChildStudyDocumentControls } from '../../../components/child-study-tutor-controls';
@@ -160,7 +161,7 @@ export default function FamilyChildScreen() {
             })} />
             <Button label="Keep current assignments" secondary onPress={() => setConfirmModules(false)} disabled={busy} />
           </View>}
-        {moduleAssignments.some((assignment) => assignment.updated_at) && <Body>Last assignment update: {new Date(moduleAssignments.filter((assignment) => assignment.updated_at).reduce((latest, assignment) => assignment.updated_at! > latest ? assignment.updated_at! : latest, '')).toLocaleString()}</Body>}
+        {moduleAssignments.some((assignment) => assignment.updated_at) && <Body>Last assignment update: {new Date(moduleAssignments.filter((assignment) => assignment.updated_at).reduce((latest, assignment) => assignment.updated_at! > latest ? assignment.updated_at! : latest, '')).toLocaleString(getAppLocale())}</Body>}
       </Panel>}
       {(desktop || section === 'limits') && <><Panel><Label>Screen-time credits</Label><Body>Available: {Math.round(child.balance * 100) / 100} minutes</Body>
         {confirmCreditsEnabled === null ? <Button label={child.settings.credits_enabled ? 'Review turning credits off' : 'Review turning credits on'} secondary busy={busy} onPress={() => setConfirmCreditsEnabled(!child.settings.credits_enabled)} /> : <View style={sharedStyles.column}>
@@ -171,7 +172,7 @@ export default function FamilyChildScreen() {
         <Field label="Adjustment in minutes (use minus to remove)" value={amount} onChangeText={(value) => { setAmount(value); setConfirmAdjustment(false); }} keyboardType="numbers-and-punctuation" />
         <Field label="Reason (optional)" value={reason} onChangeText={(value) => { setReason(value); setConfirmAdjustment(false); }} maxLength={200} />
         {!confirmAdjustment ? <Button label="Review adjustment" secondary onPress={() => void adjust()} /> : <View style={sharedStyles.column}>
-          <Body>Confirm {Number(amount) > 0 ? 'adding' : 'removing'} {Math.abs(Number(amount)).toLocaleString()} minutes for {name || 'this child'}. The server records this adjustment in the child’s credit ledger.</Body>
+          <Body>{Number(amount) > 0 ? 'Add' : 'Remove'} {Math.abs(Number(amount)).toLocaleString(getAppLocale())} minutes {Number(amount) > 0 ? 'to' : 'from'} the shared balance for {name || 'this child'}? Bloom will keep a record of this change.</Body>
           {reason.trim() && <Body>Reason: {reason.trim()}</Body>}
           <Button label="Confirm adjustment" busy={busy} onPress={() => void applyAdjustment()} />
           <Button label="Cancel" secondary onPress={() => setConfirmAdjustment(false)} disabled={busy} />
@@ -191,7 +192,7 @@ export default function FamilyChildScreen() {
       {desktop && <WeeklyActivitySummary analytics={child.workoutAnalytics} />}
       {(desktop || section === 'activity') && <><Panel><Eyebrow>Recent activity · {name || 'child account'}</Eyebrow>
         {child.workoutAnalytics.history.length === 0 && <Body>No completed workouts are available yet.</Body>}
-        {child.workoutAnalytics.history.map((item) => <View key={item.id} style={sharedStyles.row}><View style={sharedStyles.grow}><Label>{item.plan_title}</Label><Body>Completed by {name || 'this child'} · {new Date(item.completed_at).toLocaleString()}</Body><Body>{item.exercises_completed} exercises · {item.sets_completed} sets</Body></View>{item.credits_earned_minutes > 0 && <Body>+{item.credits_earned_minutes.toLocaleString(undefined, { maximumFractionDigits: 2 })} min</Body>}</View>)}
+        {child.workoutAnalytics.history.map((item) => <View key={item.id} style={sharedStyles.row}><View style={sharedStyles.grow}><Label>{item.plan_title}</Label><Body>Completed by {name || 'this child'} · {new Date(item.completed_at).toLocaleString(getAppLocale())}</Body><Body>{item.exercises_completed} exercises · {item.sets_completed} sets</Body></View>{item.credits_earned_minutes > 0 && <Body>+{item.credits_earned_minutes.toLocaleString(getAppLocale(), { maximumFractionDigits: 2 })} min</Body>}</View>)}
         {child.workoutAnalytics.history.length === 20 && <Body>Showing the 20 most recent completed workouts available here.</Body>}
       </Panel>
       <Panel><Eyebrow>Study and reading · {child.growthActivity.length}</Eyebrow>
@@ -201,14 +202,14 @@ export default function FamilyChildScreen() {
           <View style={sharedStyles.grow}>
             <Label>{activity.title}</Label>
             <Body>{activity.moduleId === 'study' ? `Study session · ${Math.floor((activity.durationSeconds ?? 0) / 60)} min` : `Reading · ${Math.round(activity.progressPercent ?? 0)}%${activity.pageCount !== null ? ` · page ${activity.currentPage ?? 0} of ${activity.pageCount}` : ''}`}</Body>
-            <Body>{new Date(activity.occurredAt).toLocaleString()}</Body>
+            <Body>{new Date(activity.occurredAt).toLocaleString(getAppLocale())}</Body>
           </View>
         </View>)}
       </Panel>
       <Panel><Label>Workout plans</Label>
         {child.plans.length === 0 && <Body>No plans yet.</Body>}
-        {child.plans.map((plan) => <View key={plan.id} style={sharedStyles.column}><Body>{plan.title} · {plan.bloom_plan_exercises.length} exercises</Body><Body>{formatScheduledDays(plan.scheduled_days)}</Body><Button label={`Edit ${plan.title}`} secondary onPress={() => router.push({ pathname: '/new-plan', params: { childId, planId: plan.id } } as Href)} />
-          {confirmPlanRemoval === plan.id ? <><Body>Delete “{plan.title}” and its schedule for {name || 'this child'}? The server will confirm the deletion.</Body><Button label="Confirm plan deletion" variant="destructive" busy={busy} onPress={() => void run(async () => { await deletePlan(plan.id); setConfirmPlanRemoval(null); })} /><Button label="Keep plan" variant="secondary" onPress={() => setConfirmPlanRemoval(null)} disabled={busy} /></>
+        {child.plans.map((plan) => <View key={plan.id} style={sharedStyles.column}><Body>{plan.title} · {plan.bloom_plan_exercises.length} exercises</Body><Body>{formatScheduledDays(plan.scheduled_days, getAppLocale())}</Body><Button label={`Edit ${plan.title}`} secondary onPress={() => router.push({ pathname: '/new-plan', params: { childId, planId: plan.id } } as Href)} />
+          {confirmPlanRemoval === plan.id ? <><Body>Delete “{plan.title}” and its schedule for {name || 'this child'}?</Body><Button label="Confirm plan deletion" variant="destructive" busy={busy} onPress={() => void run(async () => { await deletePlan(plan.id); setConfirmPlanRemoval(null); })} /><Button label="Keep plan" variant="secondary" onPress={() => setConfirmPlanRemoval(null)} disabled={busy} /></>
             : <Button label={`Review deleting ${plan.title}`} variant="secondary" busy={busy} onPress={() => setConfirmPlanRemoval(plan.id)} />}</View>)}
         <Button label="Create workout for this child" onPress={() => router.push({ pathname: '/new-plan', params: { childId } } as Href)} />
       </Panel></>}
@@ -246,7 +247,7 @@ function WeeklyActivitySummary({ analytics }: { analytics: WorkoutAnalytics }) {
     <Label>{analytics.weekly_workout_target === null ? `${analytics.workouts_completed} workouts completed` : `${analytics.workouts_completed} of ${analytics.weekly_workout_target} workouts`}</Label>
     {analytics.planned_workouts > 0 && <Body>{analytics.completed_planned_workouts} of {analytics.planned_workouts} scheduled workouts complete · {analytics.rest_days} rest days</Body>}
     {analytics.missed_planned_workouts > 0 && <Body>A scheduled day passed without a workout. It’s okay to adjust the plan or leave room for rest.</Body>}
-    {analytics.weekly_credit_target_minutes !== null && <Body>{analytics.credits_earned_minutes.toLocaleString(undefined, { maximumFractionDigits: 2 })} of {analytics.weekly_credit_target_minutes} goal minutes earned</Body>}
+    {analytics.weekly_credit_target_minutes !== null && <Body>{analytics.credits_earned_minutes.toLocaleString(getAppLocale(), { maximumFractionDigits: 2 })} of {analytics.weekly_credit_target_minutes} goal minutes earned</Body>}
     <Body>{analytics.active_days} active days · {analytics.exercise_minutes} timed exercise minutes · {analytics.sets_completed} sets · {analytics.reps_completed} repetitions</Body>
   </Panel>;
 }

@@ -57,7 +57,7 @@ export function buildDailyScreenTimeTotals(
   entries: readonly Pick<CreditLedgerEntry, 'amount_minutes' | 'entry_type' | 'created_at'>[],
   now: Date = new Date(),
   timeZone = 'UTC',
-  locale?: string,
+  locale = 'en-GB',
 ): DailyScreenTimeTotal[] {
   const resolvedTimeZone = getSafeTimeZone(timeZone, now);
 

@@ -1,3 +1,4 @@
+import { getAppLocale } from '../../../lib/locale-context';
 import { router, useFocusEffect, type Href } from 'expo-router';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { useCallback, useState } from 'react';
@@ -88,15 +89,15 @@ export default function ProgressScreen() {
       </Panel></View>
       <View style={[styles.metricColumn, desktop && styles.desktopMetricColumn]}><Panel>
         <Eyebrow>Movement</Eyebrow>
-        <View style={sharedStyles.row}><View style={sharedStyles.grow}><Body>Timed exercise</Body></View><Label>{analytics.exercise_minutes.toLocaleString(undefined, { maximumFractionDigits: 1 })} min</Label></View>
-        <View style={sharedStyles.row}><View style={sharedStyles.grow}><Body>Sets completed</Body></View><Label>{analytics.sets_completed.toLocaleString()}</Label></View>
-        <View style={sharedStyles.row}><View style={sharedStyles.grow}><Body>Repetitions completed</Body></View><Label>{analytics.reps_completed.toLocaleString()}</Label></View>
-        <View style={sharedStyles.row}><View style={sharedStyles.grow}><Body>Distance</Body></View><Label>{analytics.distance_km.toLocaleString(undefined, { maximumFractionDigits: 2 })} km</Label></View>
-        <View style={sharedStyles.row}><View style={sharedStyles.grow}><Body>Weight volume</Body></View><Label>{analytics.weight_volume_kg.toLocaleString(undefined, { maximumFractionDigits: 1 })} kg</Label></View>
+        <View style={sharedStyles.row}><View style={sharedStyles.grow}><Body>Timed exercise</Body></View><Label>{analytics.exercise_minutes.toLocaleString(getAppLocale(), { maximumFractionDigits: 1 })} min</Label></View>
+        <View style={sharedStyles.row}><View style={sharedStyles.grow}><Body>Sets completed</Body></View><Label>{analytics.sets_completed.toLocaleString(getAppLocale())}</Label></View>
+        <View style={sharedStyles.row}><View style={sharedStyles.grow}><Body>Repetitions completed</Body></View><Label>{analytics.reps_completed.toLocaleString(getAppLocale())}</Label></View>
+        <View style={sharedStyles.row}><View style={sharedStyles.grow}><Body>Distance</Body></View><Label>{analytics.distance_km.toLocaleString(getAppLocale(), { maximumFractionDigits: 2 })} km</Label></View>
+        <View style={sharedStyles.row}><View style={sharedStyles.grow}><Body>Weight volume</Body></View><Label>{analytics.weight_volume_kg.toLocaleString(getAppLocale(), { maximumFractionDigits: 1 })} kg</Label></View>
       </Panel></View>
       {creditTarget !== null && creditTarget !== undefined && <View style={[styles.metricColumn, desktop && styles.desktopMetricColumn]}><Panel>
         <Eyebrow>Shared screen-time credits</Eyebrow>
-        <Label>{analytics.credits_earned_minutes.toLocaleString(undefined, { maximumFractionDigits: 2 })} of {creditTarget} goal minutes</Label>
+        <Label>{analytics.credits_earned_minutes.toLocaleString(getAppLocale(), { maximumFractionDigits: 2 })} of {creditTarget} goal minutes</Label>
         <ProgressBar value={analytics.credits_earned_minutes / Math.max(1, creditTarget) * 100} label={`${analytics.credits_earned_minutes} of ${creditTarget} goal minutes`} color={theme.colors.action} />
         <Body>Credits are shown from the server-confirmed workout analytics.</Body>
       </Panel></View>}
@@ -113,12 +114,12 @@ export default function ProgressScreen() {
         <Eyebrow>Personal bests by completed workout</Eyebrow>
         <Body>Records show the best saved result for each exercise and measurement. Repetitions and duration are per set; distance is in kilometers; added weight is in kilograms.</Body>
         {records.bests.length === 0 ? <Body>Personal bests will appear after a completed workout.</Body> : records.bests.map((best) => <View key={`${best.exerciseId}:${best.metric}`} style={sharedStyles.row}>
-          <View style={sharedStyles.grow}><Label>{best.exerciseName} · {best.metric}</Label><Body>Recorded {new Date(best.achievedAt).toLocaleDateString()}</Body></View>
-          <Label>{best.value.toLocaleString(undefined, { maximumFractionDigits: 2 })} {best.unit}</Label>
+          <View style={sharedStyles.grow}><Label>{best.exerciseName} · {best.metric}</Label><Body>Recorded {new Date(best.achievedAt).toLocaleDateString(getAppLocale())}</Body></View>
+          <Label>{best.value.toLocaleString(getAppLocale(), { maximumFractionDigits: 2 })} {best.unit}</Label>
         </View>)}
         <Label>Achievement history</Label>
         {records.achievements.length === 0 ? <Body>Achievements will appear after completed workouts.</Body> : records.achievements.map((achievement) => <View key={achievement.id} style={sharedStyles.column}>
-          <Label>{achievement.title}</Label><Body>{achievement.explanation} · {new Date(achievement.achievedAt).toLocaleDateString()}</Body>
+          <Label>{achievement.title}</Label><Body>{achievement.explanation} · {new Date(achievement.achievedAt).toLocaleDateString(getAppLocale())}</Body>
         </View>)}
       </Panel>}
     </>}

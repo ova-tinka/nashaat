@@ -22,7 +22,7 @@ export function dateKeyInTimeZone(value: Date | number, timeZone: string) {
   return `${fields.year}-${fields.month}-${fields.day}`;
 }
 
-export function formatDateOnly(value: string, locale?: string) {
+export function formatDateOnly(value: string, locale = 'en-GB') {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   if (!match) return value;
   const [, year, month, day] = match;

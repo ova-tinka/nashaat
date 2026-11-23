@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { router, useFocusEffect, type Href } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { AccessibilityInfo, ActivityIndicator, LayoutAnimation, Platform, Pressable, StyleSheet, Switch, Text, UIManager, View } from 'react-native';
-import { Body, Button, ErrorText, Eyebrow, Heading, Label, Panel, Screen, sharedStyles } from '../../../components/bloom-ui';
+import { AccessibilityInfo, ActivityIndicator, LayoutAnimation, Platform, Pressable, StyleSheet, Switch, UIManager, View } from 'react-native';
+import { Body, Button, ErrorText, Eyebrow, Heading, Label, LocalizedText as Text, Panel, Screen, sharedStyles } from '../../../components/bloom-ui';
 import { CreditRulesEditor } from '../../../components/credit-rules-editor';
 import { GrowthRewardControls } from '../../../components/growth-reward-controls';
 import { GrowthMemoryControls } from '../../../components/growth-memory-controls';
@@ -14,6 +14,7 @@ import { closeDeviceAccess } from '../../../lib/close-device-access';
 import { useBloomTheme } from '../../../lib/theme-context';
 import { useModuleVisibility } from '../../../lib/module-visibility';
 import { moduleManifest } from '../../../lib/module-manifest';
+import { useLocale, type AppLanguage } from '../../../lib/locale-context';
 import BloomBlocking from '../../../../modules/bloom-blocking/src/BloomBlockingModule';
 import type { BlockingStatus } from '../../../../modules/bloom-blocking/src/BloomBlocking.types';
 import { isMacDesktop } from '../../../lib/macos-blocking';
@@ -33,6 +34,7 @@ export default function SettingsScreen() {
   const { profileId, managedChild, childProfile, assignedModules } = useAuth();
   const { creditsEnabled, creditSettings, creditBalance, subscription, loading, error, refresh, setCreditsEnabled, saveCreditRules } = useBloom();
   const { theme } = useBloomTheme();
+  const { language, setLanguage, restartRequired } = useLocale();
   const { visibleModules, loaded: visibilityLoaded, setModuleVisibility } = useModuleVisibility();
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -129,6 +131,27 @@ export default function SettingsScreen() {
     {error && <Panel><ErrorText>{error}</ErrorText><Button label="Try again" variant="secondary" onPress={() => void refresh()} /></Panel>}
     {actionError && <ErrorText>{actionError}</ErrorText>}
 
+    <Panel>
+      <Eyebrow>Language</Eyebrow>
+      <Label>Choose your app language.</Label>
+      <View style={styles.themeChoices} accessibilityRole="radiogroup" accessibilityLabel="App language">
+        {([
+          { language: 'en', label: 'English' },
+          { language: 'ar', label: 'Arabic' },
+        ] satisfies { language: AppLanguage; label: string }[]).map((option) => {
+          const selected = language === option.language;
+          return <Pressable key={option.language} accessibilityRole="radio" accessibilityLabel={option.label}
+            accessibilityState={{ checked: selected }} onPress={() => void setLanguage(option.language)}
+            style={[styles.themeChoice, { backgroundColor: selected ? theme.colors.surfaceTinted : theme.colors.surface,
+              borderColor: selected ? theme.colors.focusRing : theme.colors.border }]}>
+            <Text style={[styles.themeChoiceLabel, { color: selected ? theme.colors.ink : theme.colors.inkMuted }]}>{option.label}</Text>
+            {selected && <MaterialIcons name="check-circle" size={18} color={theme.colors.action} />}
+          </Pressable>;
+        })}
+      </View>
+      {restartRequired && <Body>Language and layout changes apply after you restart the app on this device.</Body>}
+    </Panel>
+
     {!loading && !error && <>
       <Panel>
         <View style={styles.focusHeading}>
@@ -143,9 +166,10 @@ export default function SettingsScreen() {
             <View style={[styles.modeIcon, { backgroundColor: theme.colors.surfaceTinted }]}><MaterialIcons name="schedule" size={19} color={theme.colors.action} /></View>
             <View style={sharedStyles.grow}><Label>Earned Access</Label><Body>{blockingStatus?.active ? 'Enabled on this device' : 'Disabled on this device'}</Body></View>
           </View>
-          <Body>Unlock selected apps using screen-time credits. {blockingStatus ? `${blockingStatus.appCount + blockingStatus.websiteCount + blockingStatus.categoryCount} apps, sites, or categories selected.` : 'Device selection status is unavailable.'}</Body>
+          <Body>Earned Access uses your minutes to unlock only the apps, sites, and categories selected on this device. {blockingStatus ? `${blockingStatus.appCount + blockingStatus.websiteCount + blockingStatus.categoryCount} selected.` : 'Device selection status is unavailable.'}</Body>
+          <Body>A saved selection does not mean blocking is active. Check the status above; this device’s blocking permission must be ready.</Body>
           <Body>{Math.round(creditBalance * 100) / 100} minutes in your shared balance. Credit earning rules are directly below.</Body>
-          <Body>Credit sessions currently consume their timed amount, including idle time or time when another Focus rule blocks the app.</Body>
+          <Body>Once an Earned Access session starts, its countdown continues until the session ends, including while an app is idle or another Focus rule blocks it.</Body>
           <Button label={blockingStatus?.active ? 'Pause Earned Access' : 'Enable Earned Access'} onPress={() => void toggleEarnedAccess()} busy={blockingBusy} disabled={blockingBusy || !blockingStatus || (!blockingStatus.active && blockingStatus.appCount + blockingStatus.websiteCount + blockingStatus.categoryCount === 0)} />
         </View>
 
@@ -176,12 +200,13 @@ export default function SettingsScreen() {
       </Panel>
 
       <Panel>
-        <Eyebrow>Earned Screen-Time Credits</Eyebrow>
+        <Eyebrow>Credits for screen time</Eyebrow>
+        <Body>Your balance is measured in minutes and shared across Exercise, Study, Read, and Tasks on your devices. Choose a pillar below to see its exact reward and limits.</Body>
         <View style={sharedStyles.row}>
           <View style={sharedStyles.grow}><Label>Earn screen-time credits</Label><Body>{managedChild ? 'Your parent manages this setting.' : 'Change whether completed Exercise, Study, Read, and Tasks activity can earn credits.'}</Body></View>
           <Switch accessibilityLabel="Earn screen-time credits" value={creditsEnabled} onValueChange={(value) => void changeCredits(value)} disabled={saving || managedChild} trackColor={{ false: theme.colors.border, true: theme.colors.action }} />
         </View>
-        <Body>All four pillars contribute to your shared screen-time balance.</Body>
+        <Body>Study and Read rewards require the minimum session time shown in their rules. A Task reward is considered when you complete the task. Daily and weekly caps may limit the amount added.</Body>
         {rewardPillars.map((pillar) => <Pressable key={pillar.id} accessibilityRole="button" accessibilityLabel={`${pillar.title} reward settings`} accessibilityState={{ expanded: rewardSection === pillar.id }} onPress={() => {
           setVisitedRewards((current) => current.includes(pillar.id) ? current : [...current, pillar.id]);
           setRewardSection((current) => current === pillar.id ? null : pillar.id);
@@ -206,6 +231,12 @@ export default function SettingsScreen() {
         <Button label="Manage devices" variant="secondary" onPress={() => router.push('/devices' as Href)} />
       </SettingsAccordion>
 
+      {!childProfile && <Panel>
+        <Eyebrow>Optional family features</Eyebrow>
+        <Label>Family Space</Label>
+        <Body>Bloom works without supervision. If you want family features, create or join a Family Space here. Each member keeps a separate account and credit balance.</Body>
+        <Button label="Explore Family Space" variant="secondary" onPress={() => router.push('/family' as Href)} />
+      </Panel>}
       <Button label="Sign out" variant="secondary" onPress={() => void signOut()} />
       <SettingsAccordion title="Show Pillars" icon="dashboard">
         <Body>Choose which Bloom spaces appear in your Home and main navigation. Your saved activity and goals stay in your profile.</Body>
@@ -285,6 +316,9 @@ function SettingsAccordion({ title, icon, status, children }: { title: string; i
 }
 
 const styles = StyleSheet.create({
+  themeChoices: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  themeChoice: { minHeight: 48, minWidth: 124, flexGrow: 1, flexBasis: 124, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderWidth: 1, borderRadius: 14, paddingHorizontal: 10 },
+  themeChoiceLabel: { fontSize: 14, lineHeight: 20, fontWeight: '600' },
   focusHeading: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   focusIcon: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   modeCard: { gap: 8, padding: 12, borderWidth: StyleSheet.hairlineWidth, borderRadius: 18 },

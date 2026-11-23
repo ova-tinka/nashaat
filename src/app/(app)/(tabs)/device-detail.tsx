@@ -1,3 +1,4 @@
+import { getAppLocale } from '../../../lib/locale-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
@@ -106,13 +107,13 @@ export default function DeviceDetailScreen() {
             <MaterialIcons name={device.platform === 'ios' ? 'phone-iphone' : device.platform === 'android' ? 'phone-android' : device.platform === 'macos' ? 'laptop-mac' : 'devices'} size={25} color={theme.colors.action} />
             <View style={sharedStyles.grow}><Label>{device.platform}</Label><Body>{current ? 'This device' : 'Registered to this profile'}</Body></View>
           </View>
-          <View style={sharedStyles.row}><Body>First seen</Body><Label>{new Date(device.first_seen_at).toLocaleString()}</Label></View>
-          <View style={sharedStyles.row}><Body>Last seen</Body><Label>{new Date(device.last_seen_at).toLocaleString()}</Label></View>
+          <View style={sharedStyles.row}><Body>First seen</Body><Label>{new Date(device.first_seen_at).toLocaleString(getAppLocale())}</Label></View>
+          <View style={sharedStyles.row}><Body>Last seen</Body><Label>{new Date(device.last_seen_at).toLocaleString(getAppLocale())}</Label></View>
           <View style={sharedStyles.row}><Body>Focus support</Body><Label>{device.focusSupported === true ? 'Supported' : device.focusSupported === false ? 'Unavailable' : 'Unknown'}</Label></View>
           <View style={sharedStyles.row}><Body>Permission</Body><Label>{device.permissionState === 'allowed' ? 'Allowed' : device.permissionState === 'needs_setup' ? 'Needs setup' : device.permissionState === 'unavailable' ? 'Unavailable' : 'Unknown'}</Label></View>
           <View style={sharedStyles.row}><Body>Blocking</Body><Label>{device.blockingState === 'on' ? 'On' : device.blockingState === 'off' ? 'Off' : device.blockingState === 'needs_attention' ? 'Needs attention' : device.blockingState === 'unavailable' ? 'Unavailable' : 'Unknown'}</Label></View>
-          <View style={sharedStyles.row}><Body>Selected targets</Body><Label>{device.selectedTargetCount === null ? 'Unknown' : device.selectedTargetCount.toLocaleString()}</Label></View>
-          <Body>Status last checked {new Date(device.status_checked_at).toLocaleString()}.</Body>
+          <View style={sharedStyles.row}><Body>Selected targets</Body><Label>{device.selectedTargetCount === null ? 'Unknown' : device.selectedTargetCount.toLocaleString(getAppLocale())}</Label></View>
+          <Body>Status last checked {new Date(device.status_checked_at).toLocaleString(getAppLocale())}.</Body>
           {stale && <Body>This device has not checked in for over 24 hours. Its reported permission and blocking state may be out of date.</Body>}
         </Panel>
         <Panel>

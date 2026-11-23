@@ -1,3 +1,4 @@
+import { getAppLocale } from '../lib/locale-context';
 import { useCallback, useMemo, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { ActivityIndicator, Switch, View } from 'react-native';
@@ -122,7 +123,7 @@ export function GrowthRewardControls({
   return <Panel>
     <Eyebrow>Screen-time rewards</Eyebrow>
     <Label>{heading}</Label>
-    <Body>These optional rules use the shared credit ledger. Study and Read sessions must meet the minimum duration; a Task earns only when its task item is completed. Linked Focus time never completes a task or creates another reward. Daily and weekly caps apply separately to each module.</Body>
+    <Body>These rules decide how each activity adds minutes to your shared balance. Study and Read sessions must meet the minimum time. Tasks earn minutes only when completed; Focus time does not add a second reward. Daily and weekly limits apply to each activity.</Body>
     {loading && <ActivityIndicator color={theme.colors.action} />}
     {error && <ErrorText>{error}</ErrorText>}
     {notice && <Body>{notice}</Body>}
@@ -161,7 +162,7 @@ export function GrowthRewardControls({
       {events.filter((event) => modules.includes(event.module_id)).map((event) => <View key={event.id} style={sharedStyles.column}>
         <Body>{moduleLabels[event.module_id]} · {event.source_type === 'session' ? 'completed session' : 'completed task'} · {event.status === 'awarded'
           ? `+${event.awarded_minutes} min` : event.status.replaceAll('_', ' ')}</Body>
-        <Body>{new Date(event.created_at).toLocaleString()}</Body>
+        <Body>{new Date(event.created_at).toLocaleString(getAppLocale())}</Body>
         {editable && approvalByDefault && event.status === 'pending' && <View style={sharedStyles.row}>
           <Button label="Approve" disabled={reviewing !== null} busy={reviewing === event.id} onPress={() => void review(event, true)} />
           <Button label="Decline" variant="secondary" disabled={reviewing !== null} onPress={() => void review(event, false)} />

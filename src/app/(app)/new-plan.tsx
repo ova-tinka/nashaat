@@ -1,8 +1,8 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { Body, Button, ErrorText, Eyebrow, Heading, Label, Panel, Screen, sharedStyles } from '../../components/bloom-ui';
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Body, Button, ErrorText, Eyebrow, Heading, Label, Panel, Screen, sharedStyles, LocalizedText as Text, LocalizedTextInput as TextInput } from '../../components/bloom-ui';
 import { ExerciseArtwork } from '../../components/exercise-artwork';
 import { createPlan, createPlanForUser, loadCatalog, loadWorkoutPlan, SCHEDULE_DAYS, updatePlan, updatePlanForUser, type Exercise } from '../../lib/bloom';
 import { useBloom } from '../../lib/bloom-context';

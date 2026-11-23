@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import type { AppCandidate, BlockingStatus } from '../../modules/bloom-blocking/src/BloomBlocking.types';
 import { useBloomTheme } from '../lib/theme-context';
-import { Body, Button, ErrorText, Eyebrow, Field, Heading, Label, Panel, Screen, sharedStyles } from './bloom-ui';
+import { Body, Button, ErrorText, Eyebrow, Field, Heading, Label, LocalizedText as Text, Panel, Screen, sharedStyles } from './bloom-ui';
 import { FocusAppPicker } from './focus-app-picker';
 
 type Props = {

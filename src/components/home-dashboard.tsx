@@ -1,7 +1,8 @@
+import { getAppLocale } from '../lib/locale-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router, type Href } from 'expo-router';
-import { ActivityIndicator, ImageBackground, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Body, Button, ErrorText, Eyebrow, Label, Panel, Screen, useIsDesktopLayout } from './bloom-ui';
+import { ActivityIndicator, ImageBackground, Pressable, StyleSheet, View } from 'react-native';
+import { Body, Button, ErrorText, Eyebrow, Label, Panel, Screen, useIsDesktopLayout, LocalizedText as Text } from './bloom-ui';
 import { bloomHomeImage, bloomPillarImages } from '../assets/bloom-images';
 import type { BloomDevice } from '../lib/devices';
 import { useAuth } from '../lib/auth';
@@ -307,7 +308,7 @@ function moduleName(moduleId: WeeklyGoalSummary['goals'][number]['module_id']) {
 }
 
 function formatCreditHours(minutes: number) {
-  return (minutes / 60).toLocaleString(undefined, { maximumFractionDigits: 1 });
+  return (minutes / 60).toLocaleString(getAppLocale(), { maximumFractionDigits: 1 });
 }
 
 function formatCreditDuration(value: number) {

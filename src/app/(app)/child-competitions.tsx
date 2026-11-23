@@ -1,3 +1,4 @@
+import { getAppLocale } from '../../lib/locale-context';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
@@ -45,7 +46,7 @@ export default function ChildCompetitionsScreen() {
       {data.requests.length === 0 && <Panel><Body>No pending requests.</Body></Panel>}
       {data.requests.map(({ competition_id, competition }) => <Panel key={competition_id}>
         <Label>{competition?.title ?? 'Competition'}</Label>
-        {competition && <Body>{competition.visibility} · {competition.metric === 'minutes' ? 'active workout minutes' : 'completed workouts'} · {new Date(competition.starts_at).toLocaleString()} – {new Date(competition.ends_at).toLocaleString()}</Body>}
+        {competition && <Body>{competition.visibility} · {competition.metric === 'minutes' ? 'active workout minutes' : 'completed workouts'} · {new Date(competition.starts_at).toLocaleString(getAppLocale())} – {new Date(competition.ends_at).toLocaleString(getAppLocale())}</Body>}
         <Body>Results use display names and self-reported workouts. Participation begins when you approve it.</Body>
         {pendingDecision?.competitionId === competition_id ? <>
           <Body>Confirm you want to {pendingDecision.approve ? 'approve' : 'decline'} {name || 'this child'}’s participation in {competition?.title ?? 'this competition'}? The server records the decision.</Body>

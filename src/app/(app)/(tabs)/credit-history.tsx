@@ -1,3 +1,4 @@
+import { getAppLocale } from '../../../lib/locale-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
@@ -41,7 +42,7 @@ export default function CreditHistoryScreen() {
     </View>
     <Panel>
       <Eyebrow>Current balance</Eyebrow>
-      <Label>{creditsEnabled ? `${creditBalance.toLocaleString(undefined, { maximumFractionDigits: 2 })} minutes` : 'Credits are turned off'}</Label>
+      <Label>{creditsEnabled ? `${creditBalance.toLocaleString(getAppLocale(), { maximumFractionDigits: 2 })} minutes` : 'Credits are turned off'}</Label>
     </Panel>
     {!entries && !failed && <ActivityIndicator color={theme.colors.action} />}
     {failed && <Panel><ErrorText>Credit history could not be loaded.</ErrorText><Button label="Try again" variant="secondary" onPress={refresh} /></Panel>}
@@ -55,10 +56,10 @@ export default function CreditHistoryScreen() {
           </View>
           <View style={sharedStyles.grow}>
             <Label>{entryLabel(entry)}</Label>
-            <Body>{entryKind(entry)} · {new Date(entry.created_at).toLocaleString()}</Body>
-            {entry.expires_at && entry.entry_type === 'earned' && <Body>Expires {new Date(entry.expires_at).toLocaleDateString()}</Body>}
+            <Body>{entryKind(entry)} · {new Date(entry.created_at).toLocaleString(getAppLocale())}</Body>
+            {entry.expires_at && entry.entry_type === 'earned' && <Body>Expires {new Date(entry.expires_at).toLocaleDateString(getAppLocale())}</Body>}
           </View>
-          <Label>{positive ? '+' : ''}{entry.amount_minutes.toLocaleString()} min</Label>
+          <Label>{positive ? '+' : ''}{entry.amount_minutes.toLocaleString(getAppLocale())} min</Label>
         </View>
       </Panel>;
     })}

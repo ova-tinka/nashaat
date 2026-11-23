@@ -1,16 +1,17 @@
+import { getAppLocale } from '../lib/locale-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { randomUUID } from 'expo-crypto';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, ImageBackground, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, ImageBackground, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams, type Href } from 'expo-router';
 import {
-  Body, Button, ErrorText, Eyebrow, Field, Heading, Label, Panel, ProgressBar, Screen, sharedStyles, useIsDesktopLayout,
+  Body, Button, ErrorText, Eyebrow, Field, Heading, Label, LocalizedText as Text, Panel, ProgressBar, Screen, sharedStyles, useIsDesktopLayout,
 } from './bloom-ui';
 import { GrowthDocumentLibraryPanel } from './growth-document-panels';
 import { GrowthRecordPanel, ReadingDiscoveryPanel } from './growth-feature-panels';
 import { WeeklyPillarPlanner } from './weekly-pillar-planner';
 import {
-  cancelGrowthSession, createGrowthItem, finishGrowthSession, formatElapsed, GrowthDataQueryError, loadGrowthDocuments, loadGrowthModule,
+  cancelGrowthSession, createGrowthItem, finishGrowthSession, formatElapsed, getReadingStatus, GrowthDataQueryError, loadGrowthDocuments, loadGrowthModule,
   loadGrowthRewards, loadReadSessionsSince, loadWeeklyPillarGoals, startGrowthSession, updateGrowthItem,
   updateGrowthReadingDetails, type GrowthDocument, type GrowthItem, type GrowthRecord, type GrowthRewardEvent,
   type GrowthRewardRule, type GrowthSession, type ReadingKind, type ReadingStatus, type WeeklyPillarGoal,
@@ -34,11 +35,6 @@ const localTabs: { id: ReadSection; label: string }[] = [
 function routeFor(section: ReadSection, itemId?: string, editPages = false): Href {
   if (section === 'today') return '/read';
   return { pathname: '/apps/read/[section]', params: { section, ...(itemId ? { itemId } : {}), ...(editPages ? { editPages: '1' } : {}) } };
-}
-
-function statusOf(item: GrowthItem): ReadingStatus {
-  if (item.reading_status) return item.reading_status;
-  return item.state === 'completed' ? 'finished' : item.progress_percent > 0 ? 'currently_reading' : 'want_to_read';
 }
 
 function statusLabel(status: ReadingStatus) {
@@ -83,7 +79,7 @@ function addDateDays(dateKey: string, amount: number) {
 }
 
 function formatClock(value: string) {
-  return new Date(value).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  return new Date(value).toLocaleTimeString(getAppLocale(), { hour: 'numeric', minute: '2-digit' });
 }
 
 export function ReadModuleScreen({ sectionId }: { sectionId?: string }) {
@@ -176,9 +172,9 @@ export function ReadModuleScreen({ sectionId }: { sectionId?: string }) {
   }, [activeSession]);
 
   const readingItems = items.filter((item) => item.item_type === 'reading');
-  const currentlyReading = readingItems.filter((item) => item.state === 'active' && statusOf(item) === 'currently_reading');
-  const wantToRead = readingItems.filter((item) => item.state === 'active' && statusOf(item) === 'want_to_read');
-  const finished = readingItems.filter((item) => item.state === 'completed' || statusOf(item) === 'finished');
+  const currentlyReading = readingItems.filter((item) => item.state === 'active' && getReadingStatus(item) === 'currently_reading');
+  const wantToRead = readingItems.filter((item) => item.state === 'active' && getReadingStatus(item) === 'want_to_read');
+  const finished = readingItems.filter((item) => item.state === 'completed' || getReadingStatus(item) === 'finished');
   const todayKey = dateKeyInTimeZone(tick, timeZone);
   const weekStart = startOfWeekKey(todayKey);
   const todaySessions = reportSessions.filter((session) => session.status === 'completed' && session.completed_at
@@ -201,7 +197,7 @@ export function ReadModuleScreen({ sectionId }: { sectionId?: string }) {
         return;
       }
       if (pendingStart.current?.itemId !== item.id) pendingStart.current = { itemId: item.id, requestId: randomUUID() };
-      const status = statusOf(item);
+      const status = getReadingStatus(item);
       await updateGrowthReadingDetails(item.id, {
         author: item.author, genre: item.genre, pageCount: item.page_count,
         currentPage: status === 'finished' && item.page_count ? 0 : item.current_page,
@@ -284,7 +280,7 @@ export function ReadModuleScreen({ sectionId }: { sectionId?: string }) {
     try {
       const currentPage = status === 'finished' && item.page_count
         ? item.page_count
-        : status === 'currently_reading' && statusOf(item) === 'finished'
+        : status === 'currently_reading' && getReadingStatus(item) === 'finished'
           ? (item.page_count ? 0 : null)
           : item.current_page;
       await updateGrowthReadingDetails(item.id, {
@@ -335,7 +331,7 @@ export function ReadModuleScreen({ sectionId }: { sectionId?: string }) {
         author: details.author, genre: details.genre, pageCount: details.pageCount,
         currentPage: details.status === 'finished'
           ? details.pageCount
-          : item && statusOf(item) === 'finished'
+          : item && getReadingStatus(item) === 'finished'
             ? (details.pageCount ? 0 : null)
             : item && item.page_count === details.pageCount
               ? item.current_page
@@ -520,7 +516,7 @@ export function ReadModuleScreen({ sectionId }: { sectionId?: string }) {
           const item = items.find((entry) => entry.id === session.item_id);
           return <View key={session.id} style={styles.sessionHistoryRow}>
             <View style={[styles.smallIcon, { backgroundColor: accent.surface }]}><MaterialIcons name="menu-book" size={18} color={accent.deep} /></View>
-            <View style={sharedStyles.grow}><Label>{item?.title ?? 'Reading session'}</Label><Body>{session.completed_at ? new Date(session.completed_at).toLocaleDateString() + ' · ' + formatClock(session.started_at) : ''}</Body></View>
+            <View style={sharedStyles.grow}><Label>{item?.title ?? 'Reading session'}</Label><Body>{session.completed_at ? new Date(session.completed_at).toLocaleDateString(getAppLocale()) + ' · ' + formatClock(session.started_at) : ''}</Body></View>
             <Label>{formatMinutes(session.duration_seconds ?? 0)}</Label>
           </View>;
         })}
@@ -649,7 +645,7 @@ function ReadingCollection({ items, filter, saving, searchTerm, onOpen, onStart,
       <Pressable accessibilityRole="button" onPress={() => onOpen(item)} style={styles.collectionTop}>
         <BookCover item={item} size="small" />
         <View style={sharedStyles.grow}>
-          <View style={styles.row}><Eyebrow>{kindLabel(item.reading_kind).toUpperCase()}</Eyebrow><View style={[styles.statusPill, { backgroundColor: theme.modules.read.surface }]}><Text style={[styles.statusPillText, { color: theme.modules.read.deep }]}>{statusLabel(statusOf(item))}</Text></View></View>
+          <View style={styles.row}><Eyebrow>{kindLabel(item.reading_kind).toUpperCase()}</Eyebrow><View style={[styles.statusPill, { backgroundColor: theme.modules.read.surface }]}><Text style={[styles.statusPillText, { color: theme.modules.read.deep }]}>{statusLabel(getReadingStatus(item))}</Text></View></View>
           <Label>{item.title}</Label><Body>{item.author || 'Author not added'}{item.genre ? ' · ' + item.genre : ''}</Body>
           {filter === 'currently_reading' ? <Body>{item.page_count ? 'Page ' + (item.current_page ?? 0) + ' of ' + item.page_count : 'Page progress unavailable'}</Body> : null}
         </View>
@@ -676,7 +672,7 @@ function ReadItemForm({ item, saving, onCancel, onSave }: {
   const [genre, setGenre] = useState(item?.genre ?? '');
   const [pageCount, setPageCount] = useState(item?.page_count?.toString() ?? '');
   const [notes, setNotes] = useState(item?.notes ?? '');
-  const [status, setStatus] = useState<ReadingStatus>(item ? statusOf(item) : 'want_to_read');
+  const [status, setStatus] = useState<ReadingStatus>(item ? getReadingStatus(item) : 'want_to_read');
   const [formError, setFormError] = useState<string | null>(null);
   const pendingRequest = useRef<{ signature: string; requestId: string } | null>(null);
   const { theme } = useBloomTheme();
@@ -749,7 +745,7 @@ function ItemDetail({ item, items, sessions, records, documents, activeSession, 
     <Panel>
       <View style={styles.detailHeader}>
         <BookMark kind={item.reading_kind} />
-        <View style={sharedStyles.grow}><Eyebrow>{kindLabel(item.reading_kind).toUpperCase()} · {statusLabel(statusOf(item)).toUpperCase()}</Eyebrow><Heading>{item.title}</Heading><Body>{item.author || 'Author not added'}{item.genre ? ' · ' + item.genre : ''}</Body></View>
+        <View style={sharedStyles.grow}><Eyebrow>{kindLabel(item.reading_kind).toUpperCase()} · {statusLabel(getReadingStatus(item)).toUpperCase()}</Eyebrow><Heading>{item.title}</Heading><Body>{item.author || 'Author not added'}{item.genre ? ' · ' + item.genre : ''}</Body></View>
         <Pressable accessibilityRole="button" accessibilityLabel="Edit reading details" onPress={onEdit} style={[styles.iconButton, { backgroundColor: accent.surface }]}><MaterialIcons name="edit" size={19} color={accent.deep} /></Pressable>
       </View>
       {item.page_count ? <>
@@ -757,15 +753,15 @@ function ItemDetail({ item, items, sessions, records, documents, activeSession, 
         <ProgressBar value={item.progress_percent} label={item.title + ' page progress'} color={accent.deep} />
       </> : <Body>Page progress unavailable until you add a total page count.</Body>}
       <View style={styles.actionRow}>
-        {statusOf(item) !== 'finished' && <Button label="Start reading session" onPress={onStart} busy={saving} />}
-        {statusOf(item) !== 'finished' && <Button label="Update page" variant="secondary" onPress={() => {
+        {getReadingStatus(item) !== 'finished' && <Button label="Start reading session" onPress={onStart} busy={saving} />}
+        {getReadingStatus(item) !== 'finished' && <Button label="Update page" variant="secondary" onPress={() => {
           setPageCountText(item.page_count?.toString() ?? '');
           setCurrentPageText(item.current_page?.toString() ?? '0');
           setShowPageEditor((value) => !value);
         }} disabled={saving} />}
-        {statusOf(item) === 'currently_reading' && <Button label="Mark finished" variant="tertiary" onPress={() => onStatus('finished')} disabled={saving} />}
-        {statusOf(item) === 'want_to_read' && <Button label="Move to Currently reading" variant="tertiary" onPress={() => onStatus('currently_reading')} disabled={saving} />}
-        {statusOf(item) === 'finished' && <Button label="Read again" variant="secondary" onPress={() => onStatus('currently_reading')} disabled={saving} />}
+        {getReadingStatus(item) === 'currently_reading' && <Button label="Mark finished" variant="tertiary" onPress={() => onStatus('finished')} disabled={saving} />}
+        {getReadingStatus(item) === 'want_to_read' && <Button label="Move to Currently reading" variant="tertiary" onPress={() => onStatus('currently_reading')} disabled={saving} />}
+        {getReadingStatus(item) === 'finished' && <Button label="Read again" variant="secondary" onPress={() => onStatus('currently_reading')} disabled={saving} />}
       </View>
       {showPageEditor && <View style={[styles.pageEditor, { backgroundColor: theme.colors.surfaceSoft, borderColor: theme.colors.border }]}>
         <Eyebrow>Update page position</Eyebrow>
@@ -788,7 +784,7 @@ function ItemDetail({ item, items, sessions, records, documents, activeSession, 
       {activeSession?.item_id === item.id && <Panel><Eyebrow>Session active</Eyebrow><Body>Continue in the focused session screen.</Body><Button label="Return to session" onPress={() => router.push(routeFor('session'))} /></Panel>}
     </>}
     {selectedTab === 'sessions' && <Panel><Eyebrow>Timed reading history</Eyebrow>{itemSessions.length ? itemSessions.map((session) =>
-      <View key={session.id} style={styles.sessionHistoryRow}><View style={sharedStyles.grow}><Label>{session.status === 'completed' ? 'Completed session' : session.status === 'cancelled' ? 'Cancelled session' : 'In progress'}</Label><Body>{new Date(session.started_at).toLocaleString()}</Body></View><Label>{session.status === 'completed' ? formatMinutes(session.duration_seconds ?? 0) : '—'}</Label></View>)
+      <View key={session.id} style={styles.sessionHistoryRow}><View style={sharedStyles.grow}><Label>{session.status === 'completed' ? 'Completed session' : session.status === 'cancelled' ? 'Cancelled session' : 'In progress'}</Label><Body>{new Date(session.started_at).toLocaleString(getAppLocale())}</Body></View><Label>{session.status === 'completed' ? formatMinutes(session.duration_seconds ?? 0) : '—'}</Label></View>)
       : <Body>Completed and cancelled sessions will appear here. Page position does not count as timed activity.</Body>}</Panel>}
     {selectedTab === 'notes' && <GrowthRecordPanel profileId={profileId} moduleId="read" items={items} records={records} documents={documents}
       initialItemId={item.id} readOnly={false} onSaved={onSaved} />}
@@ -811,8 +807,8 @@ function SessionScreen({ session, item, elapsed, saving, error, confirmCancel, s
     <Heading>{item?.title ?? 'Reading session'}</Heading>
     {session ? <>
       <Text accessibilityRole="timer" style={[styles.sessionTimer, { color: accent.deep }]}>{elapsed ?? '00:00'}</Text>
-      <Label>Elapsed from server-confirmed start time</Label>
-      <Body>Bloom records the final duration from the server when you finish.</Body>
+      <Label>Time since you started</Label>
+      <Body>Bloom saves your total reading time when you finish.</Body>
       <View style={styles.sessionControls}>
         <Button label="Finish reading" onPress={onFinish} busy={saving} />
         {!confirmCancel ? <Button label="Cancel session" variant="tertiary" onPress={() => setConfirmCancel(true)} disabled={saving} /> : <Panel>
@@ -821,7 +817,7 @@ function SessionScreen({ session, item, elapsed, saving, error, confirmCancel, s
           <Button label="Keep reading" variant="tertiary" onPress={() => setConfirmCancel(false)} disabled={saving} />
         </Panel>}
       </View>
-    </> : <Panel><Eyebrow>No active session</Eyebrow><Body>There is no server-confirmed reading session to resume.</Body><Button label="Back to Read Today" onPress={() => router.replace('/read')} /></Panel>}
+    </> : <Panel><Eyebrow>No active session</Eyebrow><Body>There is no reading session to resume.</Body><Button label="Back to Read Today" onPress={() => router.replace('/read')} /></Panel>}
     {error && <ErrorText>{error}</ErrorText>}
     <Button label="Return to Read Today" variant="tertiary" onPress={() => router.replace('/read')} disabled={saving} />
   </View>;

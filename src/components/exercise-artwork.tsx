@@ -1,5 +1,6 @@
+import { LocalizedText as Text } from './bloom-ui';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { ImageBackground, StyleSheet, Text, View } from 'react-native';
+import { ImageBackground, StyleSheet, View } from 'react-native';
 import { bloomPillarImages } from '../assets/bloom-images';
 import type { Exercise } from '../lib/bloom';
 import { useBloomTheme } from '../lib/theme-context';

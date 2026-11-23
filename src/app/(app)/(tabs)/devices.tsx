@@ -1,3 +1,4 @@
+import { getAppLocale } from '../../../lib/locale-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router, useFocusEffect, type Href } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
@@ -26,7 +27,7 @@ function DeviceRow({ device, current = false, onPress }: { device: BloomDevice; 
     <MaterialIcons name={icon} size={22} color={theme.colors.action} />
     <View style={sharedStyles.grow}>
       <Label>{device.display_name}</Label>
-      <Body>{current ? 'This device' : device.platform} · last seen {new Date(device.last_seen_at).toLocaleString()}</Body>
+      <Body>{current ? 'This device' : device.platform} · last seen {new Date(device.last_seen_at).toLocaleString(getAppLocale())}</Body>
       <Body>{stale ? 'Status may be out of date; this device has not checked in recently.' : `${device.blockingState === 'on' ? 'Blocking on' : device.blockingState === 'off' ? 'Blocking off' : device.blockingState === 'needs_attention' ? 'Blocking needs attention' : 'Blocking status unavailable'} · ${device.permissionState === 'allowed' ? 'permission allowed' : device.permissionState === 'needs_setup' ? 'permission needs setup' : 'permission status unavailable'}`}</Body>
     </View>
     <MaterialIcons name="chevron-right" size={22} color={theme.colors.inkMuted} style={I18nManager.isRTL ? styles.directionalIcon : undefined} />
@@ -114,7 +115,7 @@ export default function DevicesScreen() {
           { label: 'Focus support', value: nativeStatus.supported ? 'Supported on this device' : 'Unavailable in this app build' },
           { label: 'Permission', value: nativeStatus.supported ? nativeStatus.authorized ? 'Allowed' : 'Needs setup' : 'Not available' },
           { label: 'Blocking', value: nativeStatus.supported ? nativeStatus.active ? 'On' : 'Off' : 'Not available' },
-          { label: 'Selected targets', value: (nativeStatus.appCount + nativeStatus.websiteCount + nativeStatus.categoryCount).toLocaleString() },
+          { label: 'Selected targets', value: (nativeStatus.appCount + nativeStatus.websiteCount + nativeStatus.categoryCount).toLocaleString(getAppLocale()) },
         ];
         if (Platform.OS === 'android' && nativeStatus.active && nativeStatus.serviceConnected === false) {
           checks[2] = { label: 'Blocking service', value: 'Needs attention' };
@@ -214,7 +215,7 @@ export default function DevicesScreen() {
           {device?.checks.map((check) => <View key={check.label} style={sharedStyles.row}>
             <View style={sharedStyles.grow}><Body>{check.label}</Body></View><Label>{check.value}</Label>
           </View>)}
-          {device?.checkedAt && <Body>Checked {new Date(device.checkedAt).toLocaleTimeString()} on this device.</Body>}
+          {device?.checkedAt && <Body>Checked {new Date(device.checkedAt).toLocaleTimeString(getAppLocale())} on this device.</Body>}
           {visibleDeviceId && <Button label="Open this device’s details" variant="secondary" onPress={() => router.push({ pathname: '/device-detail', params: { deviceId: visibleDeviceId } } as unknown as Href)} />}
           <Button label="Refresh device status" variant="secondary" onPress={() => void refresh()} busy={loading} />
           <Button label="Open Focus controls" onPress={() => router.push('/focus')} />
@@ -229,10 +230,10 @@ export default function DevicesScreen() {
           <Eyebrow>Rule sync</Eyebrow>
           {blockingRulesSyncError ? <>
             <ErrorText>{blockingRulesSyncError}</ErrorText>
-            {blockingRulesSyncedAt && <Body>Last successful sync: {new Date(blockingRulesSyncedAt).toLocaleString()}.</Body>}
+            {blockingRulesSyncedAt && <Body>Last successful sync: {new Date(blockingRulesSyncedAt).toLocaleString(getAppLocale())}.</Body>}
             {!blockingRulesSyncedAt && <Body>No successful sync has been recorded on this device yet.</Body>}
           </> : blockingRulesSyncedAt
-            ? <Body>{blockingRulesSyncStatus ?? 'Current'} · last confirmed {new Date(blockingRulesSyncedAt).toLocaleString()}</Body>
+            ? <Body>{blockingRulesSyncStatus ?? 'Current'} · last confirmed {new Date(blockingRulesSyncedAt).toLocaleString(getAppLocale())}</Body>
             : <Body>Bloom has not confirmed a rule sync on this device yet.</Body>}
         </Panel>}
       </View>

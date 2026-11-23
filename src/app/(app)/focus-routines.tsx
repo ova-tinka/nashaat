@@ -1,10 +1,11 @@
+import { getAppLocale } from '../../lib/locale-context';
 import { randomUUID } from 'expo-crypto';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Switch, View } from 'react-native';
 import BloomBlocking from '../../../modules/bloom-blocking/src/BloomBlockingModule';
 import type { AppCandidate, BlockingStatus } from '../../../modules/bloom-blocking/src/BloomBlocking.types';
-import { Body, Button, ErrorText, Eyebrow, Field, Heading, Label, Panel, Screen, sharedStyles } from '../../components/bloom-ui';
+import { Body, Button, ErrorText, Eyebrow, Field, Heading, Label, Panel, Screen, sharedStyles, LocalizedText as Text } from '../../components/bloom-ui';
 import { useAuth } from '../../lib/auth';
 import { useBloomTheme } from '../../lib/theme-context';
 import { canonicalWebsiteDomain } from '../../lib/website-domain';
@@ -115,7 +116,7 @@ function AndroidScheduledFocusScreen() {
         {routines.map((routine) => <Panel key={routine.id}>
           <View style={sharedStyles.row}><View style={sharedStyles.grow}><Label>{routine.name}</Label><Body>{routine.days.map((day) => dayNames[day]).join(', ')} · {formatTime(routine.startMinute)}–{formatTime(routine.endMinute)}{routine.endMinute < routine.startMinute ? ' next day' : ''}</Body></View><Switch accessibilityLabel={`Enable ${routine.name}`} value={routine.enabled} disabled={busy} onValueChange={(enabled) => void update(routines.map((item) => item.id === routine.id ? { ...item, enabled } : item))} /></View>
           <Body>{routine.apps.length} apps · {routine.websites.length} websites{active(routine, now) ? enforced ? ' · Active now' : ' · Scheduled now; enforcement unavailable' : ''}</Body>
-          {nextActivation(routine, now) && <Body>Next start: {nextActivation(routine, now)?.toLocaleString()}</Body>}
+          {nextActivation(routine, now) && <Body>Next start: {nextActivation(routine, now)?.toLocaleString(getAppLocale())}</Body>}
           <Button label={`Edit ${routine.name}`} variant="secondary" onPress={() => { setDraft(asDraft(routine)); setError(null); }} disabled={busy} />
           <Button label={`Delete ${routine.name}`} variant="tertiary" onPress={() => void update(routines.filter((item) => item.id !== routine.id))} disabled={busy} />
         </Panel>)}
@@ -266,7 +267,7 @@ function IosScheduledFocusScreen() {
             <Switch accessibilityLabel={`Enable ${routine.name}`} value={routine.enabled} disabled={busy} onValueChange={(enabled) => void updateRoutine({ ...routine, enabled })} />
           </View>
           <Body>{routine.appCount} apps · {routine.websiteCount} websites · {routine.categoryCount} categories{routine.active ? enforced ? ' · Active now' : ' · Scheduled now; enforcement unavailable' : ''}</Body>
-          {routine.enabled && !routine.active && next && <Body>Next start: {next.toLocaleString()}</Body>}
+          {routine.enabled && !routine.active && next && <Body>Next start: {next.toLocaleString(getAppLocale())}</Body>}
           <Button label={`Choose apps for ${routine.name}`} variant="secondary" onPress={() => void chooseApps(routine.id)} disabled={busy} />
           <Button label={`Edit ${routine.name}`} variant="secondary" onPress={() => { setDraft(iosDraft(routine)); setSelection({ appCount: routine.appCount, websiteCount: routine.websiteCount, categoryCount: routine.categoryCount }); setError(null); }} disabled={busy} />
           <Button label={`Delete ${routine.name}`} variant="tertiary" onPress={() => void removeRoutine(routine.id)} disabled={busy} />

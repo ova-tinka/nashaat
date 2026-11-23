@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
 import type { AppCandidate } from '../../modules/bloom-blocking/src/BloomBlocking.types';
 import { useBloomTheme } from '../lib/theme-context';
-import { Body, Field, Label } from './bloom-ui';
+import { Body, Field, Label, LocalizedText as Text } from './bloom-ui';
 
 /** The device's installed-app inventory is shared, but every caller owns its selection. */
 export function FocusAppPicker({ apps, selected, onChange, requiredIds = [] }: { apps: AppCandidate[]; selected: string[]; onChange: (selected: string[]) => void; requiredIds?: string[] }) {

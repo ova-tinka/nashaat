@@ -1,5 +1,6 @@
+import { LocalizedText as Text } from './bloom-ui';
 import { useState } from 'react';
-import { Pressable, Text, View, useWindowDimensions } from 'react-native';
+import { Pressable, View, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
 import {
   BloomMark,

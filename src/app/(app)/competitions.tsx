@@ -1,7 +1,8 @@
+import { getAppLocale } from '../../lib/locale-context';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Share, Text, View } from 'react-native';
-import { Body, Button, ErrorText, Eyebrow, Field, Heading, Label, Panel, Screen, sharedStyles } from '../../components/bloom-ui';
+import { ActivityIndicator, Share, View } from 'react-native';
+import { Body, Button, ErrorText, Eyebrow, Field, Heading, Label, Panel, Screen, sharedStyles, LocalizedText as Text } from '../../components/bloom-ui';
 import { useAuth } from '../../lib/auth';
 import { localCompetitionDate, parseCompetitionDate } from '../../lib/competition-dates';
 import { acceptCompetitionLink, acceptFriendInvite, competitionResults, createCompetitionLink, inviteFriend, joinPublicCompetition,
@@ -114,7 +115,7 @@ export default function CompetitionsScreen() {
         const ended = new Date(event.ends_at).getTime() <= now;
         return <Panel key={event.id}>
           <Label>{event.title} · {event.visibility} · {event.status}</Label>{event.description && <Body>{event.description}</Body>}
-          <Body>{new Date(event.starts_at).toLocaleString()} – {new Date(event.ends_at).toLocaleString()} · {event.metric === 'workouts' ? 'completed workouts' : 'active workout minutes'} · up to {event.max_participants} people</Body>
+          <Body>{new Date(event.starts_at).toLocaleString(getAppLocale())} – {new Date(event.ends_at).toLocaleString(getAppLocale())} · {event.metric === 'workouts' ? 'completed workouts' : 'active workout minutes'} · up to {event.max_participants} people</Body>
           <Body>Only saved workouts completed during the event after approval count. For minutes, the workout must also start after the event and approval; pause the timer during breaks.</Body>
           {membership && <Body>Your participation: {membership.status === 'pending_parent' ? 'waiting for parent approval' : membership.status}</Body>}
           {event.status === 'draft' && home.admin && <><Button label="Edit draft" secondary onPress={() => editDraft(event)} disabled={busy} /><Button label="Publish public event" onPress={() => void run(() => publishCompetition(event.id), 'Public event published.')} busy={busy} /></>}

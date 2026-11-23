@@ -1,4 +1,5 @@
 import { Tabs, usePathname } from 'expo-router';
+import { useCallback, useMemo, useState } from 'react';
 import { Platform, useWindowDimensions } from 'react-native';
 import { BloomBottomNavigation } from '../../../components/app-shell';
 import { BloomFloatingDockContext } from '../../../components/bloom-ui';
@@ -8,10 +9,16 @@ export default function TabLayout() {
   const pathname = usePathname();
   const { width } = useWindowDimensions();
   const desktop = isMacDesktop() || (Platform.OS === 'web' && width >= 1024);
+  const [dockHeight, setDockHeight] = useState(0);
   const immersive = pathname === '/session' || ['/apps/read/item', '/apps/read/add', '/apps/read/edit', '/apps/read/session', '/apps/read/session-complete'].includes(pathname) || pathname.startsWith('/apps/read/reader/')
     || ['/apps/study/active-session', '/apps/study/session-complete', '/apps/study/learning-check'].includes(pathname);
+  const reportDockHeight = useCallback((height: number) => {
+    setDockHeight((current) => current === height ? current : height);
+  }, []);
+  const dockState = useMemo(() => ({ visible: !desktop && !immersive, height: dockHeight, reportHeight: reportDockHeight }),
+    [desktop, dockHeight, immersive, reportDockHeight]);
 
-  return <BloomFloatingDockContext.Provider value={!desktop && !immersive}><Tabs tabBar={desktop || immersive ? () => null : () => <BloomBottomNavigation />} screenOptions={{
+  return <BloomFloatingDockContext.Provider value={dockState}><Tabs tabBar={desktop || immersive ? () => null : () => <BloomBottomNavigation />} screenOptions={{
     headerShown: false,
     tabBarStyle: { backgroundColor: 'transparent', borderTopColor: 'transparent', borderTopWidth: 0, elevation: 0 },
   }}>

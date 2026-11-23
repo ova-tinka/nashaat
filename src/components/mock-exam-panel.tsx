@@ -1,3 +1,4 @@
+import { getAppLocale } from '../lib/locale-context';
 import { randomUUID } from 'expo-crypto';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Switch, StyleSheet, View } from 'react-native';
@@ -274,7 +275,7 @@ export function MockExamPanel({ profileId, items, records, readOnly, onSaved }: 
       <Label>{record.title} · {definition.questions.length} questions · {definition.time_limit_minutes} min</Label>
       <Body>Source / rubric: {String(record.metadata.source_reference ?? 'Not set')}</Body>
       {examAttempts.filter((attempt) => attempt.examId === record.id).slice(0, 3).map(({ record: attemptRecord, parsed }) => <View key={attemptRecord.id} style={styles.record}>
-        <Label>{parsed ? `${parsed.score}% · ${new Date(attemptRecord.created_at).toLocaleString()}` : 'Attempt saved'}</Label>
+        <Label>{parsed ? `${parsed.score}% · ${new Date(attemptRecord.created_at).toLocaleString(getAppLocale())}` : 'Attempt saved'}</Label>
         {parsed?.uncertainty && <Body>{parsed.uncertainty}</Body>}
         {parsed?.results.map((result) => <View key={result.question_id}>
           <Body>Your answer: {result.answer || 'Skipped'}</Body>

@@ -2,10 +2,11 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from '../lib/auth';
+import { LocaleProvider } from '../lib/locale-context';
 import { ThemeProvider, useBloomTheme } from '../lib/theme-context';
 
 export default function RootLayout() {
-  return <ThemeProvider initialMode="light"><SafeAreaProvider><AuthProvider><RootNavigator /></AuthProvider></SafeAreaProvider></ThemeProvider>;
+  return <LocaleProvider><ThemeProvider initialMode="light"><SafeAreaProvider><AuthProvider><RootNavigator /></AuthProvider></SafeAreaProvider></ThemeProvider></LocaleProvider>;
 }
 
 function RootNavigator() {

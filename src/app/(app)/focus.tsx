@@ -184,7 +184,7 @@ export default function FocusScreen() {
 
   async function finishActualUsage() {
     const userId = profileId;
-    if (!userId || !usageRequest) { setError('The device key for this reservation is unavailable.'); return; }
+    if (!userId || !usageRequest) { setError('This saved screen-time request is unavailable. Refresh your account and try again.'); return; }
     setBusy(true); setError(null);
     try {
       const closed = await BloomBlocking.closeUsageAccess(userId);
@@ -211,7 +211,7 @@ export default function FocusScreen() {
       setUsageRequest(null);
       await refresh();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not clear the reservation. Connect and try again.');
+      setError(cause instanceof Error ? cause.message : 'Could not cancel the screen-time request. Connect and try again.');
     } finally { setBusy(false); }
   }
 
@@ -390,14 +390,14 @@ export default function FocusScreen() {
   const earnedAccessContent = creditsEnabled && creditSettings ? <Panel>
     <Eyebrow>Shared balance</Eyebrow>
     {creditSettings.credit_mode === 'easy' ? <>
-      <Label>{usage ? `${Math.ceil(usage.remainingMillis / 60000)} minutes left in this reservation` : `${Math.round(creditBalance * 100) / 100} minutes available`}</Label>
+      <Label>{usage ? `${Math.ceil(usage.remainingMillis / 60000)} minutes left in this screen-time session` : `${Math.round(creditBalance * 100) / 100} minutes available`}</Label>
       {usage && usage.userId !== profileId ? <Body>Another account has a session on this device. Sign in to that account to finish it.</Body> : usage ? <>
-        <Body>{usage.closed ? 'This access window has ended. Sync it to settle the server-timed amount.' : 'This access window keeps running while the selected app is idle.'}</Body>
-        <Button label={usage.closed ? 'Sync screen-time session' : 'Finish screen-time session'} onPress={() => void finishActualUsage()} busy={busy} />
+        <Body>{usage.closed ? 'This screen-time session has ended. Update your balance.' : 'Your minutes keep counting while the selected app is idle.'}</Body>
+        <Button label={usage.closed ? 'Update balance' : 'Finish screen-time session'} onPress={() => void finishActualUsage()} busy={busy} />
       </> : <>
-        {usageRequest ? <Body>Retrying a previous screen-time reservation.</Body> : <Field label="Minutes to reserve" value={minutes} onChangeText={setMinutes} keyboardType="decimal-pad" />}
-        <Button label={usageRequest ? 'Retry reservation' : 'Use screen time'} onPress={() => void startActualUsage()} busy={busy} disabled={loading} />
-        {usageRequest && <Button label="Cancel pending reservation" variant="secondary" onPress={() => void cancelPendingUsage()} busy={busy} />}
+        {usageRequest ? <Body>Retrying your previous request for screen time.</Body> : <Field label="Minutes to unlock" value={minutes} onChangeText={setMinutes} keyboardType="decimal-pad" />}
+        <Button label={usageRequest ? 'Retry request' : 'Use screen time'} onPress={() => void startActualUsage()} busy={busy} disabled={loading} />
+        {usageRequest && <Button label="Cancel request" variant="secondary" onPress={() => void cancelPendingUsage()} busy={busy} />}
       </>}
     </> : <>
       <Label>{remaining > 0 ? `${Math.ceil(remaining / 60000)} minutes left on this device` : `${Math.round(creditBalance * 100) / 100} minutes available`}</Label>

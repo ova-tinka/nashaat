@@ -33,6 +33,12 @@ export type GrowthItem = {
   updated_at: string;
 };
 
+export function getReadingStatus(item: Pick<GrowthItem, 'reading_status' | 'state' | 'progress_percent'>): ReadingStatus {
+  if (item.reading_status) return item.reading_status;
+  if (item.state === 'completed') return 'finished';
+  return item.progress_percent > 0 ? 'currently_reading' : 'want_to_read';
+}
+
 export type GrowthSession = {
   id: string;
   module_id: 'study' | 'read';
@@ -154,6 +160,40 @@ export async function loadGrowthModule(profileId: string, moduleId: GrowthModule
       duration_seconds: session.duration_seconds == null ? null : Number(session.duration_seconds) })) as TaskFocusSession[],
     recordAttachments: (recordAttachments.data ?? []) as GrowthRecordAttachment[],
   };
+}
+
+export async function loadStudyPlanModule(profileId: string): Promise<GrowthModuleData> {
+  const db = client();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15_000);
+  try {
+    const [items, sessions, studyPlan, studyPlanChanges] = await Promise.all([
+      growthQuery('bloom_growth_items', db.from('bloom_growth_items')
+        .select('id,parent_id,module_id,item_type,title,notes,state,due_date,target_minutes,progress_percent,priority,postponed_until,reading_status,reading_kind,author,genre,page_count,current_page,artwork_id,completed_at,created_at,updated_at')
+        .eq('profile_id', profileId).eq('module_id', 'study').order('updated_at', { ascending: false }).abortSignal(controller.signal)),
+      growthQuery('bloom_growth_sessions', db.from('bloom_growth_sessions')
+        .select('id,module_id,item_id,source_device_id,source_device_name,request_id,status,started_at,completed_at,duration_seconds')
+        .eq('profile_id', profileId).eq('module_id', 'study').order('started_at', { ascending: false }).limit(50).abortSignal(controller.signal)),
+      growthQuery('bloom_study_plan_slots', db.from('bloom_study_plan_slots')
+        .select('id,item_id,day_of_week,target_minutes').eq('profile_id', profileId).order('day_of_week').abortSignal(controller.signal)),
+      growthQuery('bloom_study_plan_changes', db.from('bloom_study_plan_changes')
+        .select('item_id,original_date,action,moved_to_date').eq('profile_id', profileId).order('original_date').abortSignal(controller.signal)),
+    ]);
+    return {
+      items: (items.data ?? []).map((item) => ({ ...item, progress_percent: Number(item.progress_percent) })) as GrowthItem[],
+      sessions: (sessions.data ?? []) as GrowthSession[],
+      records: [],
+      studyPlan: (studyPlan.data ?? []).map((slot) => ({ ...slot, day_of_week: Number(slot.day_of_week), target_minutes: Number(slot.target_minutes) })) as StudyPlanSlot[],
+      studyPlanChanges: (studyPlanChanges.data ?? []) as StudyPlanChange[],
+      taskFocusSessions: [],
+      recordAttachments: [],
+    };
+  } catch (cause) {
+    if (controller.signal.aborted) throw new GrowthDataQueryError('Study plan', 'TIMEOUT');
+    throw cause;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export async function loadReadSessionsSince(profileId: string, startedAfter: string): Promise<GrowthSession[]> {

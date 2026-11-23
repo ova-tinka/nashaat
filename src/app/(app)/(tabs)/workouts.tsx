@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { Body, Button, ErrorText, Eyebrow, Heading, Label, Panel, Screen, sharedStyles } from '../../../components/bloom-ui';
 import { deletePlan, formatScheduledDays, startWorkout } from '../../../lib/bloom';
+import { getAppLocale } from '../../../lib/locale-context';
 import { useBloom } from '../../../lib/bloom-context';
 import { useBloomTheme } from '../../../lib/theme-context';
 
@@ -43,7 +44,7 @@ export default function WorkoutsScreen() {
     {actionError && <ErrorText>{actionError}</ErrorText>}
     {!loading && !error && plans.length === 0 && <Panel><Label>No workout plans yet</Label><Body>Choose exercises and create your first plan.</Body></Panel>}
     {plans.map((plan) => <Panel key={plan.id}>
-      <Eyebrow>Workout plan</Eyebrow><Label>{plan.title}</Label><Body>{formatScheduledDays(plan.scheduled_days)}</Body>
+      <Eyebrow>Workout plan</Eyebrow><Label>{plan.title}</Label><Body>{formatScheduledDays(plan.scheduled_days, getAppLocale())}</Body>
       {[...plan.bloom_plan_exercises].sort((a, b) => a.position - b.position).map((item) => <View key={item.position} style={sharedStyles.row}>
         <View style={sharedStyles.grow}><Body>{item.exercise?.name ?? 'Exercise unavailable'}</Body></View>
         <Body>{item.sets} × {item.target_reps !== null ? `${item.target_reps} reps` : `${item.target_seconds} sec`}{item.target_weight_kg !== null ? ` · ${item.target_weight_kg} kg` : ''}{item.target_distance_km !== null ? ` · ${item.target_distance_km} km` : ''}</Body>

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Body, Button, Label, Panel } from './bloom-ui';
 import { formatScheduledDays, SCHEDULE_DAYS, type Exercise } from '../lib/bloom';
+import { getAppLocale } from '../lib/locale-context';
 import type { CoachProposal } from '../lib/coach';
 
 export function CoachProposalCard({ proposal, catalog, canApprove, busy, onDecision, requireConfirmation = false, subjectLabel = 'this profile' }: {
@@ -8,11 +9,11 @@ export function CoachProposalCard({ proposal, catalog, canApprove, busy, onDecis
 }) {
   const [pendingDecision, setPendingDecision] = useState<boolean | null>(null);
   const plan = proposal.proposal;
-  const restDays = SCHEDULE_DAYS.filter((day) => !plan.scheduled_days.includes(day.iso)).map((day) => day.label);
+  const restDays = SCHEDULE_DAYS.filter((day) => !plan.scheduled_days.includes(day.iso)).map((day) => formatScheduledDays([day.iso], getAppLocale()));
   return <Panel>
     <Label>{plan.title} · {proposal.status}</Label>
     <Body>{plan.explanation}</Body>
-    <Body>{plan.plan_id ? 'Changes an existing plan' : 'Creates a new plan'} · {formatScheduledDays(plan.scheduled_days)}</Body>
+    <Body>{plan.plan_id ? 'Changes an existing plan' : 'Creates a new plan'} · {formatScheduledDays(plan.scheduled_days, getAppLocale())}</Body>
     <Body>Planned recovery: {restDays.length ? restDays.join(' · ') : 'No full rest day in this proposal. Edit the schedule to leave room for recovery.'}</Body>
     {plan.exercises.map((exercise, index) => {
       const existing = catalog.find((item) => item.id === exercise.exercise_id);
@@ -28,7 +29,7 @@ export function CoachProposalCard({ proposal, catalog, canApprove, busy, onDecis
         <Button label="Review approval" onPress={() => setPendingDecision(true)} disabled={busy} />
         <Button label="Review rejection" variant="secondary" onPress={() => setPendingDecision(false)} disabled={busy} />
       </> : <>
-        <Body>Confirm {pendingDecision ? 'applying' : 'rejecting'} “{plan.title}” for {subjectLabel}? The server records this proposal decision.</Body>
+        <Body>Confirm {pendingDecision ? 'applying' : 'rejecting'} “{plan.title}” for {subjectLabel}? Bloom will save your choice.</Body>
         <Button label={pendingDecision ? 'Confirm and apply plan' : 'Confirm rejection'} variant={pendingDecision ? 'primary' : 'destructive'} onPress={() => { const decision = pendingDecision; setPendingDecision(null); onDecision(decision); }} busy={busy} />
         <Button label="Cancel" variant="secondary" onPress={() => setPendingDecision(null)} disabled={busy} />
       </> : <>

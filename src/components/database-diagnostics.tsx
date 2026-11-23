@@ -1,3 +1,4 @@
+import { getAppLocale } from '../lib/locale-context';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Platform, View } from 'react-native';
 import BloomBlocking from '../../modules/bloom-blocking/src/BloomBlockingModule';
@@ -86,7 +87,7 @@ function Section<T>({ title, result, render }: {
 function timestamp(value: string | null | undefined) {
   if (!value) return '—';
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString(getAppLocale());
 }
 
 function duration(milliseconds: number | null | undefined) {

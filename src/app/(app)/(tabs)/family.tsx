@@ -1,9 +1,10 @@
+import { getAppLocale } from '../../../lib/locale-context';
 import { randomUUID } from 'expo-crypto';
 import { router, useFocusEffect, type Href } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Body, Button, ErrorText, Eyebrow, Field, Heading, Label, Panel, Screen, sharedStyles, useIsDesktopLayout } from '../../../components/bloom-ui';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { Body, Button, ErrorText, Eyebrow, Field, Heading, Label, Panel, Screen, sharedStyles, useIsDesktopLayout, LocalizedText as Text } from '../../../components/bloom-ui';
 import { useAuth } from '../../../lib/auth';
 import { createChildAccountLink, createChildInvite, createFamily, createManagedChildProfile, deleteUnpairedChildProfile, joinFamily, leaveOrRemoveChild, loadFamilies, loadFamilyChildSummary, prepareChildPairing, type Family } from '../../../lib/family';
 import { moduleManifest } from '../../../lib/module-manifest';
@@ -184,7 +185,7 @@ export default function FamilyScreen() {
           {recentActivity.length > 0 && <>
             <Eyebrow>Recent Exercise</Eyebrow>
             {recentActivity.slice(0, 2).map((activity) => <Body key={`${activity.id}:${activity.childName}`}>
-              {activity.childName} · {activity.plan_title} · {new Date(activity.completed_at).toLocaleDateString()}
+              {activity.childName} · {activity.plan_title} · {new Date(activity.completed_at).toLocaleDateString(getAppLocale())}
             </Body>)}
           </>}
           {recentActivity.length > 0 && summariesError && <Body>Some children’s activity could not be loaded.</Body>}
@@ -287,7 +288,7 @@ function FamilyChildOverview({ childId, name, state }: { childId: string; name: 
     {state?.error && <ErrorText>Could not load this child’s family overview. Refresh to retry.</ErrorText>}
     {summary && <>
       <Body>Assigned modules: {moduleNames.length ? moduleNames.join(', ') : 'None'}</Body>
-      <Body>Available screen time: {summary.balance.toLocaleString(undefined, { maximumFractionDigits: 2 })} min</Body>
+      <Body>Available screen time: {summary.balance.toLocaleString(getAppLocale(), { maximumFractionDigits: 2 })} min</Body>
       <Body>This week: {summary.analytics.weekly_workout_target === null
         ? `${summary.analytics.workouts_completed} workouts completed`
         : `${summary.analytics.workouts_completed} of ${summary.analytics.weekly_workout_target} workouts`}</Body>
@@ -297,7 +298,7 @@ function FamilyChildOverview({ childId, name, state }: { childId: string; name: 
       {summary.pendingCoaching > 0 && <Button label={`Review ${name}’s workout proposals`} secondary onPress={() => router.push({ pathname: '/child-coaching', params: { childId, name } } as unknown as Href)} />}
       {summary.pendingCompetitions > 0 && <Button label={`Review ${name}’s event requests`} secondary onPress={() => router.push({ pathname: '/child-competitions', params: { childId, name } } as unknown as Href)} />}
       {summary.analytics.history.slice(0, 2).map((activity) => <Body key={activity.id}>
-        Recent · {activity.plan_title} · {new Date(activity.completed_at).toLocaleDateString()}
+        Recent · {activity.plan_title} · {new Date(activity.completed_at).toLocaleDateString(getAppLocale())}
       </Body>)}
     </>}
   </View>;

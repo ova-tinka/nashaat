@@ -1,3 +1,4 @@
+import { getAppLocale } from '../lib/locale-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { randomUUID } from 'expo-crypto';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
@@ -185,9 +186,9 @@ export function MacosFocus({ initialSection }: {
       if (result.status === 'rejected') {
         await AsyncStorage.removeItem(macCreditMarker(profileId));
         setCreditRecoveryStatus('rejected');
-        throw new Error('The server did not accept this screen-time request. Your saved request can be retried after the balance or session issue is resolved.');
+        throw new Error('Bloom could not start this screen-time session. Check your balance and active sessions, then try again.');
       }
-      if (result.status !== 'allowed') throw new Error('The server did not confirm this screen-time session.');
+      if (result.status !== 'allowed') throw new Error('Bloom could not confirm this screen-time session. Please try again.');
       await AsyncStorage.setItem(macCreditMarker(profileId), JSON.stringify({ ...marker, state: 'active' }));
       await AsyncStorage.removeItem(pendingKey); setPending(null);
       setCreditRecoveryStatus('active');
@@ -220,14 +221,14 @@ export function MacosFocus({ initialSection }: {
 
   async function finishActualUsage() {
     const userId = profileId;
-    if (!userId) { setError('Sign in to finish this reservation.'); return; }
+    if (!userId) { setError('Sign in to finish this screen-time session.'); return; }
     setBusy(true); setError(null);
     try {
       const request = parseMacUsageRequest(await AsyncStorage.getItem(usageKey));
-      if (!request) throw new Error('The device key for this reservation is unavailable.');
+      if (!request) throw new Error('This saved screen-time request is unavailable. Refresh your account and try again.');
       const local = (await macosFilter('getUsageAccess')).usage;
       const existing = await findUsageSession(userId, request.requestId);
-      if (!matchesMacUsageReservation(userId, local, existing) || !existing) throw new Error('The saved reservation does not match this account and session.');
+      if (!matchesMacUsageReservation(userId, local, existing) || !existing) throw new Error('This screen-time request belongs to a different account or session.');
       const closed = (await macosFilter('closeUsageAccess', undefined, undefined, undefined, undefined, { userId })).usage;
       if (!closed) throw new Error('No screen-time session was found on this Mac.');
       if (closed.sessionId !== existing.id || closed.userId !== userId) throw new Error('The screen-time session changed. Retry sync.');
@@ -249,7 +250,7 @@ export function MacosFocus({ initialSection }: {
       const existing = await findUsageSession(userId, usageRequest.requestId);
       if (existing && !existing.settled_at) await finishUsageSession(existing.id, usageRequest.deviceKey);
       await AsyncStorage.removeItem(usageKey); setUsageRequest(null); await refresh();
-    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not clear the reservation. Connect and try again.'); }
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not cancel the screen-time request. Connect and try again.'); }
     finally { setBusy(false); }
   }
 
@@ -459,7 +460,7 @@ export function MacosFocus({ initialSection }: {
       <Body>Apps: {appCheck === 'available' ? appEnabled ? 'On' : 'Off' : 'Unknown'} · Websites: {websiteCheck === 'available' ? enabled ? 'On' : 'Off' : 'Unknown'}</Body>
       {configuredTargetCount > 0 && <Body>{configuredTargetCount} {configuredTargetCount === 1 ? 'app or website' : 'apps and websites'} selected.</Body>}
       {(appHideFailed || (enabled && (!websiteUsageAvailable || !websiteProviderHealthy))) && <Body>One protection service needs attention. Open its section below for the next step.</Body>}
-      {blockingRulesSyncedAt && !blockingRulesSyncError && <Body>Family rules last synced {new Date(blockingRulesSyncedAt).toLocaleTimeString()}.</Body>}
+      {blockingRulesSyncedAt && !blockingRulesSyncError && <Body>Family rules last synced {new Date(blockingRulesSyncedAt).toLocaleTimeString(getAppLocale())}.</Body>}
       <Button label={appActionLabel} onPress={handleAppAction} disabled={busy || appCheck !== 'available'} busy={busy} />
       <Button label="Refresh status" variant="tertiary" onPress={() => void refreshProtection()} />
     </Panel>
@@ -586,21 +587,21 @@ export function MacosFocus({ initialSection }: {
     <MacFocusDisclosure title="Earned screen time" summary={creditSettings ? `${Math.round(creditBalance * 100) / 100} minutes in your shared balance` : 'Optional'} expanded={showEarnedAccess} onPress={() => setShowEarnedAccess((open) => !open)}>
       {showEarnedAccess && <View style={focusStyles.disclosureBody}>
         {creditsEnabled && creditSettings ? <>
-          {creditRecoveryStatus === 'checking' && <Body>Checking the original server session. Protection stays blocked until the owner and expiry are confirmed.</Body>}
+          {creditRecoveryStatus === 'checking' && <Body>Checking the existing access session. Apps stay blocked until Bloom confirms it is yours and still active.</Body>}
           {creditRecoveryStatus === 'blocked' && <Body>Bloom could not validate the previous countdown. Access remains blocked. Reconnect and reopen Bloom to retry.</Body>}
           {creditRecoveryStatus === 'expired' && <Body>The previous countdown expired. Request a new session to use any remaining balance.</Body>}
           {creditRecoveryStatus === 'rejected' && <Body>The server rejected this request. Check the balance and account before retrying.</Body>}
           {creditSettings.credit_mode === 'easy' ? <>
-            <Label>{usage ? `${Math.ceil(usage.remainingMillis / 60000)} minutes left in this reservation` : `${Math.round(creditBalance * 100) / 100} minutes available`}</Label>
-            <Body>This server-timed window continues while the selected app or website is idle. Finishing early returns unused time according to the server.</Body>
+            <Label>{usage ? `${Math.ceil(usage.remainingMillis / 60000)} minutes left in this screen-time session` : `${Math.round(creditBalance * 100) / 100} minutes available`}</Label>
+            <Body>Your reserved minutes keep counting while the selected app or website is idle. If you finish early, unused time returns to your balance.</Body>
             {usage && usage.userId !== profileId ? <Body>Another account has a session on this Mac. Sign in to finish it.</Body> : usage ? <>
               {!usage.closed && usage.verified !== true && <><Body>This session needs server verification before granting access.</Body><Button label="Verify session" onPress={() => void startActualUsage()} busy={busy} /></>}
               <Body>{usage.closed ? 'The access window ended. Sync it to settle the session.' : usage.tracking ? 'A selected target is detected.' : 'No selected target is detected. The timer continues while idle.'}</Body>
               <Button label={usage.closed ? 'Sync screen-time session' : 'Finish screen-time session'} onPress={() => void finishActualUsage()} busy={busy} />
             </> : <>
-              {usageRequest ? <Body>Retrying a previous reservation.</Body> : <Field label="Minutes to reserve" value={minutes} onChangeText={setMinutes} keyboardType="decimal-pad" />}
-              <Button label={usageRequest ? 'Retry reservation' : 'Use screen time'} onPress={() => void startActualUsage()} disabled={!appEnabled && !enabled || !usageAvailable || (enabled && !websiteUsageAvailable)} busy={busy} />
-              {usageRequest && <Button label="Cancel reservation" variant="secondary" onPress={() => void cancelPendingUsage()} busy={busy} />}
+              {usageRequest ? <Body>Retrying your previous request for screen time.</Body> : <Field label="Minutes to unlock" value={minutes} onChangeText={setMinutes} keyboardType="decimal-pad" />}
+              <Button label={usageRequest ? 'Retry request' : 'Use screen time'} onPress={() => void startActualUsage()} disabled={!appEnabled && !enabled || !usageAvailable || (enabled && !websiteUsageAvailable)} busy={busy} />
+              {usageRequest && <Button label="Cancel request" variant="secondary" onPress={() => void cancelPendingUsage()} busy={busy} />}
             </>}
           </> : <>
             <Label>{remaining > 0 ? `${Math.ceil(remaining / 60000)} minutes left` : `${Math.round(creditBalance * 100) / 100} minutes available`}</Label>

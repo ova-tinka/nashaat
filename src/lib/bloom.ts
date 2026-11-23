@@ -90,8 +90,12 @@ export const SCHEDULE_DAYS = [
   { label: 'Sun', iso: 7 }, { label: 'Mon', iso: 1 }, { label: 'Tue', iso: 2 },
   { label: 'Wed', iso: 3 }, { label: 'Thu', iso: 4 }, { label: 'Fri', iso: 5 }, { label: 'Sat', iso: 6 },
 ] as const;
-export function formatScheduledDays(days: number[]) {
-  const labels = SCHEDULE_DAYS.filter((day) => days.includes(day.iso)).map((day) => day.label);
+export function formatScheduledDays(days: number[], locale = 'en-GB') {
+  const weekdayFormatter = new Intl.DateTimeFormat(locale, { weekday: 'short', timeZone: 'UTC' });
+  const labels = SCHEDULE_DAYS.filter((day) => days.includes(day.iso)).map((day) => {
+    const weekdayIndex = day.iso === 7 ? 0 : day.iso;
+    return weekdayFormatter.format(new Date(Date.UTC(2023, 0, 1 + weekdayIndex, 12)));
+  });
   return labels.length ? labels.join(' · ') : 'Flexible schedule';
 }
 export type ActiveWorkout = { id: string; plan_id: string | null; started_at: string };

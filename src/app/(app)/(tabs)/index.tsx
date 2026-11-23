@@ -6,6 +6,7 @@ import { useAuth } from '../../../lib/auth';
 import { loadDevices, type BloomDevice } from '../../../lib/devices';
 import { useBloom } from '../../../lib/bloom-context';
 import { buildDailyScreenTimeTotals, summarizeWeeklyGoals, type DailyScreenTimeTotal } from '../../../lib/home-dashboard';
+import { getAppLocale } from '../../../lib/locale-context';
 import { loadGrowthActivity, loadWeeklyPillarActuals, loadWeeklyPillarGoals, type GrowthActivityEvent } from '../../../lib/growth-modules';
 
 type LoadState<T> = { profileId: string | null; data: T | null; loading: boolean; error: string | null };
@@ -43,7 +44,7 @@ export default function HomeScreen() {
       }),
       loadCreditLedger().then((entries) => {
         const timezone = creditSettings?.credit_timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
-        const totals = buildDailyScreenTimeTotals(entries, new Date(), timezone);
+        const totals = buildDailyScreenTimeTotals(entries, new Date(), timezone, getAppLocale());
         if (isCurrent()) setCreditState({ profileId, data: totals, loading: false, error: null });
       }).catch(() => {
         if (isCurrent()) setCreditState({ profileId, data: null, loading: false, error: 'Could not load recent credit history. Please try again.' });

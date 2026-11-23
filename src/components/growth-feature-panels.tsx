@@ -1,8 +1,9 @@
+import { getAppLocale } from '../lib/locale-context';
 import { randomUUID } from 'expo-crypto';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
-import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
-import { Body, Button, ErrorText, Eyebrow, Field, Label, Panel, ProgressBar, sharedStyles } from './bloom-ui';
+import { Pressable, StyleSheet, Switch, View } from 'react-native';
+import { Body, Button, ErrorText, Eyebrow, Field, Label, LocalizedText as Text, Panel, ProgressBar, sharedStyles } from './bloom-ui';
 import {
   changeStudyOccurrence, createGrowthChild, createGrowthItem, deleteGrowthRecord, finishTaskFocus, formatElapsed,
   saveGrowthRecord, saveStudyPlan, saveStudyVerification, startTaskFocus, submitStudyReview, updateGrowthItem, updateGrowthReadingDetails, updateGrowthRecord, updateStudyVerification,
@@ -964,10 +965,10 @@ function initialPlanValues(items: GrowthItem[], slots: StudyPlanSlot[]) {
 function shiftDateKey(value: string, count: number) { const date = new Date(`${value}T12:00:00Z`); date.setUTCDate(date.getUTCDate() + count); return date.toISOString().slice(0, 10); }
 function startOfWeekKey(value: string) { const date = new Date(`${value}T12:00:00Z`); date.setUTCDate(date.getUTCDate() - date.getUTCDay()); return date.toISOString().slice(0, 10); }
 function addDays(value: string, count: number) { return shiftDateKey(value, count); }
-function formatPlanDate(value: string) { return new Date(`${value}T12:00:00Z`).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }); }
+function formatPlanDate(value: string) { return new Date(`${value}T12:00:00Z`).toLocaleDateString(getAppLocale(), { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }); }
 function formatMinutes(value: number) { const hours = Math.floor(value / 60); const minutes = value % 60; return hours ? `${hours}h${minutes ? ` ${minutes}m` : ''}` : `${value} min`; }
 function humanType(value: string) { return value.replaceAll('_', ' '); }
-function formatDuration(seconds: number) { const mins = Math.floor(seconds / 60); const secs = seconds % 60; return mins ? `${mins} min${secs ? ` ${secs} sec` : ''}` : `${secs} sec`; }
+function formatDuration(seconds: number) { if (seconds >= 0 && seconds < 60) return '<1 min'; const mins = Math.floor(seconds / 60); const secs = seconds % 60; return mins ? `${mins} min${secs ? ` ${secs} sec` : ''}` : `${secs} sec`; }
 
 const styles = StyleSheet.create({
   row: { ...sharedStyles.row, gap: 8, paddingVertical: 8, flexWrap: 'wrap' },

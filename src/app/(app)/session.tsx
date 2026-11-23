@@ -1,8 +1,9 @@
+import { getAppLocale } from '../../lib/locale-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, TextInput, View } from 'react-native';
-import { Body, Button, ErrorText, Eyebrow, Heading, Label, Panel, Screen, sharedStyles } from '../../components/bloom-ui';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { Body, Button, ErrorText, Eyebrow, Heading, Label, Panel, Screen, sharedStyles, LocalizedText as Text, LocalizedTextInput as TextInput } from '../../components/bloom-ui';
 import { cancelWorkout, completeWorkout, loadWorkout, setWorkoutTimer, type ExerciseResult, type SessionExercise, type WorkoutSession } from '../../lib/bloom';
 import { useBloom } from '../../lib/bloom-context';
 import { useBloomTheme } from '../../lib/theme-context';
@@ -162,7 +163,7 @@ export default function WorkoutSessionScreen() {
     <View style={sharedStyles.column}><Eyebrow>Workout session</Eyebrow><Heading>{session?.status === 'completed' ? 'Workout saved' : 'Your workout'}</Heading></View>
     {loading && <ActivityIndicator color={theme.colors.action} />}
     {!loading && !session && <Panel><ErrorText>{error ?? 'Workout session not found.'}</ErrorText><Button label="Try again" onPress={() => void load()} /><Button label="Back to workouts" secondary onPress={() => router.replace('/workouts')} /></Panel>}
-    {session?.status === 'completed' && <Panel><Label>Your workout is recorded.</Label><Body>{!session.credits_enabled_at_completion ? 'Screen-time credits were turned off for this workout.' : Number(session.credits_earned_minutes) > 0 ? `You earned ${Number(session.credits_earned_minutes).toLocaleString(undefined, { maximumFractionDigits: 4 })} minutes of screen time.` : 'No screen-time credits were earned. Review your earning strategy in Profile.'}</Body><Button label="Back to workouts" onPress={() => router.replace('/workouts')} /></Panel>}
+    {session?.status === 'completed' && <Panel><Label>Your workout is recorded.</Label><Body>{!session.credits_enabled_at_completion ? 'Screen-time credits were turned off for this workout.' : Number(session.credits_earned_minutes) > 0 ? `You earned ${Number(session.credits_earned_minutes).toLocaleString(getAppLocale(), { maximumFractionDigits: 4 })} minutes of screen time.` : 'No screen-time credits were earned. Review your earning strategy in Profile.'}</Body><Button label="Back to workouts" onPress={() => router.replace('/workouts')} /></Panel>}
     {session?.status === 'cancelled' && <Panel><Label>This workout was cancelled.</Label><Button label="Back to workouts" onPress={() => router.replace('/workouts')} /></Panel>}
     {session?.status === 'in_progress' && <>
       <Body>Log the exercises you completed. Your entries stay on this device until you finish or cancel.</Body>

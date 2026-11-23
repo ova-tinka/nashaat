@@ -1,11 +1,12 @@
+import { getAppLocale } from '../lib/locale-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { randomUUID } from 'expo-crypto';
 import type { ComponentProps } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, ImageBackground, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, ImageBackground, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams, type Href } from 'expo-router';
-import { Body, Button, ErrorText, Eyebrow, FeatureTile, Field, Heading, Label, Panel, ProgressBar, Screen, sharedStyles } from './bloom-ui';
-import { cancelGrowthSession, createGrowthItem, createGrowthProject, finishGrowthSession, formatElapsed, GrowthDataQueryError, loadGrowthDocuments, loadGrowthModule, loadGrowthRewards, startGrowthSession, updateGrowthItem, updateGrowthReadingDetails, updateGrowthTaskMetadata, type GrowthDocument, type GrowthItem, type GrowthModuleId, type GrowthSession, type GrowthRecord, type GrowthRecordAttachment, type StudyPlanChange, type StudyPlanSlot, type TaskFocusSession, type TaskPriority, type ReadingStatus, type GrowthRewardEvent } from '../lib/growth-modules';
+import { Body, Button, ErrorText, Eyebrow, FeatureTile, Field, Heading, Label, LocalizedText as Text, Panel, ProgressBar, Screen, sharedStyles } from './bloom-ui';
+import { cancelGrowthSession, createGrowthItem, createGrowthProject, finishGrowthSession, formatElapsed, getReadingStatus, GrowthDataQueryError, loadGrowthDocuments, loadGrowthModule, loadStudyPlanModule, loadGrowthRewards, startGrowthSession, updateGrowthItem, updateGrowthReadingDetails, updateGrowthTaskMetadata, type GrowthDocument, type GrowthItem, type GrowthModuleId, type GrowthSession, type GrowthRecord, type GrowthRecordAttachment, type StudyPlanChange, type StudyPlanSlot, type TaskFocusSession, type TaskPriority, type ReadingStatus, type GrowthRewardEvent } from '../lib/growth-modules';
 import { GrowthHierarchyPanel, GrowthRecordPanel, ReadingDiscoveryPanel, StudyPlanPanel, StudyPracticeReviewPanel, StudyTutorPanel, TaskBreakdownPanel, TaskFocusPanel } from './growth-feature-panels';
 import { MockExamPanel } from './mock-exam-panel';
 import { GrowthDocumentLibraryPanel, StudyDocumentHelpPanel } from './growth-document-panels';
@@ -167,11 +168,13 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
     }
     setLoading(true); setError(null); setHasStaleSnapshot(false);
     try {
+      const planOnly = moduleId === 'study' && effectiveSectionId === 'plan';
       const [result, nextDocuments] = await Promise.all([
-        loadGrowthModule(profileId, moduleId), moduleId === 'tasks' ? Promise.resolve([]) : loadGrowthDocuments(moduleId),
+        planOnly ? loadStudyPlanModule(profileId) : loadGrowthModule(profileId, moduleId),
+        moduleId === 'tasks' || planOnly ? Promise.resolve([]) : loadGrowthDocuments(moduleId),
       ]);
       if (request !== refreshRequest.current) return;
-      const nextSubjectArtwork = moduleId === 'study'
+      const nextSubjectArtwork = moduleId === 'study' && !planOnly
         ? await loadStudySubjectArtworkPreferences(profileId, result.items)
         : null;
       if (request !== refreshRequest.current) return;
@@ -203,7 +206,7 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
         ? ` [${cause.resource}${cause.code ? ` · ${cause.code}` : ''}]` : '';
       setError(`${content.title} data isn’t available right now. Retry in a moment.${diagnostic}`);
     } finally { if (request === refreshRequest.current) setLoading(false); }
-  }, [content.title, moduleId, profileId]);
+  }, [content.title, effectiveSectionId, moduleId, profileId]);
 
   useFocusEffect(useCallback(() => {
     void refresh();
@@ -302,7 +305,7 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
       pendingStart.current = null;
       await refresh();
       if (moduleId === 'study') router.replace(sectionHref('study', 'active-session'));
-      else setNotice('Session started. Bloom records its start on the server.');
+      else setNotice('Session started. Bloom is timing your activity.');
     } catch (cause) {
       setError(cause instanceof Error && cause.message.includes('active session')
         ? 'Finish or cancel the current session before starting another.'
@@ -337,8 +340,8 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
       if (cancel && moduleId === 'study') router.replace(sectionHref('study', 'today'));
     } catch (cause) {
       setError(cause instanceof Error && cause.message.toLowerCase().includes('session has expired')
-        ? 'This server session expired after 12 hours. Cancel it to clear the session, then start a new one.'
-        : 'Could not save the session. Your server session remains available to retry.');
+        ? 'This session expired after 12 hours. Cancel it, then start a new one.'
+        : 'Could not save the session. Reconnect and try again.');
     } finally { setSaving(false); }
   }
 
@@ -407,13 +410,14 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
   const activeStudyItems = openItems.filter((item) => ['subject', 'course', 'lesson', 'assignment'].includes(item.item_type));
   const activeReadings = openItems.filter((item) => item.item_type === 'reading');
   const completedReadings = completedItems.filter((item) => item.item_type === 'reading');
-  const wantToRead = activeReadings.filter((item) => (item.reading_status ?? (item.progress_percent > 0 ? 'currently_reading' : 'want_to_read')) === 'want_to_read');
-  const currentlyReading = activeReadings.filter((item) => (item.reading_status ?? (item.progress_percent > 0 ? 'currently_reading' : 'want_to_read')) === 'currently_reading');
+  const wantToRead = activeReadings.filter((item) => getReadingStatus(item) === 'want_to_read');
+  const currentlyReading = activeReadings.filter((item) => getReadingStatus(item) === 'currently_reading');
   const completedStudySessions = sessions.filter((session) => session.status === 'completed');
   const studySubjects = activeStudyItems.filter((item) => item.item_type === 'subject');
   const studyTodaySessions = sessions.filter((session) => session.status === 'completed' && session.completed_at
     && dateKeyInTimeZone(Date.parse(session.completed_at), taskTimeZone) === todayInProfileTimeZone);
-  const studyTodayMinutes = Math.floor(studyTodaySessions.reduce((sum, session) => sum + (session.duration_seconds ?? 0), 0) / 60);
+  const studyTodaySeconds = studyTodaySessions.reduce((sum, session) => sum + (session.duration_seconds ?? 0), 0);
+  const studyTodayMinutes = Math.floor(studyTodaySeconds / 60);
   const studyTodayPlan = getTodaysStudyPlan(items, studyPlan, studyPlanChanges, todayInProfileTimeZone);
   const studyTodayPlannedMinutes = studyTodayPlan.reduce((sum, slot) => sum + slot.minutes, 0);
   const studyTodayProgress = studyTodayPlannedMinutes > 0 ? Math.min(100, Math.round(studyTodayMinutes / studyTodayPlannedMinutes * 100)) : null;
@@ -461,12 +465,15 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
       <Eyebrow>{activeSection.label}</Eyebrow><Heading>{activeSection.title}</Heading><Body>{activeSection.description}</Body>
     </View>}
 
-    {loading && <ActivityIndicator color={accent.deep} />}
+    {loading && <View style={styles.loadingNotice}>
+      <ActivityIndicator color={accent.deep} />
+      <Body>{moduleId === 'study' && effectiveSectionId === 'plan' ? 'Loading your weekly plan…' : `Loading ${content.title.toLowerCase()}…`}</Body>
+    </View>}
     {error && <View style={[styles.connectionNotice, { backgroundColor: theme.colors.surfaceSoft, borderColor: theme.colors.border }]}>
       <MaterialIcons name="cloud-off" size={19} color={theme.colors.dangerText} />
       <View style={sharedStyles.grow}>
       <ErrorText>{error}</ErrorText>
-        <Body>{hasStaleSnapshot ? 'Showing the last server snapshot. Reconnect to edit.' : 'Read-only until connected. Changes are not saved offline.'}</Body>
+        <Body>{hasStaleSnapshot ? 'Showing the last saved version. Reconnect to edit.' : 'Read-only until connected. Changes are not saved offline.'}</Body>
       </View>
       <Button label="Retry" variant="tertiary" onPress={() => void refresh()} />
     </View>}
@@ -506,7 +513,7 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
           {studyTodayProgress !== null && <Text style={[styles.todayPercent, { color: accent.deep }]}>{studyTodayProgress}%</Text>}
         </View>
         <View style={styles.todayMetrics}>
-          <StudyMetric value={formatMinutes(studyTodayMinutes)} label="studied" />
+          <StudyMetric value={studyTodaySessions.length ? formatTrackedMinutes(studyTodaySeconds) : '0 min'} label="studied" />
           <StudyMetric value={studyTodaySubjectCount.toString()} label="subjects" />
           <StudyMetric value={studyTodayPlannedMinutes ? formatMinutes(studyTodayPlannedMinutes) : '—'} label="planned" />
         </View>
@@ -600,7 +607,7 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
       sessions={sessions} timeZone={taskTimeZone} today={todayInProfileTimeZone} todayDayOfWeek={new Date(`${todayInProfileTimeZone}T12:00:00Z`).getUTCDay()}
       readOnly={readOnly} onSaved={() => void refresh()} />}
 
-    {!loading && moduleId === 'study' && effectiveSectionId === 'courses' && <GrowthHierarchyPanel moduleId="study" items={items} readOnly={readOnly}
+    {!loading && moduleId === 'study' && effectiveSectionId === 'courses' && <GrowthHierarchyPanel key={`${profileId}:study-hierarchy`} moduleId="study" items={items} readOnly={readOnly}
       onOpenTool={(tool, itemId) => router.push({ pathname: '/apps/study/[section]', params: { section: tool, itemId } })}
       onSaved={() => void refresh()} />}
 
@@ -652,7 +659,7 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
       {activeSession ? <>
         <Text accessibilityRole="timer" style={[styles.sessionTimer, { color: accent.deep }]}>{formatElapsed(elapsed)}</Text>
         <Label>{sessionItem?.title ?? 'Study session'}</Label>
-        <Body>Started {new Date(activeSession.started_at).toLocaleTimeString(undefined, { timeZone: taskTimeZone, hour: 'numeric', minute: '2-digit' })} · {activeSession.source_device_name}</Body>
+        <Body>Started {new Date(activeSession.started_at).toLocaleTimeString(getAppLocale(), { timeZone: taskTimeZone, hour: 'numeric', minute: '2-digit' })} · {activeSession.source_device_name}</Body>
         <Button label="Finish session" onPress={() => void endSession(activeSession, false)} busy={saving} disabled={readOnly} />
         <Button label="Cancel session" variant="secondary" onPress={() => void endSession(activeSession, true)} disabled={saving || readOnly} />
       </> : <><Body>No study session is active.</Body><Button label="Back to Today" variant="secondary" onPress={() => router.replace(sectionHref('study', 'today'))} /></>}
@@ -672,7 +679,7 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
         <Eyebrow>Reading session · in progress</Eyebrow>
         <Heading>{formatElapsed(elapsed)}</Heading>
         <Label>{sessionItem?.title ?? 'Reading item'}</Label>
-        <Body>Started on {activeSession.source_device_name} · server time {new Date(activeSession.started_at).toLocaleString()}{lastSyncCheckedAt ? ` · last checked ${new Date(lastSyncCheckedAt).toLocaleString()}` : ''}. Finish to save the server-timed reading session.</Body>
+        <Body>Started on {activeSession.source_device_name} · {new Date(activeSession.started_at).toLocaleString(getAppLocale())}{lastSyncCheckedAt ? ` · last checked ${new Date(lastSyncCheckedAt).toLocaleString(getAppLocale())}` : ''}. Finish to save your reading time.</Body>
         <Button label="Finish reading session" onPress={() => void endSession(activeSession, false)} busy={saving} disabled={readOnly} />
         <Button label="Cancel session" variant="secondary" onPress={() => void endSession(activeSession, true)} disabled={saving || readOnly} />
       </Panel>}
@@ -726,16 +733,16 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
       <Panel>
         <Eyebrow>Quick add</Eyebrow>
         <Label>What needs doing?</Label>
-        <Field label="Task" value={title} onChangeText={setTitle} placeholder="A small next step" maxLength={120} editable={!readOnly} />
+        <Field label="Task" value={readOnly ? '' : title} onChangeText={setTitle} placeholder="A small next step" maxLength={120} editable={!readOnly} />
+        <Button label="Add task" onPress={() => void addItem()} busy={saving} disabled={readOnly} />
         <Body>Priority</Body>
         <View style={styles.filterRow} accessibilityRole="radiogroup" accessibilityLabel="New task priority">
           {(['low', 'medium', 'high', 'urgent'] as const).map((value) => <Pressable key={value} accessibilityRole="radio" accessibilityState={{ selected: taskPriority === value }} onPress={() => setTaskPriority(value)} style={[styles.filter, { backgroundColor: taskPriority === value ? accent.surface : theme.colors.surface, borderColor: taskPriority === value ? accent.deep : theme.colors.border }]}>
             <Label>{value[0].toUpperCase() + value.slice(1)}</Label>
           </Pressable>)}
         </View>
-        <Field label="Due date (optional)" value={dueDate} onChangeText={setDueDate} placeholder="YYYY-MM-DD" autoCapitalize="none" maxLength={10} editable={!readOnly} />
-        <Field label="Notes (optional)" value={notes} onChangeText={setNotes} multiline maxLength={2000} placeholder="Add a useful detail" editable={!readOnly} />
-        <Button label="Add task" onPress={() => void addItem()} busy={saving} disabled={readOnly} />
+        <Field label="Due date (optional)" value={readOnly ? '' : dueDate} onChangeText={setDueDate} placeholder="YYYY-MM-DD" autoCapitalize="none" maxLength={10} editable={!readOnly} />
+        <Field label="Notes (optional)" value={readOnly ? '' : notes} onChangeText={setNotes} multiline maxLength={2000} placeholder="Add a useful detail" editable={!readOnly} />
       </Panel>
       <Panel>
         <Eyebrow>Tasks · {items.filter((item) => item.item_type === 'task' && item.state === 'active').length} open · {items.filter((item) => item.item_type === 'task' && item.state === 'completed').length} completed</Eyebrow>
@@ -750,7 +757,7 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
           </Pressable>
           <View style={sharedStyles.grow}>
             <Label>{item.title}</Label>
-            <Body>{item.due_date ? `Due ${formatDateOnly(item.due_date)}` : 'No due date'} · {item.priority} priority{item.postponed_until && item.postponed_until >= todayInProfileTimeZone ? ` · postponed until ${formatDateOnly(item.postponed_until)}` : ''}{item.notes ? ` · ${item.notes}` : ''}</Body>
+            <Body>{item.due_date ? `Due ${formatDateOnly(item.due_date, getAppLocale())}` : 'No due date'} · {item.priority} priority{item.postponed_until && item.postponed_until >= todayInProfileTimeZone ? ` · postponed until ${formatDateOnly(item.postponed_until, getAppLocale())}` : ''}{item.notes ? ` · ${item.notes}` : ''}</Body>
             <View style={styles.priorityRow} accessibilityRole="radiogroup" accessibilityLabel={`${item.title} priority`}>
               {(['low', 'medium', 'high', 'urgent'] as const).map((priority) => <Pressable key={priority} accessibilityRole="radio" accessibilityState={{ selected: item.priority === priority, disabled: readOnly || saving }} disabled={readOnly || saving || item.priority === priority} onPress={() => void changeTaskMetadata(item, priority, item.postponed_until, `${item.title} priority updated.`)} style={[styles.priorityChoice, { borderColor: item.priority === priority ? accent.deep : theme.colors.border, backgroundColor: item.priority === priority ? accent.surface : theme.colors.surface }]}>
                 <Body>{priority[0].toUpperCase() + priority.slice(1)}</Body>
@@ -874,7 +881,7 @@ function StudySessionHistory({ sessions, items, timeZone, onLearningCheck }: {
     </View>
     {recent.length ? recent.map((session) => <View key={session.id} style={styles.itemRow}>
       <View style={sharedStyles.grow}><Label>{items.get(session.item_id)?.title ?? 'Study session'}</Label>
-        <Body>{session.completed_at ? new Date(session.completed_at).toLocaleDateString(undefined, { timeZone, weekday: 'short', month: 'short', day: 'numeric' }) : 'In progress'} · {session.status === 'completed' ? formatDuration(session.duration_seconds ?? 0) : session.status === 'cancelled' ? 'Cancelled' : 'In progress'}</Body>
+        <Body>{session.completed_at ? new Date(session.completed_at).toLocaleDateString(getAppLocale(), { timeZone, weekday: 'short', month: 'short', day: 'numeric' }) : 'In progress'} · {session.status === 'completed' ? formatDuration(session.duration_seconds ?? 0) : session.status === 'cancelled' ? 'Cancelled' : 'In progress'}</Body>
       </View>
       {session.status === 'completed' && <Button label="Learning check" variant="tertiary" onPress={() => onLearningCheck(session.item_id)} />}
     </View>) : <Body>Completed sessions will appear here.</Body>}
@@ -893,6 +900,11 @@ function formatMinutes(minutes: number) {
   const hours = Math.floor(minutes / 60);
   const remainder = minutes % 60;
   return hours ? `${hours}h${remainder ? ` ${remainder}m` : ''}` : `${minutes} min`;
+}
+
+function formatTrackedMinutes(seconds: number) {
+  if (seconds >= 0 && seconds < 60) return '<1 min';
+  return formatMinutes(Math.floor(seconds / 60));
 }
 
 function getTodaysStudyPlan(items: GrowthItem[], slots: StudyPlanSlot[], changes: StudyPlanChange[], date: string) {
@@ -987,7 +999,7 @@ function SessionHistory({ sessions, items, moduleId }: { sessions: GrowthSession
   return <Panel>
     <Eyebrow>Recent {name.toLowerCase()} sessions</Eyebrow>
     {completed.length === 0 ? <Body>Finished sessions will appear here.</Body> : completed.slice(0, 8).map((session) => <View key={session.id} style={styles.itemRow}>
-      <View style={sharedStyles.grow}><Label>{items.get(session.item_id)?.title ?? name}</Label><Body>{session.completed_at ? new Date(session.completed_at).toLocaleString() : ''}</Body></View>
+      <View style={sharedStyles.grow}><Label>{items.get(session.item_id)?.title ?? name}</Label><Body>{session.completed_at ? new Date(session.completed_at).toLocaleString(getAppLocale()) : ''}</Body></View>
       <Label>{formatDuration(session.duration_seconds ?? 0)}</Label>
     </View>)}
   </Panel>;
@@ -1050,6 +1062,7 @@ function readingStatusLabel(status: ReadingStatus) {
 }
 
 function formatDuration(seconds: number) {
+  if (seconds >= 0 && seconds < 60) return '<1 min';
   const minutes = Math.floor(seconds / 60);
   const remainingSeconds = seconds % 60;
   return minutes ? `${minutes} min${remainingSeconds ? ` ${remainingSeconds} sec` : ''}` : `${remainingSeconds} sec`;
@@ -1108,6 +1121,7 @@ const styles = StyleSheet.create({
   historyCount: { fontSize: 13, fontWeight: '700' },
   immersiveTitle: { gap: 4, marginBottom: 8 },
   sessionTimer: { fontSize: 50, lineHeight: 60, fontWeight: '800', letterSpacing: -1.5, fontVariant: ['tabular-nums'] },
+  loadingNotice: { minHeight: 76, alignItems: 'center', justifyContent: 'center', gap: 8 },
   connectionNotice: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 8 },
   dashboardSection: { gap: 12 },
   moreTools: { gap: 8 },

@@ -1,3 +1,4 @@
+import { getAppLocale } from '../lib/locale-context';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Switch, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
@@ -83,7 +84,7 @@ export function GrowthMemoryControls({ profileId, onStatusChange }: { profileId:
         maxLength={1200} multiline editable={!loading && !busy} />
     </View>)}
     {!loading && <Button label="Save memory settings" onPress={() => void save()} busy={busy} disabled={busy} />}
-    {draft.updated_at && <Body>Last saved {new Date(draft.updated_at).toLocaleString()}.</Body>}
+    {draft.updated_at && <Body>Last saved {new Date(draft.updated_at).toLocaleString(getAppLocale())}.</Body>}
     {draft.updated_at && !confirmDelete && <Button label="Delete all shared memory" variant="secondary" disabled={busy || loading} onPress={() => setConfirmDelete(true)} />}
     {confirmDelete && <View style={sharedStyles.column}>
       <Body>Delete all four domain summaries and sharing permissions?</Body>

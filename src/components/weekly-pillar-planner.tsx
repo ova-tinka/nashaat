@@ -1,3 +1,4 @@
+import { getAppLocale } from '../lib/locale-context';
 import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, Switch, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
@@ -134,7 +135,7 @@ export function WeeklyPillarPlanner({ allowedModules }: { allowedModules: Module
         </View>
         {draft.enabled && <>
           {savedGoals.some((goal) => goal.module_id === definition.moduleId) && <>
-            <Body>This week: {((actuals.find((actual) => actual.module_id === definition.moduleId)?.actual_value) ?? 0).toLocaleString(undefined, { maximumFractionDigits: 1 })} of {draft.target} {definition.unit} completed.</Body>
+            <Body>This week: {((actuals.find((actual) => actual.module_id === definition.moduleId)?.actual_value) ?? 0).toLocaleString(getAppLocale(), { maximumFractionDigits: 1 })} of {draft.target} {definition.unit} completed.</Body>
             <ProgressBar value={((actuals.find((actual) => actual.module_id === definition.moduleId)?.actual_value) ?? 0) / Math.max(1, Number(draft.target)) * 100}
               label={`${definition.title} weekly progress`} color={theme.modules[definition.moduleId].deep} />
           </>}
@@ -167,7 +168,7 @@ export function WeeklyPillarPlanner({ allowedModules }: { allowedModules: Module
           const definition = pillarDefinitions.find((entry) => entry.moduleId === goal.module_id);
           if (!definition) return null;
           const actual = actuals.find((entry) => entry.module_id === goal.module_id)?.actual_value ?? 0;
-          return <Body key={goal.module_id}>{definition.title}: {actual.toLocaleString(undefined, { maximumFractionDigits: 1 })} of {goal.target_count} {goal.unit}</Body>;
+          return <Body key={goal.module_id}>{definition.title}: {actual.toLocaleString(getAppLocale(), { maximumFractionDigits: 1 })} of {goal.target_count} {goal.unit}</Body>;
         })}
         {(['steady', 'hard_to_fit', 'too_much'] as const).map((answer) => <Button key={answer}
           label={`${checkIn === answer ? '✓ ' : ''}${answer === 'steady' ? 'Steady' : answer === 'hard_to_fit' ? 'Hard to fit' : 'Too much'}`}

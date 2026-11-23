@@ -1,11 +1,12 @@
+import { getAppLocale } from '../lib/locale-context';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import type { ReactNode } from 'react';
 import type { BlockingStatus, SafariContentBlockerState } from '../../modules/bloom-blocking/src/BloomBlocking.types';
 import type { ChildRule, WebsiteRule, WebsiteRuleScope } from '../lib/family';
 import { useBloomTheme } from '../lib/theme-context';
-import { Body, Button, ErrorText, Eyebrow, Field, Heading, Label, Panel, Screen, sharedStyles } from './bloom-ui';
+import { Body, Button, ErrorText, Eyebrow, Field, Heading, Label, LocalizedText as Text, Panel, Screen, sharedStyles } from './bloom-ui';
 
 type Props = {
   status: BlockingStatus;
@@ -165,7 +166,7 @@ export function IosFocusSettings(props: Props) {
       {props.showEarnedAccess && props.earnedAccessContent}
     </Panel>
 
-    {props.blockingRulesSyncedAt && !props.syncError && <Body>Family rules last synced {new Date(props.blockingRulesSyncedAt).toLocaleTimeString()}.</Body>}
+    {props.blockingRulesSyncedAt && !props.syncError && <Body>Family rules last synced {new Date(props.blockingRulesSyncedAt).toLocaleTimeString(getAppLocale())}.</Body>}
     {props.syncError && <ErrorText>{props.syncError}</ErrorText>}
     {props.error && <ErrorText>{props.error}</ErrorText>}
     {!props.childProfile && <Button label="Manage family rules" variant="tertiary" onPress={props.onManageFamilyRules} />}

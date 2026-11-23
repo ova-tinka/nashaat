@@ -1,8 +1,9 @@
+import { getAppLocale } from '../lib/locale-context';
 import { router, type Href } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useState } from 'react';
-import { ActivityIndicator, ImageBackground, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Body, Button, ErrorText, Eyebrow, FeatureTile, Heading, Label, Panel, ProgressBar, Screen, sharedStyles } from './bloom-ui';
+import { ActivityIndicator, ImageBackground, Pressable, StyleSheet, View } from 'react-native';
+import { Body, Button, ErrorText, Eyebrow, FeatureTile, Heading, Label, Panel, ProgressBar, Screen, sharedStyles, LocalizedText as Text } from './bloom-ui';
 import { GrowthModuleScreen } from './growth-module-screen';
 import { useBloom } from '../lib/bloom-context';
 import { useBloomTheme } from '../lib/theme-context';
@@ -238,7 +239,7 @@ function getWorkoutDays(history: WorkoutHistoryItem[], timeZone: string, todayKe
     const key = date.toISOString().slice(0, 10);
     return {
       key,
-      label: new Intl.DateTimeFormat(undefined, { weekday: 'short', timeZone: 'UTC' }).format(date),
+      label: new Intl.DateTimeFormat(getAppLocale(), { weekday: 'short', timeZone: 'UTC' }).format(date),
       ...(byDate.get(key) ?? { workouts: 0, minutes: 0 }),
     };
   });
@@ -255,7 +256,7 @@ function WorkoutWeekChart({ history, timeZone, todayKey }: { history: WorkoutHis
   return <Panel>
     <View style={styles.sectionTitleRow}>
       <View style={sharedStyles.grow}><Eyebrow>Last 7 days</Eyebrow><Label>{chartLabel}</Label></View>
-      <Label>{metric === 'workouts' ? total : `${total.toLocaleString(undefined, { maximumFractionDigits: 1 })} min`}</Label>
+      <Label>{metric === 'workouts' ? total : `${total.toLocaleString(getAppLocale(), { maximumFractionDigits: 1 })} min`}</Label>
     </View>
     <View accessibilityRole="tablist" style={[styles.chartSwitch, { backgroundColor: theme.colors.surfaceSoft }]}>
       {([{ id: 'workouts', title: 'Workouts' }, { id: 'minutes', title: 'Timed min' }] as const).map((option) => {
@@ -266,7 +267,7 @@ function WorkoutWeekChart({ history, timeZone, todayKey }: { history: WorkoutHis
         </Pressable>;
       })}
     </View>
-    <View accessibilityRole="image" accessibilityLabel={days.map((day) => `${day.label}: ${metric === 'workouts' ? `${day.workouts} ${day.workouts === 1 ? 'workout' : 'workouts'}` : `${day.minutes.toLocaleString(undefined, { maximumFractionDigits: 1 })} timed exercise minutes`}`).join(', ')} style={styles.chart}>
+    <View accessibilityRole="image" accessibilityLabel={days.map((day) => `${day.label}: ${metric === 'workouts' ? `${day.workouts} ${day.workouts === 1 ? 'workout' : 'workouts'}` : `${day.minutes.toLocaleString(getAppLocale(), { maximumFractionDigits: 1 })} timed exercise minutes`}`).join(', ')} style={styles.chart}>
       {days.map((day) => <View key={day.key} style={styles.chartDay}>
         <View style={[styles.chartTrack, { backgroundColor: theme.colors.surfaceSoft }]}>
           <View style={{ flex: 1 }} />
@@ -284,7 +285,7 @@ function RecentWorkout({ history, compact = true, timeZone = 'UTC' }: { history?
   const date = new Date(history.completed_at);
   return <Pressable accessibilityRole="button" accessibilityLabel={`Open workout history. ${history.plan_title}`} onPress={() => router.push('/activity' as Href)} style={[styles.recentWorkout, compact && { paddingHorizontal: 0, paddingVertical: 0 }]}>
     <View style={[styles.smallIcon, { backgroundColor: theme.modules.exercise.surface }]}><MaterialIcons name="fitness-center" size={19} color={theme.modules.exercise.deep} /></View>
-    <View style={sharedStyles.grow}><Label>{history.plan_title}</Label><Body>{Number.isFinite(date.getTime()) ? new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeZone }).format(date) : 'Completed'} · {history.exercises_completed} exercises</Body></View>
+    <View style={sharedStyles.grow}><Label>{history.plan_title}</Label><Body>{Number.isFinite(date.getTime()) ? new Intl.DateTimeFormat(getAppLocale(), { dateStyle: 'medium', timeZone }).format(date) : 'Completed'} · {history.exercises_completed} exercises</Body></View>
     <MaterialIcons name="chevron-right" size={22} color={theme.colors.inkMuted} />
   </Pressable>;
 }
@@ -300,7 +301,7 @@ function PlanCard({ plan, active, activeWorkout, starting, onStart, onEdit }: {
       <View style={sharedStyles.grow}><Eyebrow>{sorted.length} {sorted.length === 1 ? 'exercise' : 'exercises'}</Eyebrow><Label>{plan.title}</Label></View>
       <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${plan.title}`} onPress={onEdit} style={styles.iconAction}><MaterialIcons name="edit" size={18} color={theme.modules.exercise.deep} /></Pressable>
     </View>
-    <Body>{formatScheduledDays(plan.scheduled_days)}</Body>
+    <Body>{formatScheduledDays(plan.scheduled_days, getAppLocale())}</Body>
     {sorted.length > 0 && <Text style={[styles.planPreview, { color: theme.colors.inkMuted }]} numberOfLines={2}>{sorted.slice(0, 3).map((item) => item.exercise?.name ?? 'Exercise').join(' · ')}</Text>}
     <Button label={active ? 'Continue workout' : 'Start workout'} onPress={onStart} busy={starting} disabled={activeWorkout && !active} />
   </Panel>;

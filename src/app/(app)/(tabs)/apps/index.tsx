@@ -29,7 +29,7 @@ export default function AllAppsScreen() {
     {childProfile && visibleModules.length === 0 && <Panel><Eyebrow>Child View</Eyebrow><Body>No modules have been assigned. Ask your guardian to choose which Bloom modules you can use.</Body></Panel>}
     <Panel>
       <Eyebrow>Shared across Bloom</Eyebrow>
-      <Body>Progress and screen-time credits use server-confirmed activity. Device permissions stay specific to each device.</Body>
+      <Body>Progress and screen-time rewards update after Bloom saves an activity. Each device needs its own blocking permission.</Body>
     </Panel>
   </Screen>;
 }

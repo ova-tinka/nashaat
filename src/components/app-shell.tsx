@@ -1,9 +1,9 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router, usePathname, type Href } from 'expo-router';
-import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react';
-import { AccessibilityInfo, findNodeHandle, I18nManager, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type PressableInstance } from 'react-native';
+import { useContext, useEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react';
+import { AccessibilityInfo, findNodeHandle, I18nManager, Image, Keyboard, Modal, Platform, Pressable, ScrollView, StyleSheet, View, useWindowDimensions, type PressableInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Body, BloomWordmark, Label } from './bloom-ui';
+import { Body, BloomFloatingDockContext, BloomWordmark, Label, LocalizedText as Text } from './bloom-ui';
 import { useAuth } from '../lib/auth';
 import { useBloom } from '../lib/bloom-context';
 import { isMacDesktop } from '../lib/macos-blocking';
@@ -64,16 +64,26 @@ const mobilePrimaryRoutes = [
 
 export function BloomBottomNavigation() {
   const { theme } = useBloomTheme();
+  const dock = useContext(BloomFloatingDockContext);
   const { childProfile, assignedModules } = useAuth();
   const { visibleModules } = useModuleVisibility();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
   const activeModule = moduleForPath(pathname);
   const items = mobilePrimaryRoutes.filter((item) => showNavigationItem(item.moduleId,
     item.moduleId === null || moduleManifest.some((module) => module.id === item.moduleId && module.available),
     visibleModules, childProfile, assignedModules));
 
-  return <View pointerEvents="box-none" style={[styles.dockFrame, { paddingBottom: Math.max(insets.bottom + 4, 12) }]}>
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
+    const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
+    return () => { show.remove(); hide.remove(); };
+  }, []);
+
+  if (keyboardVisible) return null;
+
+  return <View pointerEvents="box-none" onLayout={(event) => dock.reportHeight(Math.ceil(event.nativeEvent.layout.height))} style={[styles.dockFrame, { paddingBottom: Math.max(insets.bottom + 4, 12) }]}>
     <View style={[styles.dock, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]} accessibilityRole="tablist">
       {items.map((item) => {
         const selected = item.moduleId === null ? pathname === '/' : item.moduleId === activeModule;

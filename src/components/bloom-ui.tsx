@@ -1,13 +1,14 @@
 import type { ComponentProps, PropsWithChildren } from 'react';
 import { createContext, useContext, useState } from 'react';
 import { usePathname } from 'expo-router';
-import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions, type TextInputProps } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text as NativeText, TextInput as NativeTextInput, View, useWindowDimensions, type TextInputProps, type TextProps } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { radii, spacing, typeScale, type ModuleKey } from '../theme';
 import { useBloomTheme } from '../lib/theme-context';
 import { moduleForPath } from '../lib/route-access';
 import { isMacDesktop } from '../lib/macos-blocking';
+import { translateNode, translateText, useLocale } from '../lib/locale-context';
 
 const moduleDetails: Record<ModuleKey, { title: string; icon: ComponentProps<typeof MaterialIcons>['name'] }> = {
   exercise: { title: 'Exercise', icon: 'fitness-center' },
@@ -16,7 +17,8 @@ const moduleDetails: Record<ModuleKey, { title: string; icon: ComponentProps<typ
   tasks: { title: 'Tasks', icon: 'check-box' },
 };
 
-export const BloomFloatingDockContext = createContext(false);
+export type BloomFloatingDockState = { visible: boolean; height: number; reportHeight: (height: number) => void };
+export const BloomFloatingDockContext = createContext<BloomFloatingDockState>({ visible: false, height: 0, reportHeight: () => undefined });
 
 export function BloomMark({ size = 32, monochrome = false }: { size?: number; monochrome?: boolean }) {
   const { theme } = useBloomTheme();
@@ -34,7 +36,7 @@ export function BloomWordmark({ size = 32 }: { size?: number }) {
   const { theme } = useBloomTheme();
   return <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.space2 }}>
     <BloomMark size={size} />
-    <Text style={{ color: theme.colors.ink, fontSize: size * 0.72, lineHeight: size * 0.9, fontWeight: '800', letterSpacing: -0.8 }}>Bloom</Text>
+    <NativeText style={{ color: theme.colors.ink, fontSize: size * 0.72, lineHeight: size * 0.9, fontWeight: '800', letterSpacing: -0.8 }}>Bloom</NativeText>
   </View>;
 }
 
@@ -42,8 +44,10 @@ export function Screen({ children, safeAreaTop = true }: PropsWithChildren<{ saf
   const { theme } = useBloomTheme();
   const desktop = useIsDesktopLayout();
   const floatingDock = useContext(BloomFloatingDockContext);
+  const insets = useSafeAreaInsets();
+  const bottomPadding = floatingDock.visible ? Math.max(floatingDock.height + 24, 112 + insets.bottom) : undefined;
   return <SafeAreaView style={[styles.safe, { backgroundColor: theme.colors.canvas }]} edges={safeAreaTop ? ['top'] : []}>
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.outer, desktop && styles.desktopOuter, floatingDock && styles.floatingDockOuter]}>
+    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.outer, desktop && styles.desktopOuter, floatingDock.visible && { paddingBottom: bottomPadding }]}>
       <View style={[styles.content, desktop && styles.desktopContent]}>{children}</View>
     </ScrollView>
   </SafeAreaView>;
@@ -70,27 +74,43 @@ export function Panel({ children }: PropsWithChildren) {
 
 export function Eyebrow({ children }: PropsWithChildren) {
   const { theme } = useBloomTheme();
-  return <Text style={[styles.eyebrow, { color: theme.colors.inkMuted }]}>{children}</Text>;
+  return <LocalizedText style={[styles.eyebrow, { color: theme.colors.inkMuted }]}>{children}</LocalizedText>;
 }
 
 export function Heading({ children }: PropsWithChildren) {
   const { theme } = useBloomTheme();
-  return <Text style={[styles.heading, { color: theme.colors.ink }]} accessibilityRole="header">{children}</Text>;
+  return <LocalizedText style={[styles.heading, { color: theme.colors.ink }]} accessibilityRole="header">{children}</LocalizedText>;
 }
 
 export function Label({ children }: PropsWithChildren) {
   const { theme } = useBloomTheme();
-  return <Text style={[styles.label, { color: theme.colors.ink }]}>{children}</Text>;
+  return <LocalizedText style={[styles.label, { color: theme.colors.ink }]}>{children}</LocalizedText>;
 }
 
 export function Body({ children }: PropsWithChildren) {
   const { theme } = useBloomTheme();
-  return <Text style={[styles.body, { color: theme.colors.inkMuted }]}>{children}</Text>;
+  return <LocalizedText style={[styles.body, { color: theme.colors.inkMuted }]}>{children}</LocalizedText>;
 }
 
 export function ErrorText({ children }: PropsWithChildren) {
   const { theme } = useBloomTheme();
-  return <Text accessibilityRole="alert" style={[styles.error, { color: theme.colors.dangerText }]}>{children}</Text>;
+  return <LocalizedText accessibilityRole="alert" style={[styles.error, { color: theme.colors.dangerText }]}>{children}</LocalizedText>;
+}
+
+export function LocalizedText({ children, style, ...props }: TextProps) {
+  const { language, isRTL } = useLocale();
+  return <NativeText {...props} style={[isRTL && styles.rtlText, style]}>{translateNode(children, language)}</NativeText>;
+}
+
+export function LocalizedTextInput({ placeholder, accessibilityLabel, accessibilityHint, style, ...props }: TextInputProps) {
+  const { language, isRTL } = useLocale();
+  return <NativeTextInput
+    {...props}
+    placeholder={placeholder ? translateText(placeholder, language) : undefined}
+    accessibilityLabel={accessibilityLabel ? translateText(accessibilityLabel, language) : undefined}
+    accessibilityHint={accessibilityHint ? translateText(accessibilityHint, language) : undefined}
+    style={[style, isRTL && styles.rtlTextInput]}
+  />;
 }
 
 export type ButtonVariant = 'primary' | 'secondary' | 'tertiary' | 'destructive';
@@ -119,10 +139,11 @@ export function Button({ label, accessibilityLabel, accessibilityHint, onPress, 
     destructive: { backgroundColor: theme.components.button.destructiveBackground, borderColor: theme.components.button.destructiveBackground, textColor: theme.components.button.destructiveText },
   } satisfies Record<ButtonVariant, { backgroundColor: string; borderColor: string; textColor: string }>;
   const selected = variants[resolvedVariant];
+  const localizedLabel = translateText(label);
   return <Pressable
     accessibilityRole="button"
-    accessibilityLabel={accessibilityLabel ?? label}
-    accessibilityHint={accessibilityHint}
+    accessibilityLabel={translateText(accessibilityLabel ?? label)}
+    accessibilityHint={accessibilityHint ? translateText(accessibilityHint) : undefined}
     accessibilityState={{ disabled: disabled || busy, busy }}
     disabled={disabled || busy}
     onFocus={() => setFocused(true)}
@@ -141,7 +162,7 @@ export function Button({ label, accessibilityLabel, accessibilityHint, onPress, 
     ]}>
     {busy
       ? <ActivityIndicator color={selected.textColor} />
-      : <Text style={[styles.buttonText, { color: selected.textColor }]}>{label}</Text>}
+      : <LocalizedText style={[styles.buttonText, { color: selected.textColor }]}>{localizedLabel}</LocalizedText>}
   </Pressable>;
 }
 
@@ -152,13 +173,14 @@ export function Field({ label, helperText, error, ...props }: TextInputProps & {
   const [focused, setFocused] = useState(false);
   const { onFocus, onBlur, ...inputProps } = props;
   return <View style={styles.field}>
-    <Text style={[styles.fieldLabel, { color: theme.components.field.label }]}>{label}</Text>
-    <TextInput
-      accessibilityLabel={label}
-      accessibilityHint={error ?? helperText}
+    <LocalizedText style={[styles.fieldLabel, { color: theme.components.field.label }]}>{label}</LocalizedText>
+    <LocalizedTextInput
+      accessibilityLabel={translateText(label)}
+      accessibilityHint={error || helperText ? translateText(error ?? helperText ?? '') : undefined}
       placeholderTextColor={theme.components.field.placeholder}
       selectionColor={focusBorder}
       {...inputProps}
+      placeholder={inputProps.placeholder ? translateText(inputProps.placeholder) : undefined}
       onFocus={(event) => { setFocused(true); onFocus?.(event); }}
       onBlur={(event) => { setFocused(false); onBlur?.(event); }}
       style={[
@@ -169,8 +191,8 @@ export function Field({ label, helperText, error, ...props }: TextInputProps & {
       ]}
     />
     {error
-      ? <Text accessibilityRole="alert" style={[styles.fieldHelp, { color: theme.components.field.error }]}>{error}</Text>
-      : helperText ? <Text style={[styles.fieldHelp, { color: theme.components.field.helper }]}>{helperText}</Text> : null}
+      ? <LocalizedText accessibilityRole="alert" style={[styles.fieldHelp, { color: theme.components.field.error }]}>{error}</LocalizedText>
+      : helperText ? <LocalizedText style={[styles.fieldHelp, { color: theme.components.field.helper }]}>{helperText}</LocalizedText> : null}
   </View>;
 }
 
@@ -210,8 +232,8 @@ export function ModuleTile({ module, subtitle, onPress, selected = false, disabl
     <View style={[styles.moduleIcon, dense && styles.moduleIconDense, { backgroundColor: theme.colors.surface }]}>
       <MaterialIcons name={details.icon} size={dense ? 18 : 22} color={moduleTheme.deep} />
     </View>
-    <Text style={[styles.moduleTitle, dense && styles.moduleTitleDense, { color: theme.colors.ink }]}>{details.title}</Text>
-    <Text style={[styles.moduleSubtitle, dense && styles.moduleSubtitleDense, { color: theme.colors.inkMuted }]}>{subtitle}</Text>
+    <LocalizedText style={[styles.moduleTitle, dense && styles.moduleTitleDense, { color: theme.colors.ink }]}>{details.title}</LocalizedText>
+    <LocalizedText style={[styles.moduleSubtitle, dense && styles.moduleSubtitleDense, { color: theme.colors.inkMuted }]}>{subtitle}</LocalizedText>
   </Pressable>;
 }
 
@@ -228,8 +250,8 @@ export function FeatureTile({ title, subtitle, icon, onPress, accentColor, backg
   const [focused, setFocused] = useState(false);
   return <Pressable
     accessibilityRole="button"
-    accessibilityLabel={`${title}. ${subtitle}`}
-    accessibilityHint={`Open ${title}.`}
+    accessibilityLabel={translateText(`${title}. ${subtitle}`)}
+    accessibilityHint={translateText(`Open ${title}.`)}
     accessibilityState={{ disabled }}
     disabled={disabled}
     onFocus={() => setFocused(true)}
@@ -245,8 +267,8 @@ export function FeatureTile({ title, subtitle, icon, onPress, accentColor, backg
       </View>
       <MaterialIcons name="arrow-forward" size={17} color={accentColor ?? theme.colors.action} />
     </View>
-    <Text style={[styles.featureTitle, { color: theme.colors.ink }]}>{title}</Text>
-    <Text style={[styles.featureSubtitle, { color: theme.colors.inkMuted }]} numberOfLines={2}>{subtitle}</Text>
+    <LocalizedText style={[styles.featureTitle, { color: theme.colors.ink }]}>{title}</LocalizedText>
+    <LocalizedText style={[styles.featureSubtitle, { color: theme.colors.inkMuted }]} numberOfLines={2}>{subtitle}</LocalizedText>
   </Pressable>;
 }
 
@@ -258,8 +280,8 @@ export function EmptyState({ title, message, actionLabel, onAction }: {
 }) {
   const { theme } = useBloomTheme();
   return <View style={[styles.emptyState, { borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceSoft }]}>
-    <Text accessibilityRole="header" style={[styles.emptyTitle, { color: theme.colors.ink }]}>{title}</Text>
-    <Text style={[styles.emptyMessage, { color: theme.colors.inkMuted }]}>{message}</Text>
+    <LocalizedText accessibilityRole="header" style={[styles.emptyTitle, { color: theme.colors.ink }]}>{title}</LocalizedText>
+    <LocalizedText style={[styles.emptyMessage, { color: theme.colors.inkMuted }]}>{message}</LocalizedText>
     {actionLabel && onAction ? <Button label={actionLabel} variant="secondary" onPress={onAction} /> : null}
   </View>;
 }
@@ -276,8 +298,8 @@ export function StatusBanner({ tone = 'info', title, message }: { tone?: BannerT
   } satisfies Record<BannerTone, string>;
   const accent = toneColors[tone];
   return <View accessibilityRole="summary" style={[styles.banner, { backgroundColor: theme.colors.surfaceSoft, borderStartColor: accent, borderColor: theme.colors.border }]}>
-    <Text style={[styles.bannerTitle, { color: accent }]}>{title}</Text>
-    <Text style={[styles.bannerMessage, { color: theme.colors.inkMuted }]}>{message}</Text>
+    <LocalizedText style={[styles.bannerTitle, { color: accent }]}>{title}</LocalizedText>
+    <LocalizedText style={[styles.bannerMessage, { color: theme.colors.inkMuted }]}>{message}</LocalizedText>
   </View>;
 }
 
@@ -302,10 +324,11 @@ export const sharedStyles = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
+  rtlText: { writingDirection: 'rtl', textAlign: 'right' },
+  rtlTextInput: { writingDirection: 'rtl', textAlign: 'right' },
   safe: { flex: 1 },
   outer: { flexGrow: 1, alignItems: 'center', paddingHorizontal: spacing.space5, paddingTop: spacing.space4, paddingBottom: spacing.space8 },
   desktopOuter: { paddingHorizontal: 40, paddingTop: 28, paddingBottom: 40 },
-  floatingDockOuter: { paddingBottom: 128 },
   content: { width: '100%', maxWidth: 740, gap: spacing.space4 },
   desktopContent: { maxWidth: 1200, gap: spacing.space6 },
   panel: { borderRadius: radii.card, borderWidth: 1, padding: spacing.space5, gap: spacing.space3 },

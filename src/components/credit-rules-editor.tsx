@@ -75,15 +75,15 @@ export function CreditRulesEditor({ settings, onSave, subjectLabel = 'your profi
       <Field label="Screen-time credit goal per week in minutes" value={weeklyCreditMinutes} onChangeText={setWeeklyCreditMinutes} keyboardType="decimal-pad" placeholder="e.g. 45" />
     </>}
     <Label>Difficulty</Label>
-    <Body>Easy meters a server-timed access window, including idle time. Hard uses a countdown and divides the weekly balance across seven days. Super hard also caps daily use.</Body>
+    <Body>Easy counts time from when you start until you finish or the access window closes, even while an app is idle. Hard starts a countdown for each session and divides your weekly balance across seven days. Super hard also limits how many minutes you can use each day.</Body>
     {(['easy', 'hard', 'super_hard'] as const).map((choice) => <Button key={choice} label={`${mode === choice ? '✓ ' : ''}${choice === 'super_hard' ? 'Super hard' : choice === 'hard' ? 'Hard' : 'Easy'}`} secondary onPress={() => setMode(choice)} disabled={saving} />)}
     {mode === 'super_hard' && <Field label="Maximum screen-time minutes per day" value={dailyCap} onChangeText={setDailyCap} keyboardType="decimal-pad" />}
     <Field label="Week time zone" value={timezone} onChangeText={setTimezone} autoCapitalize="none" autoCorrect={false} placeholder="Asia/Qatar" />
     <Button label="Use this device’s time zone" secondary onPress={() => setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC')} disabled={saving} />
-    <Body>Credits expire at Sunday midnight in this time zone. Easy time runs from reservation until you finish or the access window expires; Hard modes use countdown sessions.</Body>
+    <Body>Credits expire at midnight Sunday in this time zone. With Easy, minutes are used from the time you start until you finish or the window closes, including idle time. Hard modes spend minutes through a countdown; Super hard also applies a daily limit.</Body>
     {error && <ErrorText>{error}</ErrorText>}{saved && <Body>Earning rules saved for {subjectLabel}.</Body>}
     {pendingRules ? <>
-      <Body>Apply these earning rules to {subjectLabel}? They change how future workouts can earn screen-time credits. The server confirms the saved settings.</Body>
+      <Body>Apply these earning rules to {subjectLabel}? They change how future workouts can earn screen-time minutes. You can review the updated rules here after saving.</Body>
       <Button label="Confirm earning rules" onPress={() => void confirmSave()} busy={saving} />
       <Button label="Keep editing" variant="secondary" onPress={() => setPendingRules(null)} disabled={saving} />
     </> : <Button label="Review earning rules" onPress={review} busy={saving} disabled={saving} />}
