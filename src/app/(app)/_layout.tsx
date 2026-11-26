@@ -1,7 +1,7 @@
 import { Redirect, Stack, usePathname } from 'expo-router';
 import { ActivityIndicator, Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Button, ErrorText, Panel, Screen } from '../../components/bloom-ui';
-import { BloomAppHeader, BloomDesktopNavigation } from '../../components/app-shell';
+import { BloomAppHeader, BloomDesktopNavigation, BloomDesktopSectionNavigation } from '../../components/app-shell';
 import { useAuth } from '../../lib/auth';
 import { BloomProvider } from '../../lib/bloom-context';
 import { MacCreditRecovery } from '../../components/mac-credit-recovery';
@@ -17,7 +17,7 @@ export default function AppLayout() {
   const pathname = usePathname();
   const { width } = useWindowDimensions();
   const desktop = isMacDesktop() || (Platform.OS === 'web' && width >= 1024);
-  const immersive = pathname === '/session' || ['/apps/read/item', '/apps/read/add', '/apps/read/edit', '/apps/read/session', '/apps/read/session-complete'].includes(pathname) || pathname.startsWith('/apps/read/reader/');
+  const immersive = pathname === '/session' || ['/apps/read/session', '/apps/read/session-complete', '/apps/study/active-session', '/apps/study/session-complete', '/apps/study/learning-check'].includes(pathname) || pathname.startsWith('/apps/read/reader/');
   if (loading || (session && profileLoading)) return <Screen><ActivityIndicator color={theme.colors.action} /></Screen>;
   if (!session) return <Redirect href="/sign-in" />;
   if (profileError || !profileId) return <Screen><Panel><ErrorText>{profileError ?? 'Profile unavailable.'}</ErrorText><Button label="Try again" onPress={() => void refreshProfile()} /><Button label="Sign out" secondary onPress={() => { void supabase?.auth.signOut({ scope: 'local' }); }} /></Panel></Screen>;
@@ -29,7 +29,10 @@ export default function AppLayout() {
         {!immersive && <BloomAppHeader />}
         <View style={styles.workspace}>
           {desktop && !immersive && <BloomDesktopNavigation />}
-          <View style={styles.routes}><Stack screenOptions={{ headerShown: false }} /></View>
+          <View style={styles.routes}>
+            {desktop && !immersive && <BloomDesktopSectionNavigation />}
+            <View style={styles.routeStack}><Stack screenOptions={{ headerShown: false }} /></View>
+          </View>
         </View>
       </View>
     </ModuleVisibilityProvider>
@@ -40,4 +43,5 @@ const styles = StyleSheet.create({
   app: { flex: 1 },
   workspace: { flex: 1, flexDirection: 'row' },
   routes: { flex: 1, minWidth: 0 },
+  routeStack: { flex: 1, minWidth: 0 },
 });

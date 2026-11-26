@@ -54,7 +54,7 @@ export default function ChildCoachingScreen() {
           </View>}
       </>}
       {status.enabled && (confirmDisable ? <>
-        <Body>Confirm disabling future coaching requests for {name || 'this child'} and withdrawing parent consent. The server saves the updated permission.</Body>
+        <Body>Turn off future coaching requests and withdraw parent consent for {name || 'this child'}?</Body>
         <Button label="Confirm disable coaching" variant="destructive" onPress={() => { setConfirmDisable(false); void run(() => setChildCoaching(childId, false, false, false), 'Coaching permission withdrawn.'); }} busy={busy} />
         <Button label="Keep coaching enabled" variant="secondary" onPress={() => setConfirmDisable(false)} disabled={busy} />
       </> : <Button label="Review disabling child coaching" variant="secondary" onPress={() => setConfirmDisable(true)} busy={busy} />)}

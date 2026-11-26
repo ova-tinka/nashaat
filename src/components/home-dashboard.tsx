@@ -1,9 +1,9 @@
 import { getAppLocale } from '../lib/locale-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router, type Href } from 'expo-router';
-import { ActivityIndicator, ImageBackground, Pressable, StyleSheet, View } from 'react-native';
-import { Body, Button, ErrorText, Eyebrow, Label, Panel, Screen, useIsDesktopLayout, LocalizedText as Text } from './bloom-ui';
-import { bloomHomeImage, bloomPillarImages } from '../assets/bloom-images';
+import { ActivityIndicator, ImageBackground, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Body, Button, ErrorText, Eyebrow, Label, LocalizedText as Text, Panel, Screen, useIsDesktopLayout } from './bloom-ui';
+import { bloomHomeImage, bloomPillarCollectionImages } from '../assets/bloom-images';
 import type { BloomDevice } from '../lib/devices';
 import { useAuth } from '../lib/auth';
 import { useBloom } from '../lib/bloom-context';
@@ -49,6 +49,8 @@ export function HomeDashboard({
   const { visibleModules } = useModuleVisibility();
   const { theme } = useBloomTheme();
   const desktop = useIsDesktopLayout();
+  const { width } = useWindowDimensions();
+  const desktopColumns = desktop && width >= 1100;
   const pillars = moduleManifest.filter((module) => module.available && visibleModules.includes(module.id)
     && (!childProfile || assignedModules.includes(module.id)));
   const walletError = error && !dataConfirmedAt ? error : null;
@@ -58,7 +60,7 @@ export function HomeDashboard({
 
   return <Screen safeAreaTop={false}>
     <View style={styles.content}>
-      <ImageBackground source={bloomHomeImage} resizeMode="cover" style={[styles.hero, desktop && styles.desktopHero]} imageStyle={styles.heroImage}>
+      <ImageBackground source={bloomHomeImage} resizeMode="cover" style={[styles.hero, desktopColumns && styles.desktopHero]} imageStyle={styles.heroImage}>
         <View style={styles.heroOverlay} />
         <View style={styles.heroCopy}>
           <Text style={styles.heroEyebrow}>TODAY</Text>
@@ -74,7 +76,20 @@ export function HomeDashboard({
         </Pressable>
       </ImageBackground>
 
-      <View style={[styles.balanceGoalsRow, !desktop && styles.balanceGoalsMobile]}>
+      {activeWorkout && <Panel>
+        <View style={styles.activeSessionHeader}>
+          <View style={[styles.activeSessionIcon, { backgroundColor: theme.modules.exercise.surface }]}>
+            <MaterialIcons name="fitness-center" size={19} color={theme.modules.exercise.deep} />
+          </View>
+          <View style={styles.activeSessionCopy}>
+            <Eyebrow>Active session</Eyebrow>
+            <Text style={[styles.panelTitle, { color: theme.colors.ink }]}>Your workout is ready to continue</Text>
+          </View>
+          <Button label="Resume" variant="secondary" onPress={() => router.push({ pathname: '/session', params: { id: activeWorkout.id } })} />
+        </View>
+      </Panel>}
+
+      <View style={[styles.balanceGoalsRow, !desktopColumns && styles.balanceGoalsStacked]}>
         <View style={styles.balanceColumn}>
           <BalancePanel available={creditBalance} enabled={creditsEnabled} loading={loading} error={walletError} onRefresh={refresh} />
         </View>
@@ -86,7 +101,7 @@ export function HomeDashboard({
 
       <WeeklyScreenTimePanel totals={creditHistory} loading={creditHistoryLoading} error={creditHistoryError} onRetry={onRefresh} />
 
-      <View style={styles.insightColumns}>
+      <View style={[styles.insightColumns, !desktopColumns && styles.insightColumnsStacked]}>
         <View style={styles.desktopColumn}>
           <ByDevicePanel devices={devices} loading={devicesLoading} error={devicesError} onRetry={onRefresh} />
         </View>
@@ -285,7 +300,7 @@ function PillarCard({ moduleId }: { moduleId: (typeof moduleManifest)[number]['i
     accessibilityHint={`Opens the ${module.name} pillar.`}
     onPress={() => { if (module.route) router.push(module.route as Href); }}
     style={({ pressed }) => [styles.pillarCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }, pressed && styles.pressed]}>
-    <ImageBackground source={bloomPillarImages[moduleId]} resizeMode="cover" style={styles.pillarPhoto} imageStyle={styles.pillarPhotoImage}>
+    <ImageBackground source={bloomPillarCollectionImages[moduleId]} resizeMode="cover" style={styles.pillarPhoto} imageStyle={styles.pillarPhotoImage}>
       <View style={[styles.pillarIcon, { backgroundColor: theme.colors.surface }]}>
         <MaterialIcons name={module.icon} size={20} color={colors.deep} />
       </View>
@@ -329,10 +344,14 @@ const styles = StyleSheet.create({
   heroHeading: { color: '#FFFFFF', fontSize: 28, lineHeight: 34, fontWeight: '700', letterSpacing: -0.6 },
   heroAction: { position: 'absolute', right: 17, bottom: 17, width: 46, height: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 23, backgroundColor: '#FFFFFF', shadowColor: '#141B35', shadowOpacity: 0.12, shadowOffset: { width: 0, height: 3 }, shadowRadius: 8, elevation: 3 },
   balanceGoalsRow: { flexDirection: 'row', alignItems: 'stretch', gap: 12 },
-  balanceGoalsMobile: { flexDirection: 'column' },
+  balanceGoalsStacked: { flexDirection: 'column' },
+  activeSessionHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  activeSessionIcon: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 14 },
+  activeSessionCopy: { flex: 1, minWidth: 0, gap: 3 },
   balanceColumn: { flex: 1, minWidth: 0 },
   goalsColumn: { flex: 2, minWidth: 0 },
   insightColumns: { flexDirection: 'row', alignItems: 'stretch', gap: 12 },
+  insightColumnsStacked: { flexDirection: 'column' },
   desktopColumn: { flex: 1, minWidth: 0 },
   panelHeading: { gap: 2 },
   panelTitle: { fontSize: 18, lineHeight: 24, fontWeight: '700', letterSpacing: -0.3 },

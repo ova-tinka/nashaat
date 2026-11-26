@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import { Body, Button, ErrorText, Eyebrow, Heading, Label, Panel, Screen, sharedStyles, LocalizedText as Text, LocalizedTextInput as TextInput } from '../../components/bloom-ui';
+import { Body, Button, ErrorText, Eyebrow, Heading, Label, LocalizedText as Text, LocalizedTextInput as TextInput, Panel, Screen, sharedStyles } from '../../components/bloom-ui';
 import { cancelWorkout, completeWorkout, loadWorkout, setWorkoutTimer, type ExerciseResult, type SessionExercise, type WorkoutSession } from '../../lib/bloom';
 import { useBloom } from '../../lib/bloom-context';
 import { useBloomTheme } from '../../lib/theme-context';

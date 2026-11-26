@@ -10,3 +10,11 @@ export const bloomPillarImages: Record<ModuleKey, ImageSourcePropType> = {
   read: require('./images/bloom/reading-book.jpg'),
   tasks: require('./images/bloom/tasks-journal.jpg'),
 };
+
+/** Original, locally generated collection photography bundled for offline use. */
+export const bloomPillarCollectionImages: Record<ModuleKey, ImageSourcePropType> = {
+  exercise: require('./images/bloom/collections/exercise-collection.jpg'),
+  study: require('./images/bloom/collections/study-collection.jpg'),
+  read: require('./images/bloom/collections/read-collection.jpg'),
+  tasks: require('./images/bloom/collections/tasks-collection.jpg'),
+};

@@ -2,7 +2,7 @@ import { getAppLocale } from '../../../lib/locale-context';
 import { router, useFocusEffect, type Href } from 'expo-router';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { useCallback, useState } from 'react';
-import { Body, Button, ErrorText, Eyebrow, Heading, Label, Panel, ProgressBar, Screen, sharedStyles, useIsDesktopLayout } from '../../../components/bloom-ui';
+import { Body, Button, ErrorText, Eyebrow, Heading, Label, Panel, ProgressBar, Screen, sharedStyles, useIsDesktopColumns } from '../../../components/bloom-ui';
 import { useAuth } from '../../../lib/auth';
 import { useBloom } from '../../../lib/bloom-context';
 import { useBloomTheme } from '../../../lib/theme-context';
@@ -17,7 +17,7 @@ export default function ProgressScreen() {
   const { theme } = useBloomTheme();
   const [growthState, setGrowthState] = useState<{ profileId: string | null; rows: GrowthOverview[] | null }>({ profileId: null, rows: null });
   const [exerciseRecords, setExerciseRecords] = useState<{ profileId: string | null; bests: ExercisePersonalBest[]; achievements: ExerciseAchievement[] | null; streak: ExerciseStreak | null }>({ profileId: null, bests: [], achievements: null, streak: null });
-  const desktop = useIsDesktopLayout();
+  const desktopColumns = useIsDesktopColumns();
   const exerciseColor = theme.modules.exercise.deep;
   const exerciseAssigned = !childProfile || assignedModules.includes('exercise');
   const plannerModules = childProfile ? assignedModules : moduleManifest.filter((module) => module.available).map((module) => module.id);
@@ -55,8 +55,8 @@ export default function ProgressScreen() {
     </View>
     {growthRows && growthRows.length > 0 && <Panel>
       <Eyebrow>Activity across Bloom</Eyebrow>
-      <View style={[styles.growthGrid, desktop && styles.desktopGrowthGrid]}>
-        {growthRows.map((row) => <View key={row.module_id} style={[styles.growthMetric, desktop && styles.desktopGrowthMetric]}>
+      <View style={[styles.growthGrid, desktopColumns && styles.desktopGrowthGrid]}>
+        {growthRows.map((row) => <View key={row.module_id} style={[styles.growthMetric, desktopColumns && styles.desktopGrowthMetric]}>
           <Eyebrow>{row.module_id === 'study' ? 'Study' : row.module_id === 'read' ? 'Read' : 'Tasks'}</Eyebrow>
           {row.module_id === 'study' ? <>
             <Label>{row.minutes_this_week} min focused</Label>
@@ -71,15 +71,15 @@ export default function ProgressScreen() {
           </>}
         </View>)}
       </View>
-      <Body>Study and reading time are server-timed. New module activities do not earn credits until their server rules are configured.</Body>
+      <Body>Bloom tracks Study and Reading session time while you work. Other activities earn screen-time minutes after their reward rules are set up.</Body>
     </Panel>}
     {plannerModules.length > 0 && <WeeklyPillarPlanner allowedModules={plannerModules} />}
     {childProfile && !exerciseAssigned ? <Panel><Eyebrow>Child View</Eyebrow><Label>No Exercise access</Label><Body>Exercise progress appears here after your guardian assigns the Exercise module.</Body></Panel> : <>
     {loading && <ActivityIndicator color={theme.colors.action} />}
     {error && <Panel><ErrorText>{error}</ErrorText><Button label="Try again" variant="secondary" onPress={() => void refresh()} /></Panel>}
     {!loading && !error && analytics && <>
-      <View style={[styles.metricsGrid, desktop && styles.desktopMetricsGrid]}>
-      <View style={[styles.metricColumn, desktop && styles.desktopMetricColumn]}><Panel>
+      <View style={[styles.metricsGrid, desktopColumns && styles.desktopMetricsGrid]}>
+      <View style={[styles.metricColumn, desktopColumns && styles.desktopMetricColumn]}><Panel>
         <Eyebrow>This week</Eyebrow>
         <Label>{workoutTarget == null ? `${analytics.workouts_completed} completed ${analytics.workouts_completed === 1 ? 'workout' : 'workouts'}` : `${analytics.workouts_completed} of ${workoutTarget} workouts`}</Label>
         {workoutTarget != null && <ProgressBar value={analytics.workouts_completed / Math.max(1, workoutTarget) * 100} label={`${analytics.workouts_completed} of ${workoutTarget} workouts`} color={exerciseColor} />}
@@ -87,7 +87,7 @@ export default function ProgressScreen() {
         {analytics.planned_workouts > 0 && <View style={sharedStyles.row}><View style={sharedStyles.grow}><Body>Scheduled workouts completed</Body></View><Label>{analytics.completed_planned_workouts} of {analytics.planned_workouts}</Label></View>}
         {analytics.missed_planned_workouts > 0 && <Body>{analytics.missed_planned_workouts} scheduled {analytics.missed_planned_workouts === 1 ? 'workout has' : 'workouts have'} passed. Rest and schedule changes are part of building a routine.</Body>}
       </Panel></View>
-      <View style={[styles.metricColumn, desktop && styles.desktopMetricColumn]}><Panel>
+      <View style={[styles.metricColumn, desktopColumns && styles.desktopMetricColumn]}><Panel>
         <Eyebrow>Movement</Eyebrow>
         <View style={sharedStyles.row}><View style={sharedStyles.grow}><Body>Timed exercise</Body></View><Label>{analytics.exercise_minutes.toLocaleString(getAppLocale(), { maximumFractionDigits: 1 })} min</Label></View>
         <View style={sharedStyles.row}><View style={sharedStyles.grow}><Body>Sets completed</Body></View><Label>{analytics.sets_completed.toLocaleString(getAppLocale())}</Label></View>
@@ -95,11 +95,11 @@ export default function ProgressScreen() {
         <View style={sharedStyles.row}><View style={sharedStyles.grow}><Body>Distance</Body></View><Label>{analytics.distance_km.toLocaleString(getAppLocale(), { maximumFractionDigits: 2 })} km</Label></View>
         <View style={sharedStyles.row}><View style={sharedStyles.grow}><Body>Weight volume</Body></View><Label>{analytics.weight_volume_kg.toLocaleString(getAppLocale(), { maximumFractionDigits: 1 })} kg</Label></View>
       </Panel></View>
-      {creditTarget !== null && creditTarget !== undefined && <View style={[styles.metricColumn, desktop && styles.desktopMetricColumn]}><Panel>
+      {creditTarget !== null && creditTarget !== undefined && <View style={[styles.metricColumn, desktopColumns && styles.desktopMetricColumn]}><Panel>
         <Eyebrow>Shared screen-time credits</Eyebrow>
         <Label>{analytics.credits_earned_minutes.toLocaleString(getAppLocale(), { maximumFractionDigits: 2 })} of {creditTarget} goal minutes</Label>
         <ProgressBar value={analytics.credits_earned_minutes / Math.max(1, creditTarget) * 100} label={`${analytics.credits_earned_minutes} of ${creditTarget} goal minutes`} color={theme.colors.action} />
-        <Body>Credits are shown from the server-confirmed workout analytics.</Body>
+      <Body>Workout rewards are based on your completed, recorded workouts.</Body>
       </Panel></View>}
       </View>
       {records?.streak && <Panel>

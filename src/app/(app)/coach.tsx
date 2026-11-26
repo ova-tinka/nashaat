@@ -1,8 +1,8 @@
 import { randomUUID } from 'expo-crypto';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Switch, View } from 'react-native';
-import { Body, Button, ErrorText, Eyebrow, Field, Heading, Label, Panel, Screen, sharedStyles } from '../../components/bloom-ui';
+import { ActivityIndicator, StyleSheet, Switch, View, useWindowDimensions } from 'react-native';
+import { Body, Button, DesktopContent, ErrorText, Eyebrow, Field, Heading, Label, Panel, Screen, sharedStyles, useIsDesktopLayout } from '../../components/bloom-ui';
 import { CoachProposalCard } from '../../components/coach-proposal';
 import { useAuth } from '../../lib/auth';
 import { loadCatalog, type Exercise } from '../../lib/bloom';
@@ -15,6 +15,8 @@ export default function CoachScreen() {
   const { theme } = useBloomTheme();
   const { profileId, childProfile } = useAuth();
   const { refresh } = useBloom();
+  const { width } = useWindowDimensions();
+  const desktopColumns = useIsDesktopLayout() && width >= 1100;
   const [settings, setSettings] = useState<CoachSettings | null>(null);
   const [messages, setMessages] = useState<CoachMessage[]>([]);
   const [proposals, setProposals] = useState<CoachProposal[]>([]);
@@ -77,11 +79,13 @@ export default function CoachScreen() {
   }
 
   return <Screen safeAreaTop={false}>
+    <DesktopContent maxWidth={1160}>
     <View style={sharedStyles.column}><Eyebrow>AI coach</Eyebrow><Heading>Movement advice</Heading><Body>Ask for supportive ideas or review your recent workouts. Suggestions require approval before they change a plan.</Body></View>
     <Button label="Back to profile" secondary onPress={() => router.replace('/settings')} disabled={busy} />
     {loading && <ActivityIndicator color={theme.colors.action} />}{error && <ErrorText>{error}</ErrorText>}{notice && <Body>{notice}</Body>}
     {!loading && <>
-      <Panel>
+      <View style={[sharedStyles.column, desktopColumns && styles.desktopColumns]}>
+      <View style={desktopColumns && styles.desktopColumn}><Panel>
         <Label>Privacy and preferences</Label>
         <Body>If you consent, your message, goals (including current ability and schedule), experience, equipment, plans, recent workouts, and recent chat are sent to Fireworks AI for coaching. Do not include names, contact details, medical records, or other identifying information.</Body>
         <View style={sharedStyles.row}><Body>I agree to this data sharing</Body><Switch accessibilityLabel="Consent to coaching data sharing" value={consent} onValueChange={setConsent} disabled={busy} /></View>
@@ -93,8 +97,8 @@ export default function CoachScreen() {
         <Label>Experience</Label>
         {(['beginner', 'intermediate', 'experienced'] as const).map((choice) => <Button key={choice} label={`${experience === choice ? '✓ ' : ''}${choice}`} secondary onPress={() => setExperience(choice)} disabled={busy} />)}
         <Button label="Save preferences" onPress={() => void save()} busy={busy} />
-      </Panel>
-      {(settings?.sharing_consent || messages.length > 0) && <Panel>
+      </Panel></View>
+      {(settings?.sharing_consent || messages.length > 0) && <View style={desktopColumns && styles.desktopColumn}><Panel>
         <Label>Conversation</Label>
         {messages.length === 0 && <Body>No messages yet.</Body>}
         {messages.map((message) => <View key={message.id} style={sharedStyles.column}><Label>{message.role === 'user' ? 'You' : 'Coach'}</Label><Body>{message.content}</Body></View>)}
@@ -109,8 +113,15 @@ export default function CoachScreen() {
         <Button label="Rearrange a missed session" secondary onPress={() => void send('chat', 'I missed a planned session. Help me consider a smaller or rearranged next step. Ask about obstacles without blame, include room for recovery, and prioritize comfortable, safe movement.')} disabled={busy || Boolean(pending)} />
         <Button label="Plan a smaller week with recovery" secondary onPress={() => void send('chat', 'Suggest a flexible, smaller workout week from my current plans and recent completed sessions. Explain the changes and leave planned recovery days. Do not change any plan unless I approve a proposal.')} disabled={busy || Boolean(pending)} />
         {pending && <Button label="Start a new request" secondary onPress={() => setPending(null)} disabled={busy} />}</>}
-      </Panel>}
+      </Panel></View>}
+      </View>
       {proposals.length > 0 && <><Label>Workout proposals</Label>{proposals.map((proposal) => <CoachProposalCard key={proposal.id} proposal={proposal} catalog={catalog} canApprove={!childProfile} busy={busy} onDecision={(approve) => void decide(proposal.id, approve)} />)}</>}
     </>}
+    </DesktopContent>
   </Screen>;
 }
+
+const styles = StyleSheet.create({
+  desktopColumns: { flexDirection: 'row', alignItems: 'flex-start', flexWrap: 'wrap' },
+  desktopColumn: { flex: 1, minWidth: 420 },
+});

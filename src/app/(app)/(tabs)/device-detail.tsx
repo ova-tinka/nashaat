@@ -3,7 +3,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import { Body, Button, ErrorText, Eyebrow, Field, Heading, Label, Panel, Screen, sharedStyles, useIsDesktopLayout } from '../../../components/bloom-ui';
+import { Body, Button, ErrorText, Eyebrow, Field, Heading, Label, Panel, Screen, sharedStyles, useIsDesktopColumns } from '../../../components/bloom-ui';
 import { useBloomTheme } from '../../../lib/theme-context';
 import { useAuth } from '../../../lib/auth';
 import { getInstallationId, loadDevice, removeDevice, renameDevice, type BloomDevice } from '../../../lib/devices';
@@ -12,7 +12,7 @@ import { isDeviceStale } from '../../../lib/device-utils';
 export default function DeviceDetailScreen() {
   const { deviceId } = useLocalSearchParams<{ deviceId?: string }>();
   const { theme } = useBloomTheme();
-  const desktop = useIsDesktopLayout();
+  const desktopColumns = useIsDesktopColumns();
   const { profileId } = useAuth();
   const [device, setDevice] = useState<BloomDevice | null>(null);
   const [currentDeviceId, setCurrentDeviceId] = useState<string | null>(null);
@@ -100,8 +100,8 @@ export default function DeviceDetailScreen() {
     </View>
     {loading && <ActivityIndicator color={theme.colors.action} />}
     {error && <ErrorText>{error}</ErrorText>}
-    {device && <View style={[styles.workspace, desktop && styles.desktopWorkspace]}>
-      <View style={[styles.column, desktop && styles.desktopColumn]}>
+    {device && <View style={[styles.workspace, desktopColumns && styles.desktopWorkspace]}>
+      <View style={[styles.column, desktopColumns && styles.desktopColumn]}>
         <Panel>
           <View style={sharedStyles.row}>
             <MaterialIcons name={device.platform === 'ios' ? 'phone-iphone' : device.platform === 'android' ? 'phone-android' : device.platform === 'macos' ? 'laptop-mac' : 'devices'} size={25} color={theme.colors.action} />
@@ -129,7 +129,7 @@ export default function DeviceDetailScreen() {
           {!current && <Body>For privacy, Bloom cannot change another device’s operating-system permissions from here.</Body>}
         </Panel>
       </View>
-      <View style={[styles.column, desktop && styles.desktopColumn]}>
+      <View style={[styles.column, desktopColumns && styles.desktopColumn]}>
         <Panel>
           <Label>Device name</Label>
           <Field label="Name shown in this profile" value={name} onChangeText={(value) => { setName(value); setReviewName(false); }} maxLength={80} editable={!busy} />

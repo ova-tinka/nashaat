@@ -35,8 +35,12 @@ export function MacosFocus({ initialSection }: {
   const [appSearch, setAppSearch] = useState('');
   const [showAppPicker, setShowAppPicker] = useState(false);
   const [showManualAppEntry, setShowManualAppEntry] = useState(false);
-  const [showAppSettings, setShowAppSettings] = useState(initialSection === 'apps');
-  const [showWebsiteSettings, setShowWebsiteSettings] = useState(initialSection === 'websites');
+  const [appSettingsOverride, setAppSettingsOverride] = useState<{ section: FocusSettingsSection; expanded: boolean } | null>(null);
+  const [websiteSettingsOverride, setWebsiteSettingsOverride] = useState<{ section: FocusSettingsSection; expanded: boolean } | null>(null);
+  const showAppSettings = appSettingsOverride?.section === initialSection
+    ? appSettingsOverride.expanded : initialSection === 'apps' || initialSection === 'rules';
+  const showWebsiteSettings = websiteSettingsOverride?.section === initialSection
+    ? websiteSettingsOverride.expanded : initialSection === 'websites' || initialSection === 'rules';
   const [showWebsiteDetails, setShowWebsiteDetails] = useState(false);
   const [showHostsAdvanced, setShowHostsAdvanced] = useState(false);
   const [showEarnedAccess, setShowEarnedAccess] = useState(false);
@@ -438,7 +442,7 @@ export function MacosFocus({ initialSection }: {
   const handleAppAction = () => {
     if (!accessibilityTrusted) { void openAccessibilitySettings(); return; }
     if (appService !== 'active') { void run('activateApps'); return; }
-    if (apps.length === 0) { setShowAppSettings(true); void openAppPicker(); return; }
+    if (apps.length === 0) { setAppSettingsOverride({ section: initialSection, expanded: true }); void openAppPicker(); return; }
     void run(appEnabled ? 'stopApps' : 'startApps');
   };
 
@@ -465,7 +469,7 @@ export function MacosFocus({ initialSection }: {
       <Button label="Refresh status" variant="tertiary" onPress={() => void refreshProtection()} />
     </Panel>
 
-    <MacFocusDisclosure title="Apps to block" summary={`${apps.length + managedApps.length} selected · ${appSummary}`} expanded={showAppSettings} onPress={() => setShowAppSettings((open) => !open)}>
+    <MacFocusDisclosure title="Apps to block" summary={`${apps.length + managedApps.length} selected · ${appSummary}`} expanded={showAppSettings} onPress={() => setAppSettingsOverride({ section: initialSection, expanded: !showAppSettings })}>
       {showAppSettings && <View style={focusStyles.disclosureBody}>
         <Body>Choose the apps Bloom should block. macOS needs Accessibility and Bloom’s background monitor to enforce this list.</Body>
         {appHideFailed && <Body>A selected app is still running. Bloom may be warning it or trying to close it; protection needs attention until it has quit.</Body>}
@@ -518,7 +522,7 @@ export function MacosFocus({ initialSection }: {
       </View>}
     </MacFocusDisclosure>
 
-    <MacFocusDisclosure title="Websites to block" summary={`${sites.length + managedSites.length} saved · ${websiteSummary}`} expanded={showWebsiteSettings} onPress={() => setShowWebsiteSettings((open) => !open)}>
+    <MacFocusDisclosure title="Websites to block" summary={`${sites.length + managedSites.length} saved · ${websiteSummary}`} expanded={showWebsiteSettings} onPress={() => setWebsiteSettingsOverride({ section: initialSection, expanded: !showWebsiteSettings })}>
       {showWebsiteSettings && <View style={focusStyles.disclosureBody}>
         <Body>Add domains and start website protection. Website addresses are checked on this Mac.</Body>
         <Label>{websiteCheck === 'checking' ? 'Checking website filter…' : websiteCheck === 'unavailable' ? 'Website filter status unavailable' : enabled ? websiteUsageAvailable && websiteProviderHealthy ? 'Filter active' : 'Filter active · needs attention' : activationStatus === 'active' ? 'Ready to start' : 'Setup needed'}</Label>
@@ -590,12 +594,12 @@ export function MacosFocus({ initialSection }: {
           {creditRecoveryStatus === 'checking' && <Body>Checking the existing access session. Apps stay blocked until Bloom confirms it is yours and still active.</Body>}
           {creditRecoveryStatus === 'blocked' && <Body>Bloom could not validate the previous countdown. Access remains blocked. Reconnect and reopen Bloom to retry.</Body>}
           {creditRecoveryStatus === 'expired' && <Body>The previous countdown expired. Request a new session to use any remaining balance.</Body>}
-          {creditRecoveryStatus === 'rejected' && <Body>The server rejected this request. Check the balance and account before retrying.</Body>}
+          {creditRecoveryStatus === 'rejected' && <Body>This request could not be approved. Check the balance and account before retrying.</Body>}
           {creditSettings.credit_mode === 'easy' ? <>
             <Label>{usage ? `${Math.ceil(usage.remainingMillis / 60000)} minutes left in this screen-time session` : `${Math.round(creditBalance * 100) / 100} minutes available`}</Label>
             <Body>Your reserved minutes keep counting while the selected app or website is idle. If you finish early, unused time returns to your balance.</Body>
             {usage && usage.userId !== profileId ? <Body>Another account has a session on this Mac. Sign in to finish it.</Body> : usage ? <>
-              {!usage.closed && usage.verified !== true && <><Body>This session needs server verification before granting access.</Body><Button label="Verify session" onPress={() => void startActualUsage()} busy={busy} /></>}
+              {!usage.closed && usage.verified !== true && <><Body>Bloom needs to verify this session before it can unlock apps.</Body><Button label="Verify session" onPress={() => void startActualUsage()} busy={busy} /></>}
               <Body>{usage.closed ? 'The access window ended. Sync it to settle the session.' : usage.tracking ? 'A selected target is detected.' : 'No selected target is detected. The timer continues while idle.'}</Body>
               <Button label={usage.closed ? 'Sync screen-time session' : 'Finish screen-time session'} onPress={() => void finishActualUsage()} busy={busy} />
             </> : <>

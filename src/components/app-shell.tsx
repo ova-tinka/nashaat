@@ -1,9 +1,9 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { router, usePathname, type Href } from 'expo-router';
-import { useContext, useEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react';
+import { router, useGlobalSearchParams, usePathname, type Href } from 'expo-router';
+import { useContext, useEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode } from 'react';
 import { AccessibilityInfo, findNodeHandle, I18nManager, Image, Keyboard, Modal, Platform, Pressable, ScrollView, StyleSheet, View, useWindowDimensions, type PressableInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Body, BloomFloatingDockContext, BloomWordmark, Label, LocalizedText as Text } from './bloom-ui';
+import { Body, BloomFloatingDockContext, BloomWordmark, Label, LocalizedText as Text, useReduceMotionPreference } from './bloom-ui';
 import { useAuth } from '../lib/auth';
 import { useBloom } from '../lib/bloom-context';
 import { isMacDesktop } from '../lib/macos-blocking';
@@ -23,21 +23,45 @@ export function BloomDesktopNavigation() {
   const compact = width < 1100;
   const activeModule = moduleForPath(pathname);
   const familyRoute = isFamilySpaceRoute(pathname);
+  const enabledModules = useMemo(() => moduleManifest.filter((module) => module.available && visibleModules.includes(module.id)
+    && (!childProfile || assignedModules.includes(module.id))), [assignedModules, childProfile, visibleModules]);
+
+  useEffect(() => {
+    if (!isMacDesktop()) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!event.metaKey || event.altKey || event.ctrlKey || event.repeat) return;
+      const target = event.target;
+      if (target instanceof HTMLElement && (target.isContentEditable || target.closest('input, textarea, select, [contenteditable="true"]'))) return;
+
+      const key = event.key.toLowerCase();
+      let route: Href | null = null;
+      if (key === '1') route = '/' as Href;
+      else if (key >= '2' && key <= '5') route = (enabledModules[Number(key) - 2]?.route as Href | undefined) ?? null;
+      else if (key === '6') route = '/focus' as Href;
+      else if (key === ',') route = '/settings' as Href;
+      if (!route) return;
+
+      event.preventDefault();
+      router.replace(route);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [enabledModules]);
 
   return <View style={[styles.sidebar, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }, compact && styles.compact]}>
     <ScrollView contentContainerStyle={styles.sidebarScroll}>
       <Text style={[styles.groupLabel, { color: theme.colors.inkSubtle }]}>{compact ? '•' : 'BLOOM'}</Text>
       <View style={styles.navigation}>
-        <RailAction title="Home" icon="home" compact={compact} selected={pathname === '/'} onPress={() => router.replace('/' as Href)} />
-        {moduleManifest.filter((module) => module.available && visibleModules.includes(module.id)
-          && (!childProfile || assignedModules.includes(module.id))).map((module) => (
-          <RailAction key={module.id} title={module.name} compactTitle={module.name} icon={module.icon} compact={compact}
+        <RailAction title="Home" shortcut="Command+1" icon="home" compact={compact} selected={pathname === '/'} onPress={() => router.replace('/' as Href)} />
+        {enabledModules.map((module, index) => (
+          <RailAction key={module.id} title={module.name} compactTitle={module.name} shortcut={`Command+${index + 2}`} icon={module.icon} compact={compact}
             selected={activeModule === module.id} iconColor={activeModule === module.id ? theme.modules[module.id].deep : undefined}
             onPress={() => { if (module.route) router.replace(module.route as Href); }} />
         ))}
       </View>
       <Text style={[styles.groupLabel, styles.modulesLabel, { color: theme.colors.inkSubtle }]}>{compact ? '•' : 'INSIGHTS'}</Text>
       <View style={styles.navigation}>
+        <RailAction title="Focus & Screen Time" compactTitle="Focus" shortcut="Command+6" icon="timer" compact={compact} selected={pathname === '/focus'} onPress={() => router.replace('/focus' as Href)} />
         <RailAction title="Progress" icon="insights" compact={compact} selected={pathname === '/progress'} onPress={() => router.replace('/progress' as Href)} />
         <RailAction title="Activity" icon="history" compact={compact} selected={pathname === '/activity'} onPress={() => router.replace('/activity' as Href)} />
         <RailAction title="Devices" icon="devices" compact={compact} selected={pathname === '/devices' || pathname === '/device-detail'} onPress={() => router.replace('/devices' as Href)} />
@@ -50,10 +74,95 @@ export function BloomDesktopNavigation() {
       </>}
       <Text style={[styles.groupLabel, styles.modulesLabel, { color: theme.colors.inkSubtle }]}>{compact ? '•' : 'ACCOUNT'}</Text>
       <View style={styles.navigation}>
-        <RailAction title="Settings" icon="settings" compact={compact} selected={pathname === '/settings' || pathname === '/profile-switch'} onPress={() => router.replace('/(app)/(tabs)/settings' as Href)} />
+        <RailAction title="Settings" shortcut="Command+," icon="settings" compact={compact} selected={pathname === '/settings' || pathname === '/profile-switch'} onPress={() => router.replace('/(app)/(tabs)/settings' as Href)} />
       </View>
     </ScrollView>
-    {!compact && <Text style={[styles.footer, { color: theme.colors.inkMuted }]}>{childProfile ? 'CHILD VIEW' : 'MY SPACE'}</Text>}
+    {!compact && <View style={styles.footerArea}>
+      <Text style={[styles.footer, { color: theme.colors.inkMuted }]}>{childProfile ? 'CHILD VIEW' : 'MY SPACE'}</Text>
+      <Text style={[styles.shortcutFooter, { color: theme.colors.inkSubtle }]}>⌘1 Home · ⌘2–5 Pillars · ⌘6 Focus · ⌘, Settings</Text>
+    </View>}
+  </View>;
+}
+
+type DesktopTab = { id: string; label: string; href: Href };
+
+const desktopPillarTabs: Record<string, DesktopTab[]> = {
+  exercise: [
+    { id: 'today', label: 'Today', href: '/exercise' as Href },
+    { id: 'plans', label: 'Plans', href: { pathname: '/exercise', params: { section: 'plans' } } as Href },
+    { id: 'library', label: 'Library', href: '/library' as Href },
+    { id: 'progress', label: 'Progress', href: { pathname: '/exercise', params: { section: 'progress' } } as Href },
+    { id: 'more', label: 'More', href: { pathname: '/exercise', params: { section: 'more' } } as Href },
+  ],
+  study: [
+    { id: 'today', label: 'Today', href: '/study' as Href },
+    { id: 'plan', label: 'Plan', href: { pathname: '/apps/study/[section]', params: { section: 'plan' } } as Href },
+    { id: 'courses', label: 'Courses', href: { pathname: '/apps/study/[section]', params: { section: 'courses' } } as Href },
+    { id: 'more', label: 'Tools', href: { pathname: '/apps/study/[section]', params: { section: 'more' } } as Href },
+    { id: 'progress', label: 'Progress', href: { pathname: '/apps/study/[section]', params: { section: 'progress' } } as Href },
+  ],
+  read: [
+    { id: 'today', label: 'Today', href: '/read' as Href },
+    { id: 'library', label: 'Library', href: { pathname: '/apps/read/[section]', params: { section: 'library' } } as Href },
+    { id: 'discover', label: 'Discover', href: { pathname: '/apps/read/[section]', params: { section: 'discover' } } as Href },
+    { id: 'progress', label: 'Progress', href: { pathname: '/apps/read/[section]', params: { section: 'progress' } } as Href },
+  ],
+  tasks: [
+    { id: 'today', label: 'Today', href: '/tasks' as Href },
+    { id: 'projects', label: 'Projects', href: { pathname: '/apps/tasks/[section]', params: { section: 'projects' } } as Href },
+    { id: 'focus', label: 'Focus', href: { pathname: '/apps/tasks/[section]', params: { section: 'focus' } } as Href },
+    { id: 'breakdown', label: 'Breakdown', href: { pathname: '/apps/tasks/[section]', params: { section: 'breakdown' } } as Href },
+  ],
+};
+
+const focusTabs: DesktopTab[] = [
+  { id: 'focus', label: 'Overview', href: '/focus' as Href },
+  { id: 'apps', label: 'Apps', href: { pathname: '/focus', params: { section: 'apps' } } as Href },
+  { id: 'websites', label: 'Websites', href: { pathname: '/focus', params: { section: 'websites' } } as Href },
+  { id: 'rules', label: 'Rules', href: { pathname: '/focus', params: { section: 'rules' } } as Href },
+];
+
+export function BloomDesktopSectionNavigation() {
+  const { theme } = useBloomTheme();
+  const { width } = useWindowDimensions();
+  const pathname = usePathname();
+  const params = useGlobalSearchParams<{ section?: string | string[] }>();
+  const [focusedTab, setFocusedTab] = useState<string | null>(null);
+  const desktop = isMacDesktop() || (Platform.OS === 'web' && width >= 1024);
+  const moduleId = moduleForPath(pathname);
+  const tabs = pathname === '/focus' ? focusTabs : moduleId ? desktopPillarTabs[moduleId] : null;
+  if (!desktop || !tabs) return null;
+
+  const routeSection = Array.isArray(params.section) ? params.section[0] : params.section;
+  let selected = routeSection ?? 'today';
+  if (pathname === '/focus') selected = routeSection ?? 'focus';
+  else if (moduleId === 'exercise') {
+    if (pathname === '/library' || pathname.startsWith('/library/')) selected = 'library';
+    else if (pathname === '/workouts' || pathname === '/new-plan' || pathname.startsWith('/exercise/')) selected = 'plans';
+  } else if (moduleId === 'read' && (pathname.includes('/reader/') || ['/apps/read/item', '/apps/read/add', '/apps/read/edit', '/apps/read/notes'].includes(pathname))) selected = 'library';
+  if (!tabs.some((tab) => tab.id === selected)) selected = pathname === '/focus' ? 'focus' : 'today';
+
+  return <View style={[styles.sectionBar, { borderBottomColor: theme.colors.border, backgroundColor: theme.colors.canvas }]}>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.sectionTabs} accessibilityRole="tablist">
+      {tabs.map((tab) => {
+        const active = selected === tab.id;
+        return <Pressable key={tab.id} accessibilityRole="tab" accessibilityLabel={tab.label}
+          accessibilityState={{ selected: active }} onFocus={() => setFocusedTab(tab.id)}
+          onBlur={() => setFocusedTab((current) => current === tab.id ? null : current)} onPress={() => {
+            if (moduleId === 'exercise' && pathname === '/exercise' && tab.id !== 'library') {
+              router.setParams({ section: tab.id });
+            } else if (pathname === '/focus') {
+              router.setParams({ section: tab.id === 'focus' ? undefined : tab.id });
+            } else router.replace(tab.href);
+          }}
+          style={({ pressed }) => [styles.sectionTab, {
+            borderBottomColor: active ? theme.colors.action : 'transparent',
+            borderTopColor: focusedTab === tab.id ? theme.colors.focusRing : 'transparent',
+          }, pressed && styles.pressed]}>
+          <Text style={[styles.sectionTabText, { color: active ? theme.colors.ink : theme.colors.inkMuted }]}>{tab.label}</Text>
+        </Pressable>;
+      })}
+    </ScrollView>
   </View>;
 }
 
@@ -111,26 +220,20 @@ export function BloomAppHeader() {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
+  const desktop = isMacDesktop() || (Platform.OS === 'web' && width >= 1024);
+  const reduceMotion = useReduceMotionPreference();
   const [open, setOpen] = useState(false);
   const [noticesOpen, setNoticesOpen] = useState(false);
   const spaceTriggerRef = useRef<PressableInstance>(null);
   const noticeTriggerRef = useRef<PressableInstance>(null);
   const [popoverPlacement, setPopoverPlacement] = useState<{ top: number; left: number } | null>(null);
   const [noticePlacement, setNoticePlacement] = useState<{ top: number; left: number } | null>(null);
-  const [reduceMotion, setReduceMotion] = useState(false);
   const [spaceFocused, setSpaceFocused] = useState(false);
   const [noticesFocused, setNoticesFocused] = useState(false);
   const wide = width >= 850 && (isMacDesktop() || Platform.OS === 'web');
   const familyRoute = isFamilySpaceRoute(pathname);
   const currentSpace = childProfile ? 'Child profile' : familyRoute ? 'Family Space' : 'My profile';
   const notice = blockingRulesSyncError ?? (!loading ? bloomError : null);
-
-  useEffect(() => {
-    let active = true;
-    void AccessibilityInfo.isReduceMotionEnabled().then((enabled) => { if (active) setReduceMotion(enabled); });
-    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
-    return () => { active = false; subscription.remove(); };
-  }, []);
 
   function closeSpaceSelector(restoreFocus = true) {
     setOpen(false);
@@ -187,8 +290,11 @@ export function BloomAppHeader() {
       <View style={styles.headerInner}>
         <View style={styles.brandBlock}>
           <BloomWordmark size={32} />
-          {moduleForPath(pathname) === 'exercise' && <Text style={[styles.brandSubtitle, { color: theme.modules.exercise.deep }]}>Exercise</Text>}
+          {!desktop && moduleForPath(pathname) === 'exercise' && <Text style={[styles.brandSubtitle, { color: theme.modules.exercise.deep }]}>Exercise</Text>}
         </View>
+        {desktop && <View style={styles.pageTitleWrap}>
+          <Text accessibilityRole="header" numberOfLines={1} style={[styles.pageTitle, { color: theme.colors.ink }]}>{desktopPageTitle(pathname)}</Text>
+        </View>}
         <View style={styles.headerSpacer} />
         <Pressable
           ref={noticeTriggerRef}
@@ -257,6 +363,26 @@ export function BloomAppHeader() {
   </>;
 }
 
+function desktopPageTitle(pathname: string) {
+  if (pathname === '/' || pathname === '/index') return 'Home';
+  if (pathname === '/focus') return 'Focus & Screen Time';
+  if (pathname === '/progress') return 'Progress';
+  if (pathname === '/activity') return 'Activity';
+  if (pathname === '/devices' || pathname === '/device-detail') return 'Devices';
+  if (pathname === '/family' || pathname.startsWith('/family/')) return 'Family';
+  if (pathname === '/settings') return 'Settings';
+  if (pathname === '/profile' || pathname === '/profile-switch') return 'Profile';
+  if (pathname === '/library') return 'Exercise Library';
+  if (pathname === '/workouts') return 'Workout History';
+  if (pathname === '/new-plan') return 'Workout Plan';
+  if (pathname.startsWith('/apps/read/reader/')) return 'Reader';
+  if (pathname === '/credit-history') return 'Credit History';
+  const moduleId = moduleForPath(pathname);
+  if (moduleId) return moduleManifest.find((module) => module.id === moduleId)?.name ?? 'Bloom';
+  const lastSegment = pathname.split('/').filter(Boolean).at(-1);
+  return lastSegment ? lastSegment.replace(/[-_]/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()) : 'Bloom';
+}
+
 function SpaceOption({ title, message, icon, selected = false, disabled = false, onPress }: {
   title: string;
   message?: string;
@@ -295,6 +421,8 @@ const styles = StyleSheet.create({
   header: {},
   headerInner: { minHeight: 72, width: '100%', maxWidth: 1280, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 22, paddingVertical: 8 },
   brandBlock: { alignItems: 'flex-start', justifyContent: 'center' },
+  pageTitleWrap: { minWidth: 0, paddingStart: 20, borderStartWidth: StyleSheet.hairlineWidth, borderStartColor: '#D9E0EC' },
+  pageTitle: { maxWidth: 360, fontSize: 18, lineHeight: 24, fontWeight: '700', letterSpacing: -0.25 },
   brandSubtitle: { marginStart: 40, marginTop: -1, fontSize: 12, lineHeight: 15, fontWeight: '700', letterSpacing: 0.2 },
   avatarButton: { width: 46, height: 46, overflow: 'hidden', borderRadius: 17 },
   avatarImage: { width: '100%', height: '100%' },
@@ -304,6 +432,10 @@ const styles = StyleSheet.create({
   dockButton: { minWidth: 44, minHeight: 52, flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 999 },
   dockIcon: { width: 43, height: 43, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },
   headerSpacer: { flex: 1 },
+  sectionBar: { borderBottomWidth: StyleSheet.hairlineWidth },
+  sectionTabs: { width: '100%', maxWidth: 1200, alignSelf: 'center', flexDirection: 'row', gap: 28, paddingHorizontal: 40 },
+  sectionTab: { minHeight: 48, justifyContent: 'center', borderBottomWidth: 2, borderTopWidth: 2, paddingHorizontal: 2 },
+  sectionTabText: { fontSize: 14, lineHeight: 20, fontWeight: '600' },
   iconButton: { width: 44, height: 44, borderWidth: 1, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   pressed: { opacity: 0.76 },
   modalFrame: { flex: 1, backgroundColor: 'rgba(16,21,43,0.28)' },
@@ -334,12 +466,15 @@ const styles = StyleSheet.create({
   moduleRowText: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 },
   comingLater: { fontSize: 9, fontWeight: '700' },
   disabled: { opacity: 0.56 },
+  footerArea: { paddingTop: 8, gap: 4 },
   footer: { fontSize: 10, fontWeight: '800', letterSpacing: 1.2, paddingHorizontal: 12, paddingTop: 14 },
+  shortcutFooter: { fontSize: 9, lineHeight: 13, paddingHorizontal: 12 },
 });
 
-function RailAction({ title, compactTitle = title, icon, compact, selected, disabled = false, iconColor, onPress, children }: {
+function RailAction({ title, compactTitle = title, shortcut, icon, compact, selected, disabled = false, iconColor, onPress, children }: {
   title: string;
   compactTitle?: string;
+  shortcut?: string;
   icon: ComponentProps<typeof MaterialIcons>['name'];
   compact: boolean;
   selected: boolean;
@@ -350,7 +485,7 @@ function RailAction({ title, compactTitle = title, icon, compact, selected, disa
 }) {
   const { theme } = useBloomTheme();
   const [focused, setFocused] = useState(false);
-  return <Pressable accessibilityRole="button" accessibilityLabel={title} accessibilityState={{ selected, disabled }} disabled={disabled} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} onPress={onPress} style={({ pressed }) => [styles.item, compact && styles.compactItem, { borderColor: focused ? theme.colors.focusRing : 'transparent', borderWidth: focused ? 2 : 1 }, selected && { backgroundColor: theme.colors.surfaceTinted }, disabled && styles.disabled, pressed && styles.pressed]}>
+  return <Pressable accessibilityRole="button" accessibilityLabel={title} accessibilityHint={shortcut ? `Keyboard shortcut ${shortcut}.` : undefined} accessibilityState={{ selected, disabled }} disabled={disabled} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} onPress={onPress} style={({ pressed }) => [styles.item, compact && styles.compactItem, { borderColor: focused ? theme.colors.focusRing : 'transparent', borderWidth: focused ? 2 : 1 }, selected && { backgroundColor: theme.colors.surfaceTinted }, disabled && styles.disabled, pressed && styles.pressed]}>
     <MaterialIcons name={icon} size={21} color={iconColor ?? (selected ? theme.colors.action : theme.colors.inkMuted)} />
     {compact
       ? <Text style={[styles.compactItemText, { color: selected ? theme.colors.ink : theme.colors.inkMuted }]}>{compactTitle}</Text>

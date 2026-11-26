@@ -5,7 +5,7 @@ import { useCallback, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Switch, View } from 'react-native';
 import BloomBlocking from '../../../modules/bloom-blocking/src/BloomBlockingModule';
 import type { AppCandidate, BlockingStatus } from '../../../modules/bloom-blocking/src/BloomBlocking.types';
-import { Body, Button, ErrorText, Eyebrow, Field, Heading, Label, Panel, Screen, sharedStyles, LocalizedText as Text } from '../../components/bloom-ui';
+import { Body, Button, ErrorText, Eyebrow, Field, Heading, Label, LocalizedText as Text, Panel, Screen, sharedStyles } from '../../components/bloom-ui';
 import { useAuth } from '../../lib/auth';
 import { useBloomTheme } from '../../lib/theme-context';
 import { canonicalWebsiteDomain } from '../../lib/website-domain';
@@ -252,7 +252,7 @@ function IosScheduledFocusScreen() {
     </View>
     <Panel>
       <Label>{!status ? 'Schedule status unavailable' : enforced ? 'Schedules ready on this device' : 'Device enforcement needs attention'}</Label>
-      <Body>{status?.scheduleError ? 'One or more routines could not be registered with Screen Time. Reopen Bloom and check permission.' : 'iOS applies each routine with its own Screen Time rule, so one routine ending does not clear another.'}</Body>
+      <Body>{status?.scheduleError ? 'One or more routines could not be registered with Screen Time. Reopen Bloom and check permission.' : 'Each Focus schedule is managed separately on iPhone and iPad. Ending one schedule does not stop the others.'}</Body>
       {!status?.authorized && <Button label="Allow Screen Time" variant="secondary" onPress={() => void authorize()} busy={busy} disabled={busy} />}
     </Panel>
     {error && <ErrorText>{error}</ErrorText>}

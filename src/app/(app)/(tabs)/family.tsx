@@ -4,7 +4,7 @@ import { router, useFocusEffect, type Href } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
-import { Body, Button, ErrorText, Eyebrow, Field, Heading, Label, Panel, Screen, sharedStyles, useIsDesktopLayout, LocalizedText as Text } from '../../../components/bloom-ui';
+import { Body, Button, ErrorText, Eyebrow, Field, Heading, Label, LocalizedText as Text, Panel, Screen, sharedStyles, useIsDesktopColumns } from '../../../components/bloom-ui';
 import { useAuth } from '../../../lib/auth';
 import { createChildAccountLink, createChildInvite, createFamily, createManagedChildProfile, deleteUnpairedChildProfile, joinFamily, leaveOrRemoveChild, loadFamilies, loadFamilyChildSummary, prepareChildPairing, type Family } from '../../../lib/family';
 import { moduleManifest } from '../../../lib/module-manifest';
@@ -18,7 +18,7 @@ type FamilySection = 'overview' | 'accounts' | 'profiles';
 export default function FamilyScreen() {
   const { profileId, refreshProfile } = useAuth();
   const { theme } = useBloomTheme();
-  const desktop = useIsDesktopLayout();
+  const desktopColumns = useIsDesktopColumns();
   const [families, setFamilies] = useState<Family[]>([]);
   const [familiesProfileId, setFamiliesProfileId] = useState<string | null>(null);
   const [childSummaries, setChildSummaries] = useState<Record<string, FamilyChildSummaryState>>({});
@@ -214,9 +214,9 @@ export default function FamilyScreen() {
         </View>}
         {myRole === 'parent' && section === 'profiles' && <View style={sharedStyles.column}>
           <View style={sharedStyles.column}><Eyebrow>Child profiles</Eyebrow><Body>Profiles keep their own progress and settings. Connect a device or sign-in before assigning module access.</Body></View>
-          <View style={[styles.childGrid, desktop && styles.desktopChildGrid]}>{family.childProfiles.map((child) => {
+          <View style={[styles.childGrid, desktopColumns && styles.desktopChildGrid]}>{family.childProfiles.map((child) => {
             const connectedAccount = family.members.find((member) => member.user_id === child.profile_id && member.role === 'child');
-            return <View key={child.profile_id} style={[sharedStyles.column, styles.childCard, { borderColor: theme.colors.border }, desktop && styles.desktopChildCard]}>
+            return <View key={child.profile_id} style={[sharedStyles.column, styles.childCard, { borderColor: theme.colors.border }, desktopColumns && styles.desktopChildCard]}>
               <View style={styles.memberHeader}>
                 <Label>{child.display_name}</Label>
                 <View style={[styles.roleBadge, { backgroundColor: connectedAccount ? theme.colors.surfaceTinted : theme.colors.surfaceSoft }]}>

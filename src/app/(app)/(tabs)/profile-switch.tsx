@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
-import { Body, Button, ErrorText, Eyebrow, Field, Heading, Label, Panel, Screen, sharedStyles } from '../../../components/bloom-ui';
+import { Body, Button, DesktopContent, ErrorText, Eyebrow, Field, Heading, Label, Panel, Screen, sharedStyles } from '../../../components/bloom-ui';
 import { useAuth } from '../../../lib/auth';
 import { getDevicePin, getSavedChild, registerDevicePin, removeDevicePin, restoreChildSession, unlockParent } from '../../../lib/profile-switch';
 import { useBloomTheme } from '../../../lib/theme-context';
@@ -44,6 +44,7 @@ export default function ProfileSwitchScreen() {
   const parentMode = Boolean(session && (!device || device.parentId === session.user.id));
 
   return <Screen safeAreaTop={false}>
+    <DesktopContent maxWidth={760}>
     <View style={sharedStyles.column}><Eyebrow>Family</Eyebrow><Heading>Switch profiles</Heading><Body>A parent PIN authorizes a fresh parent session on this device.</Body></View>
     {loading && <ActivityIndicator color={theme.colors.action} />}
     {error && <ErrorText>{error}</ErrorText>}{message && <Body>{message}</Body>}
@@ -78,5 +79,6 @@ export default function ProfileSwitchScreen() {
       </>}
     </Panel>}
     <Button label="Back to profile" secondary onPress={() => router.replace('/settings')} disabled={busy} />
+    </DesktopContent>
   </Screen>;
 }

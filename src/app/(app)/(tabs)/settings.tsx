@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { router, useFocusEffect, type Href } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { AccessibilityInfo, ActivityIndicator, LayoutAnimation, Platform, Pressable, StyleSheet, Switch, UIManager, View } from 'react-native';
-import { Body, Button, ErrorText, Eyebrow, Heading, Label, LocalizedText as Text, Panel, Screen, sharedStyles } from '../../../components/bloom-ui';
+import { ActivityIndicator, LayoutAnimation, Platform, Pressable, StyleSheet, Switch, UIManager, View } from 'react-native';
+import { Body, Button, ErrorText, Eyebrow, Heading, Label, LocalizedText as Text, Panel, Screen, sharedStyles, useReduceMotionPreference } from '../../../components/bloom-ui';
 import { CreditRulesEditor } from '../../../components/credit-rules-editor';
 import { GrowthRewardControls } from '../../../components/growth-reward-controls';
 import { GrowthMemoryControls } from '../../../components/growth-memory-controls';
@@ -19,6 +19,7 @@ import BloomBlocking from '../../../../modules/bloom-blocking/src/BloomBlockingM
 import type { BlockingStatus } from '../../../../modules/bloom-blocking/src/BloomBlocking.types';
 import { isMacDesktop } from '../../../lib/macos-blocking';
 import type { GrowthModuleId } from '../../../lib/growth-modules';
+import type { ThemeMode } from '../../../theme';
 
 const rewardPillars = [
   { id: 'exercise', title: 'Exercise', icon: 'fitness-center', color: '#19D96B' },
@@ -33,7 +34,7 @@ type RewardPillar = (typeof rewardPillars)[number]['id'];
 export default function SettingsScreen() {
   const { profileId, managedChild, childProfile, assignedModules } = useAuth();
   const { creditsEnabled, creditSettings, creditBalance, subscription, loading, error, refresh, setCreditsEnabled, saveCreditRules } = useBloom();
-  const { theme } = useBloomTheme();
+  const { mode, setMode, theme, displayScale, setDisplayScale } = useBloomTheme();
   const { language, setLanguage, restartRequired } = useLocale();
   const { visibleModules, loaded: visibilityLoaded, setModuleVisibility } = useModuleVisibility();
   const [saving, setSaving] = useState(false);
@@ -130,6 +131,48 @@ export default function SettingsScreen() {
     {loading && <ActivityIndicator color={theme.colors.action} />}
     {error && <Panel><ErrorText>{error}</ErrorText><Button label="Try again" variant="secondary" onPress={() => void refresh()} /></Panel>}
     {actionError && <ErrorText>{actionError}</ErrorText>}
+
+    <Panel>
+      <Eyebrow>Appearance</Eyebrow>
+      <Label>Choose a theme</Label>
+      <Body>Bloom remembers your display preference on this device.</Body>
+      <View style={styles.themeChoices} accessibilityRole="radiogroup" accessibilityLabel="Bloom appearance">
+        {([
+          { mode: 'light', label: 'Light' },
+          { mode: 'dark', label: 'Dark' },
+          { mode: 'highContrast', label: 'High contrast' },
+        ] satisfies { mode: ThemeMode; label: string }[]).map((option) => {
+          const selected = mode === option.mode;
+          return <Pressable key={option.mode} accessibilityRole="radio" accessibilityLabel={option.label}
+            accessibilityState={{ checked: selected }} onPress={() => setMode(option.mode)}
+            style={[styles.themeChoice, { backgroundColor: selected ? theme.colors.surfaceTinted : theme.colors.surface,
+              borderColor: selected ? theme.colors.focusRing : theme.colors.border }]}>
+            <Text style={[styles.themeChoiceLabel, { color: selected ? theme.colors.ink : theme.colors.inkMuted }]}>{option.label}</Text>
+            {selected && <MaterialIcons name="check-circle" size={18} color={theme.colors.action} />}
+          </Pressable>;
+        })}
+      </View>
+      {Platform.OS === 'web' && isMacDesktop() && <View style={styles.displaySizeSection}>
+        <Label>Text size</Label>
+        <Body>Choose a larger Bloom desktop display. This setting is saved on this Mac.</Body>
+        <View style={styles.themeChoices} accessibilityRole="radiogroup" accessibilityLabel="Bloom text size">
+          {([
+            { scale: 1, label: 'Standard' },
+            { scale: 1.15, label: 'Large' },
+            { scale: 1.3, label: 'Largest' },
+          ] as const).map((option) => {
+            const selected = displayScale === option.scale;
+            return <Pressable key={option.scale} accessibilityRole="radio" accessibilityLabel={option.label}
+              accessibilityState={{ checked: selected }} onPress={() => setDisplayScale(option.scale)}
+              style={[styles.themeChoice, { backgroundColor: selected ? theme.colors.surfaceTinted : theme.colors.surface,
+                borderColor: selected ? theme.colors.focusRing : theme.colors.border }] }>
+              <Text style={[styles.themeChoiceLabel, { color: selected ? theme.colors.ink : theme.colors.inkMuted }]}>{option.label}</Text>
+              {selected && <MaterialIcons name="check-circle" size={18} color={theme.colors.action} />}
+            </Pressable>;
+          })}
+        </View>
+      </View>}
+    </Panel>
 
     <Panel>
       <Eyebrow>Language</Eyebrow>
@@ -237,6 +280,7 @@ export default function SettingsScreen() {
         <Body>Bloom works without supervision. If you want family features, create or join a Family Space here. Each member keeps a separate account and credit balance.</Body>
         <Button label="Explore Family Space" variant="secondary" onPress={() => router.push('/family' as Href)} />
       </Panel>}
+
       <Button label="Sign out" variant="secondary" onPress={() => void signOut()} />
       <SettingsAccordion title="Show Pillars" icon="dashboard">
         <Body>Choose which Bloom spaces appear in your Home and main navigation. Your saved activity and goals stay in your profile.</Body>
@@ -292,14 +336,10 @@ function blockingStatusLabel(status: BlockingStatus | null): string {
 
 function SettingsAccordion({ title, icon, status, children }: { title: string; icon: 'psychology' | 'devices' | 'dashboard'; status?: string; children: ReactNode }) {
   const [expanded, setExpanded] = useState(false);
-  const [reduceMotion, setReduceMotion] = useState(true);
+  const reduceMotion = useReduceMotionPreference();
   const { theme } = useBloomTheme();
   useEffect(() => {
-    let mounted = true;
-    void AccessibilityInfo.isReduceMotionEnabled().then((value) => { if (mounted) setReduceMotion(value); }).catch(() => undefined);
-    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
     if (Platform.OS === 'android') UIManager.setLayoutAnimationEnabledExperimental?.(true);
-    return () => { mounted = false; subscription.remove(); };
   }, []);
   function toggle() {
     if (!reduceMotion && Platform.OS !== 'web') LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -317,6 +357,7 @@ function SettingsAccordion({ title, icon, status, children }: { title: string; i
 
 const styles = StyleSheet.create({
   themeChoices: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  displaySizeSection: { gap: 8, marginTop: 20 },
   themeChoice: { minHeight: 48, minWidth: 124, flexGrow: 1, flexBasis: 124, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderWidth: 1, borderRadius: 14, paddingHorizontal: 10 },
   themeChoiceLabel: { fontSize: 14, lineHeight: 20, fontWeight: '600' },
   focusHeading: { flexDirection: 'row', alignItems: 'center', gap: 12 },

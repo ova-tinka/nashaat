@@ -3,7 +3,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router, useFocusEffect } from 'expo-router';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { useCallback, useState } from 'react';
-import { Body, Button, ErrorText, Eyebrow, Heading, Label, Panel, Screen, sharedStyles, useIsDesktopLayout } from '../../../components/bloom-ui';
+import { Body, Button, ErrorText, Eyebrow, Heading, Label, Panel, Screen, sharedStyles, useIsDesktopColumns } from '../../../components/bloom-ui';
 import { useAuth } from '../../../lib/auth';
 import { useBloom } from '../../../lib/bloom-context';
 import { useBloomTheme } from '../../../lib/theme-context';
@@ -13,7 +13,7 @@ export default function ActivityScreen() {
   const { workoutAnalytics, loading, error, refresh } = useBloom();
   const { childProfile, assignedModules, profileId } = useAuth();
   const { theme } = useBloomTheme();
-  const desktop = useIsDesktopLayout();
+  const desktopColumns = useIsDesktopColumns();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const [growthState, setGrowthState] = useState<{ profileId: string | null; events: GrowthActivityEvent[] | null; failed: boolean }>({ profileId: null, events: null, failed: false });
@@ -65,7 +65,7 @@ export default function ActivityScreen() {
       <Body>When you finish a workout, its recorded activity will appear here.</Body>
       <Button label="View workouts" variant="secondary" onPress={() => router.push('/workouts')} />
     </Panel>}
-    {!loading && !error && history.length > 0 && (desktop
+    {!loading && !error && history.length > 0 && (desktopColumns
       ? <View style={styles.workspace}>
         <View style={styles.list}><Panel>
           <Eyebrow>Workout history · {history.length}</Eyebrow>

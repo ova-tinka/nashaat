@@ -1,7 +1,7 @@
 import type { ComponentProps, PropsWithChildren } from 'react';
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 import { usePathname } from 'expo-router';
-import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text as NativeText, TextInput as NativeTextInput, View, useWindowDimensions, type TextInputProps, type TextProps } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text as NativeText, TextInput as NativeTextInput, View, useWindowDimensions, type TextInputProps, type TextProps } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { radii, spacing, typeScale, type ModuleKey } from '../theme';
@@ -53,9 +53,32 @@ export function Screen({ children, safeAreaTop = true }: PropsWithChildren<{ saf
   </SafeAreaView>;
 }
 
+export function DesktopContent({ children, maxWidth = 920 }: PropsWithChildren<{ maxWidth?: number }>) {
+  const desktop = useIsDesktopLayout();
+  return <View style={[{ gap: desktop ? spacing.space6 : spacing.space3 }, desktop && { width: '100%', maxWidth, alignSelf: 'center' }]}>{children}</View>;
+}
+
 export function useIsDesktopLayout() {
   const { width } = useWindowDimensions();
-  return width >= 1024 && (isMacDesktop() || Platform.OS === 'web');
+  return isMacDesktop() || (Platform.OS === 'web' && width >= 1024);
+}
+
+export function useIsDesktopColumns() {
+  const { width } = useWindowDimensions();
+  return useIsDesktopLayout() && width >= 900;
+}
+
+export function useReduceMotionPreference() {
+  const [reduceMotion, setReduceMotion] = useState(true);
+  useEffect(() => {
+    let active = true;
+    void AccessibilityInfo.isReduceMotionEnabled()
+      .then((enabled) => { if (active) setReduceMotion(enabled); })
+      .catch(() => undefined);
+    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
+    return () => { active = false; subscription.remove(); };
+  }, []);
+  return reduceMotion;
 }
 
 export function Panel({ children }: PropsWithChildren) {

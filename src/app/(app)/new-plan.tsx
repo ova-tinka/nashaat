@@ -1,17 +1,47 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { Body, Button, ErrorText, Eyebrow, Heading, Label, Panel, Screen, sharedStyles, LocalizedText as Text, LocalizedTextInput as TextInput } from '../../components/bloom-ui';
+import { Body, Button, ErrorText, Eyebrow, Heading, Label, LocalizedText as Text, LocalizedTextInput as TextInput, Panel, Screen, sharedStyles, useIsDesktopColumns, useIsDesktopLayout, useReduceMotionPreference } from '../../components/bloom-ui';
 import { ExerciseArtwork } from '../../components/exercise-artwork';
 import { createPlan, createPlanForUser, loadCatalog, loadWorkoutPlan, SCHEDULE_DAYS, updatePlan, updatePlanForUser, type Exercise } from '../../lib/bloom';
 import { useBloom } from '../../lib/bloom-context';
 import { useBloomTheme } from '../../lib/theme-context';
+import { useAuth } from '../../lib/auth';
 
 type Selection = { exercise: Exercise; sets: string; target: string; extra: string };
 type Step = 1 | 2;
 type ExerciseTypeFilter = 'all' | 'reps' | 'timed';
 type ExerciseSort = 'name' | 'muscle';
+type WorkoutPlanDraft = {
+  version: 1;
+  title: string;
+  scheduledDays: number[];
+  selected: { exerciseId: string; sets: string; target: string; extra: string }[];
+};
+
+function parseWorkoutPlanDraft(value: string | null): WorkoutPlanDraft | null {
+  if (!value) return null;
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (!parsed || typeof parsed !== 'object' || !('version' in parsed) || parsed.version !== 1
+      || !('title' in parsed) || typeof parsed.title !== 'string'
+      || !('scheduledDays' in parsed) || !Array.isArray(parsed.scheduledDays)
+      || !('selected' in parsed) || !Array.isArray(parsed.selected)) return null;
+    const scheduledDays = parsed.scheduledDays.filter((day): day is number => Number.isInteger(day) && day >= 1 && day <= 7);
+    const selected = parsed.selected.flatMap((item) => {
+      if (!item || typeof item !== 'object' || !('exerciseId' in item) || typeof item.exerciseId !== 'string'
+        || !('sets' in item) || typeof item.sets !== 'string'
+        || !('target' in item) || typeof item.target !== 'string'
+        || !('extra' in item) || typeof item.extra !== 'string') return [];
+      return [{ exerciseId: item.exerciseId, sets: item.sets, target: item.target, extra: item.extra }];
+    });
+    return { version: 1, title: parsed.title.slice(0, 100), scheduledDays, selected };
+  } catch {
+    return null;
+  }
+}
 
 function isTimed(exercise: Exercise) {
   return exercise.measurement_type === 'time_only' || exercise.measurement_type === 'time_distance';
@@ -24,8 +54,14 @@ function initialSelection(exercise: Exercise): Selection {
 
 export default function NewPlanScreen() {
   const { childId, exerciseId, planId } = useLocalSearchParams<{ childId?: string; exerciseId?: string; planId?: string }>();
+  const { profileId } = useAuth();
   const { refresh } = useBloom();
   const { theme } = useBloomTheme();
+  const desktop = useIsDesktopLayout();
+  const desktopColumns = useIsDesktopColumns();
+  const reduceMotion = useReduceMotionPreference();
+  const draftOwner = childId ?? profileId;
+  const draftKey = draftOwner ? `bloom.workout-plan-draft.v1:${draftOwner}:${planId ? `plan-${planId}` : `new-${exerciseId ?? 'empty'}`}` : null;
   const exerciseColors = theme.modules.exercise;
   const [step, setStep] = useState<Step>(1);
   const [title, setTitle] = useState('');
@@ -41,13 +77,26 @@ export default function NewPlanScreen() {
   const [muscleFilter, setMuscleFilter] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<ExerciseSort>('name');
   const [infoExercise, setInfoExercise] = useState<Exercise | null>(null);
+  const [loadedDraftKey, setLoadedDraftKey] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
-    void Promise.all([loadCatalog(childId), planId ? loadWorkoutPlan(planId) : Promise.resolve(null)]).then(([items, plan]) => {
+    void Promise.all([
+      loadCatalog(childId),
+      planId ? loadWorkoutPlan(planId) : Promise.resolve(null),
+      draftKey ? AsyncStorage.getItem(draftKey).catch(() => null) : Promise.resolve(null),
+    ]).then(([items, plan, rawDraft]) => {
       if (!active) return;
       setCatalog(items);
-      if (plan) {
+      const draft = parseWorkoutPlanDraft(rawDraft);
+      if (draft) {
+        setTitle(draft.title);
+        setScheduledDays(draft.scheduledDays);
+        setSelected(draft.selected.flatMap((item) => {
+          const exercise = items.find((candidate) => candidate.id === item.exerciseId);
+          return exercise ? [{ exercise, sets: item.sets, target: item.target, extra: item.extra }] : [];
+        }));
+      } else if (plan) {
         setTitle(plan.title);
         setScheduledDays(plan.scheduled_days ?? []);
         setSelected([...plan.bloom_plan_exercises].sort((a, b) => a.position - b.position).flatMap((item) => {
@@ -59,11 +108,23 @@ export default function NewPlanScreen() {
         const exercise = items.find((item) => item.id === exerciseId);
         if (exercise) setSelected([initialSelection(exercise)]);
       }
+      setLoadedDraftKey(draftKey);
     })
       .catch(() => { if (active) setError('Could not load the exercise library. Check your connection and try again.'); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [childId, exerciseId, planId]);
+  }, [childId, draftKey, exerciseId, planId]);
+
+  useEffect(() => {
+    if (!draftKey || loadedDraftKey !== draftKey || loading) return;
+    const draft: WorkoutPlanDraft = {
+      version: 1,
+      title,
+      scheduledDays,
+      selected: selected.map(({ exercise, sets, target, extra }) => ({ exerciseId: exercise.id, sets, target, extra })),
+    };
+    void AsyncStorage.setItem(draftKey, JSON.stringify(draft)).catch(() => undefined);
+  }, [draftKey, loadedDraftKey, loading, scheduledDays, selected, title]);
 
   const muscleGroups = useMemo(() => [...new Set(catalog.map((exercise) => exercise.muscle_group?.trim()).filter((group): group is string => Boolean(group)))].sort((a, b) => a.localeCompare(b)), [catalog]);
   const matching = useMemo(() => {
@@ -128,13 +189,16 @@ export default function NewPlanScreen() {
       if (planId) {
         if (childId) await updatePlanForUser(childId, planId, title, exercises, scheduledDays);
         else await updatePlan(planId, title, exercises, scheduledDays);
+        if (draftKey) await AsyncStorage.removeItem(draftKey).catch(() => undefined);
         if (childId) router.back();
         else { await refresh(); router.replace('/workouts'); }
       } else if (childId) {
         await createPlanForUser(childId, title, exercises, scheduledDays);
+        if (draftKey) await AsyncStorage.removeItem(draftKey).catch(() => undefined);
         router.back();
       } else {
         await createPlan(title, exercises, scheduledDays);
+        if (draftKey) await AsyncStorage.removeItem(draftKey).catch(() => undefined);
         await refresh();
         router.replace('/workouts');
       }
@@ -146,6 +210,76 @@ export default function NewPlanScreen() {
     setTypeFilter('all');
     setMuscleFilter(null);
     setSortBy('name');
+  }
+
+  function renderSelectedPlan() {
+    return <View style={styles.selectedList}>
+      <View style={sharedStyles.row}>
+        <View style={sharedStyles.grow}><Eyebrow>Your workout</Eyebrow><Label>{selected.length} {selected.length === 1 ? 'exercise' : 'exercises'}</Label></View>
+      </View>
+      {selected.length > 0 ? selected.map(({ exercise, sets, target, extra }, index) => <View key={exercise.id} style={[styles.exerciseConfig, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
+        <View style={styles.exerciseHeading}>
+          <ExerciseArtwork exercise={exercise} size="small" />
+          <View style={sharedStyles.grow}>
+            <Eyebrow>Exercise {index + 1}</Eyebrow>
+            <Label>{exercise.name}</Label>
+            <Body>{exercise.muscle_group || (isTimed(exercise) ? 'Timed exercise' : 'Repetition exercise')}</Body>
+          </View>
+          <View style={styles.iconActions}>
+            <Pressable accessibilityRole="button" accessibilityLabel={`More information about ${exercise.name}`} accessibilityHint="Opens the exercise image and instructions."
+              onPress={() => setInfoExercise(exercise)} style={({ pressed }) => [styles.infoButton, { backgroundColor: exerciseColors.surface }, pressed && styles.pressed]}>
+              <MaterialIcons name="help-outline" size={21} color={exerciseColors.deep} />
+            </Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${exercise.name}`} onPress={() => toggle(exercise)}
+              style={({ pressed }) => [styles.removeButton, { backgroundColor: theme.colors.surfaceSoft }, pressed && styles.pressed]}>
+              <MaterialIcons name="close" size={20} color={theme.colors.inkMuted} />
+            </Pressable>
+          </View>
+        </View>
+
+        <View style={[styles.prescription, { backgroundColor: exerciseColors.surface }]}>
+          <View style={styles.prescriptionHeading}>
+            <Text style={[styles.prescriptionTitle, { color: exerciseColors.deep }]}>Set your target</Text>
+            <Text style={[styles.prescriptionHint, { color: theme.colors.inkMuted }]}>Adjust each movement to your routine</Text>
+          </View>
+          <View style={styles.stepperRow}>
+            <NumberStepper label="Sets" value={sets} onChange={(value) => update(exercise.id, 'sets', value)} unit="sets" min={1} max={20} step={1} decimals={0} />
+            <NumberStepper label={isTimed(exercise) ? 'Duration' : 'Repetitions'} value={target} onChange={(value) => update(exercise.id, 'target', value)}
+              unit={isTimed(exercise) ? 'sec' : 'reps'} min={1} max={isTimed(exercise) ? 86400 : 1000} step={isTimed(exercise) ? 5 : 1} decimals={0} />
+          </View>
+          {(exercise.measurement_type === 'reps_weight' || exercise.measurement_type === 'time_distance') && <NumberStepper
+            label={exercise.measurement_type === 'reps_weight' ? 'Weight' : 'Distance'} value={extra} onChange={(value) => update(exercise.id, 'extra', value)}
+            unit={exercise.measurement_type === 'reps_weight' ? 'kg' : 'km'} min={exercise.measurement_type === 'reps_weight' ? 0 : 0.1} max={1000} step={exercise.measurement_type === 'reps_weight' ? 2.5 : 0.1} decimals={1} optional />}
+        </View>
+      </View>) : <Panel><Label>No exercises in this plan yet</Label><Body>Choose a movement from the library to start shaping the workout.</Body></Panel>}
+    </View>;
+  }
+
+  function renderCatalog() {
+    return <Panel>
+      <View style={sharedStyles.column}>
+        <View><Eyebrow>Exercise library</Eyebrow><Label>Choose movements</Label></View>
+        <TextInput accessibilityLabel="Search exercises" value={query} onChangeText={setQuery} placeholder="Search by name or muscle group"
+          placeholderTextColor={theme.colors.inkMuted} autoCapitalize="none" style={[styles.searchInput, { borderColor: theme.colors.borderStrong, color: theme.colors.ink, backgroundColor: theme.colors.surface }]} />
+        {loading && <ActivityIndicator color={exerciseColors.deep} />}
+        {!loading && matching.length === 0 && <Body>No exercises match these filters. Adjust the search or filter options.</Body>}
+        {matching.slice(0, 40).map((exercise) => {
+          const added = selected.some((item) => item.exercise.id === exercise.id);
+          return <Pressable key={exercise.id} accessibilityRole="checkbox" accessibilityLabel={`${added ? 'Remove' : 'Add'} ${exercise.name} ${added ? 'from' : 'to'} the workout`} accessibilityState={{ checked: added }} onPress={() => toggle(exercise)}
+            style={[styles.catalogRow, { borderBottomColor: theme.colors.border, backgroundColor: added ? exerciseColors.surface : theme.colors.surface }]}>
+            <ExerciseArtwork exercise={exercise} size="small" />
+            <View style={sharedStyles.grow}>
+              <Label>{exercise.name}</Label>
+              <Body>{exercise.muscle_group || (isTimed(exercise) ? 'Timed exercise' : 'Repetition exercise')}</Body>
+            </View>
+            <View style={[styles.addMarker, { borderColor: added ? exerciseColors.deep : theme.colors.border, backgroundColor: added ? exerciseColors.deep : theme.colors.surface }]}>
+              <MaterialIcons name={added ? 'check' : 'add'} size={19} color={added ? '#FFFFFF' : exerciseColors.deep} />
+            </View>
+          </Pressable>;
+        })}
+        {matching.length > 40 && <Body>Showing the first 40 results. Search or filter to narrow the list.</Body>}
+      </View>
+    </Panel>;
   }
 
   return <Screen safeAreaTop={false}>
@@ -218,7 +352,12 @@ export default function NewPlanScreen() {
         </Pressable>
       </View>
 
-      {selected.length > 0 && <View style={styles.selectedList}>
+      {desktopColumns && <View style={styles.desktopBuilderWorkspace}>
+        <View style={styles.desktopCatalogColumn}>{renderCatalog()}</View>
+        <View style={styles.desktopPlanColumn}>{renderSelectedPlan()}</View>
+      </View>}
+
+      {!desktopColumns && selected.length > 0 && <View style={styles.selectedList}>
         {selected.map(({ exercise, sets, target, extra }, index) => <View key={exercise.id} style={[styles.exerciseConfig, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
           <View style={styles.exerciseHeading}>
             <ExerciseArtwork exercise={exercise} size="small" />
@@ -256,7 +395,7 @@ export default function NewPlanScreen() {
         </View>)}
       </View>}
 
-      <Panel>
+      {!desktopColumns && <Panel>
         <View style={sharedStyles.column}>
           <View><Eyebrow>Exercise library</Eyebrow><Label>Choose movements</Label></View>
           <TextInput accessibilityLabel="Search exercises" value={query} onChangeText={setQuery} placeholder="Search by name or muscle group"
@@ -279,7 +418,7 @@ export default function NewPlanScreen() {
           })}
           {matching.length > 40 && <Body>Showing the first 40 results. Search or filter to narrow the list.</Body>}
         </View>
-      </Panel>
+      </Panel>}
       {error && <ErrorText>{error}</ErrorText>}
       <View style={styles.footerActions}>
         <Button label="Back to basic setup" variant="secondary" onPress={() => { setError(null); setStep(1); }} disabled={saving} />
@@ -287,10 +426,10 @@ export default function NewPlanScreen() {
       </View>
     </>}
 
-    <Modal visible={filtersOpen} transparent animationType="slide" onRequestClose={() => setFiltersOpen(false)} statusBarTranslucent>
-      <View style={styles.modalFrame}>
+    <Modal visible={filtersOpen} transparent animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={() => setFiltersOpen(false)} statusBarTranslucent>
+      <View style={[styles.modalFrame, desktop && styles.desktopModalFrame]}>
         <Pressable accessibilityRole="button" accessibilityLabel="Close exercise filters" style={StyleSheet.absoluteFill} onPress={() => setFiltersOpen(false)} />
-        <View style={[styles.filterSheet, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+        <View style={[styles.filterSheet, desktop && styles.filterDialog, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
           <View style={styles.sheetHeader}>
             <View style={sharedStyles.grow}><Eyebrow>Exercise library</Eyebrow><Heading>Filter & sort</Heading></View>
             <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={() => setFiltersOpen(false)} style={[styles.closeButton, { backgroundColor: theme.colors.surfaceSoft }]}>
@@ -322,7 +461,7 @@ export default function NewPlanScreen() {
               </View>
             </View>
           </ScrollView>
-          <View style={styles.sheetFooter}>
+          <View style={[styles.sheetFooter, desktop && styles.sheetFooterDesktop]}>
             <Button label="Clear filters" variant="secondary" onPress={clearFilters} />
             <Button label={`Show ${matching.length} exercises`} onPress={() => setFiltersOpen(false)} />
           </View>
@@ -330,10 +469,10 @@ export default function NewPlanScreen() {
       </View>
     </Modal>
 
-    <Modal visible={infoExercise !== null} transparent animationType="fade" onRequestClose={() => setInfoExercise(null)}>
+    <Modal visible={infoExercise !== null} transparent animationType={reduceMotion ? 'none' : 'fade'} onRequestClose={() => setInfoExercise(null)}>
       <View style={styles.infoModalFrame}>
         <Pressable accessibilityRole="button" accessibilityLabel="Close exercise information" style={StyleSheet.absoluteFill} onPress={() => setInfoExercise(null)} />
-        <View style={[styles.infoDialog, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+        <View style={[styles.infoDialog, desktop && styles.infoDialogDesktop, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
           <ScrollView contentContainerStyle={styles.infoContent}>
             {infoExercise && <>
               <ExerciseArtwork exercise={infoExercise} size="large" />
@@ -427,6 +566,9 @@ const styles = StyleSheet.create({
   sectionHeading: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   filterButton: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1, borderRadius: 14, paddingHorizontal: 12 },
   filterButtonText: { fontSize: 12, fontWeight: '800' },
+  desktopBuilderWorkspace: { flexDirection: 'row', alignItems: 'flex-start', gap: 16 },
+  desktopCatalogColumn: { flex: 1.1, minWidth: 320 },
+  desktopPlanColumn: { flex: 1, minWidth: 320 },
   selectedList: { gap: 12 },
   exerciseConfig: { gap: 13, borderWidth: 1, borderRadius: 22, padding: 13 },
   exerciseHeading: { flexDirection: 'row', alignItems: 'center', gap: 11 },
@@ -451,7 +593,9 @@ const styles = StyleSheet.create({
   searchInput: { minHeight: 48, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, fontSize: 16 },
   footerActions: { gap: 8 },
   modalFrame: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(9, 17, 32, 0.46)' },
+  desktopModalFrame: { justifyContent: 'center', alignItems: 'center', padding: 24 },
   filterSheet: { maxHeight: '88%', borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, paddingHorizontal: 20, paddingTop: 22, paddingBottom: 26, gap: 18 },
+  filterDialog: { width: '100%', maxWidth: 560, maxHeight: '86%', borderRadius: 26 },
   sheetHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   closeButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 15 },
   sheetContent: { gap: 20, paddingBottom: 4 },
@@ -460,8 +604,10 @@ const styles = StyleSheet.create({
   filterChip: { minHeight: 42, justifyContent: 'center', borderWidth: 1, borderRadius: 999, paddingHorizontal: 13 },
   filterChipText: { fontSize: 13, fontWeight: '700' },
   sheetFooter: { gap: 8, paddingTop: 10 },
+  sheetFooterDesktop: { flexDirection: 'row', justifyContent: 'flex-end' },
   infoModalFrame: { flex: 1, justifyContent: 'center', padding: 18, backgroundColor: 'rgba(9, 17, 32, 0.54)' },
   infoDialog: { maxHeight: '90%', borderWidth: 1, borderRadius: 26, padding: 16, gap: 14 },
+  infoDialogDesktop: { width: '100%', maxWidth: 620, alignSelf: 'center' },
   infoContent: { gap: 16, paddingBottom: 8 },
   instructionRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   instructionNumber: { width: 26, height: 26, alignItems: 'center', justifyContent: 'center', borderRadius: 13 },

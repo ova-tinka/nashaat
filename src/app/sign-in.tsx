@@ -1,6 +1,6 @@
 import { Redirect } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Body, BloomWordmark, Button, ErrorText, Eyebrow, Field, Heading, Panel, Screen, sharedStyles, useIsDesktopLayout } from '../components/bloom-ui';
 import { useAuth } from '../lib/auth';
 import { createTransientSupabaseClient, supabase } from '../lib/supabase';
@@ -11,6 +11,9 @@ export default function SignInScreen() {
   const { theme } = useBloomTheme();
   const { session, loading, configured } = useAuth();
   const desktop = useIsDesktopLayout();
+  const { width } = useWindowDimensions();
+  const splitLayout = desktop && width >= 1100;
+  const stackedDesktop = desktop && !splitLayout;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [signingUp, setSigningUp] = useState(false);
@@ -103,13 +106,13 @@ export default function SignInScreen() {
   }
 
   return <Screen>
-    <View style={[sharedStyles.column, desktop && styles.desktopLayout]}>
-      <View style={[sharedStyles.column, desktop && styles.desktopHero]}>
+    <View style={[sharedStyles.column, splitLayout ? styles.desktopLayout : stackedDesktop && styles.desktopStack]}>
+      <View style={[sharedStyles.column, splitLayout ? styles.desktopHero : stackedDesktop && styles.stackedHero]}>
         <BloomWordmark size={34} />
         <Heading>Make time for what matters.</Heading>
         <Body>Exercise, study, reading, and tasks in one calm space to grow.</Body>
       </View>
-      <View style={desktop ? styles.desktopForm : undefined}>
+      <View style={splitLayout ? styles.desktopForm : stackedDesktop ? styles.stackedForm : undefined}>
         {!configured ? <Panel><ErrorText>Bloom cannot connect yet. Check the app configuration.</ErrorText></Panel> : linking ? <Panel>
           <Eyebrow>Link child email account</Eyebrow>
           <Body>Use a new email account with no existing Bloom activity. A parent provides the link code.</Body>
@@ -150,6 +153,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 56,
+  },
+  desktopStack: {
+    width: '100%',
+    alignSelf: 'center',
+    alignItems: 'center',
+  },
+  stackedHero: {
+    width: '100%',
+    maxWidth: 560,
+    gap: 18,
+  },
+  stackedForm: {
+    width: '100%',
+    maxWidth: 560,
   },
   desktopHero: {
     flex: 1,

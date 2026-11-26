@@ -1,10 +1,11 @@
 import { randomUUID } from 'expo-crypto';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as DocumentPicker from 'expo-document-picker';
 import { File as ExpoFile } from 'expo-file-system';
 import { router, useFocusEffect, type Href } from 'expo-router';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, Switch, View } from 'react-native';
-import { isTauri } from '@tauri-apps/api/core';
+import { invoke, isTauri } from '@tauri-apps/api/core';
 import { Body, Button, ErrorText, Eyebrow, Field, Label, Panel, sharedStyles } from './bloom-ui';
 import { useAuth } from '../lib/auth';
 import { createGrowthDocument, deleteGrowthDocument, type GrowthDocument, type GrowthItem, type GrowthRecord, uploadGrowthDocumentContent } from '../lib/growth-modules';
@@ -16,6 +17,7 @@ import { loadStudyDocumentAnswers, requestStudyDocumentHelp, setStudyDocumentAiC
 import { useBloomTheme } from '../lib/theme-context';
 import { isMacTauriWebView, isReaderFormatSupported, resolveBloomPlatform } from '../lib/platform-capabilities';
 import { moduleManifest } from '../lib/module-manifest';
+import { bloomWebReaderUrl } from '../lib/bloom-web-reader';
 
 const docxMime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const epubMime = 'application/epub+zip';
@@ -130,6 +132,17 @@ export function GrowthDocumentLibraryPanel({ moduleId, items, records, documents
     finally { setBusy(false); }
   }
 
+  async function openReaderInBrowser(document: GrowthDocument) {
+    const url = bloomWebReaderUrl(document.id);
+    if (!url) { setError('Bloom’s web app address is not configured for this build.'); return; }
+    setBusy(true); setError(null); setNotice(null);
+    try {
+      await invoke('open_reader_in_browser', { url });
+      setNotice(`Opened ${document.title} in Bloom’s web reader.`);
+    } catch { setError('Could not open Bloom’s web reader. Check the app address and try again.'); }
+    finally { setBusy(false); }
+  }
+
   return <Panel>
     <Eyebrow>{moduleId === 'study' ? 'Private source documents' : 'Your reading files'}</Eyebrow>
     <Body>{moduleId === 'study'
@@ -146,7 +159,9 @@ export function GrowthDocumentLibraryPanel({ moduleId, items, records, documents
       </View>
     </>}
     <Label>Private files · {attached.length}</Label>
-    {attached.length === 0 ? <Body>Uploaded documents will appear here.</Body> : attached.map((document) => <View key={document.id} style={sharedStyles.column}>
+    {attached.length === 0 ? <Body>Uploaded documents will appear here.</Body> : attached.map((document) => {
+      const browserReaderUrl = moduleId === 'read' ? bloomWebReaderUrl(document.id) : null;
+      return <View key={document.id} style={sharedStyles.column}>
       <Label>{document.title}</Label>
       <Body>{itemNames.get(document.item_id) ?? 'Study item'} · {document.format.toUpperCase()} · {(document.byte_size / 1024 / 1024).toFixed(1)} MB
         {moduleId === 'read' && documentProgress(document.id) !== null ? ` · ${Math.round(documentProgress(document.id)!)}% read` : ''}</Body>
@@ -157,7 +172,12 @@ export function GrowthDocumentLibraryPanel({ moduleId, items, records, documents
           && isReaderFormatSupported(readModuleManifest?.readerFormats ?? {}, currentBloomPlatform(), document.format)
           ? <Button label="Open reader" variant="secondary" disabled={readOnly || busy}
             onPress={() => router.push({ pathname: '/apps/read/reader/[id]', params: { id: document.id } } as unknown as Href)} />
-          : moduleId === 'read' && <Body>The in-app PDF and EPUB reader is available on web. Open this file from Bloom in a web browser.</Body>}
+          : moduleId === 'read' && currentBloomPlatform() === 'macos' ? <View style={sharedStyles.column}>
+            <Body>{browserReaderUrl ? 'PDF and EPUB reading is available in Bloom’s web reader.' : 'Browser reading needs Bloom’s public web app address in this build.'}</Body>
+            {browserReaderUrl && <Button label="Open in Bloom web reader" variant="secondary" disabled={busy}
+              onPress={() => void openReaderInBrowser(document)} />}
+          </View>
+            : moduleId === 'read' && <Body>The in-app PDF and EPUB reader is available on web. Open this file from Bloom in a web browser.</Body>}
         {!confirmDelete && <Button label="Delete file" variant="tertiary" disabled={readOnly || busy} onPress={() => setConfirmDelete(document)} />}
       </View>
       {confirmDelete?.id === document.id && <View style={sharedStyles.column}>
@@ -165,7 +185,8 @@ export function GrowthDocumentLibraryPanel({ moduleId, items, records, documents
         <Button label="Confirm delete" variant="destructive" busy={busy} onPress={() => void remove(document)} />
         <Button label="Keep document" variant="secondary" disabled={busy} onPress={() => setConfirmDelete(null)} />
       </View>}
-    </View>)}
+    </View>;
+    })}
     {error && <ErrorText>{error}</ErrorText>}{notice && <Body>{notice}</Body>}
   </Panel>;
 }
@@ -181,14 +202,17 @@ export function StudyDocumentHelpPanel({ profileId, documents, initialDocumentId
   const [documentConsent, setDocumentConsent] = useState(false);
   const [documentId, setDocumentId] = useState(initialDocumentId ?? documents[0]?.id ?? '');
   const [prompt, setPrompt] = useState('');
+  const [loadedDraftKey, setLoadedDraftKey] = useState<string | null>(null);
   const [answers, setAnswers] = useState<Awaited<ReturnType<typeof loadStudyDocumentAnswers>>>([]);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const pending = useRef<{ signature: string; requestId: string } | null>(null);
-  const selectedDocument = documents.find((document) => document.id === documentId) ?? documents[0];
+  const studyDocuments = useMemo(() => documents.filter((document) => document.module_id === 'study'), [documents]);
+  const selectedDocument = studyDocuments.find((document) => document.id === documentId) ?? studyDocuments[0];
   const selectedDocumentId = selectedDocument?.id ?? '';
+  const draftKey = profileId ? `bloom.study-document-help-draft.v1:${profileId}` : null;
   const source = useRef(0);
   const aiReady = Boolean(preferences?.sharing_consent && (childProfile
     ? preferences.parent_enabled && preferences.parent_sharing_consent && preferences.minor_eligible_attested
@@ -196,6 +220,35 @@ export function StudyDocumentHelpPanel({ profileId, documents, initialDocumentId
   const documentReady = Boolean(preferences?.document_sharing_consent && (childProfile
     ? preferences.document_parent_enabled && preferences.document_parent_sharing_consent && preferences.document_minor_eligible_attested
     : preferences.document_adult_attested));
+
+  useEffect(() => {
+    let active = true;
+    if (readOnly || !draftKey) return () => { active = false; };
+    void AsyncStorage.getItem(draftKey).then((raw) => {
+      if (!active) return;
+      if (raw && raw.length <= 2500) {
+        try {
+          const saved: unknown = JSON.parse(raw);
+          if (saved && typeof saved === 'object' && 'version' in saved && saved.version === 1) {
+            const value = saved as Record<string, unknown>;
+            if (typeof value.prompt === 'string' && value.prompt.length <= 2000) setPrompt(value.prompt);
+            if (typeof value.documentId === 'string' && studyDocuments.some((document) => document.id === value.documentId)) setDocumentId(value.documentId);
+          }
+        } catch { /* Ignore an unreadable local document-help draft. */ }
+      }
+      setLoadedDraftKey(draftKey);
+    }).catch(() => { if (active) setLoadedDraftKey(draftKey); });
+    return () => { active = false; };
+  }, [draftKey, readOnly, studyDocuments]);
+
+  useEffect(() => {
+    if (readOnly || !draftKey || loadedDraftKey !== draftKey) return;
+    if (!prompt) {
+      void AsyncStorage.removeItem(draftKey).catch(() => undefined);
+      return;
+    }
+    void AsyncStorage.setItem(draftKey, JSON.stringify({ version: 1, documentId: selectedDocumentId, prompt })).catch(() => undefined);
+  }, [draftKey, loadedDraftKey, prompt, readOnly, selectedDocumentId]);
 
   const refreshPreferences = useCallback(async () => {
     if (!profileId) { setPreferences(null); setLoading(false); return; }
@@ -254,8 +307,6 @@ export function StudyDocumentHelpPanel({ profileId, documents, initialDocumentId
     } finally { setBusy(false); }
   }
 
-  const studyDocuments = documents.filter((document) => document.module_id === 'study');
-
   return <Panel>
     <Eyebrow>Ask about your Study documents</Eyebrow>
     <Body>Bloom sends only your question and relevant text excerpts to its approved AI provider. Answers include checked citations; scanned PDFs are not supported. You can delete each document and its answers.</Body>
@@ -281,7 +332,7 @@ export function StudyDocumentHelpPanel({ profileId, documents, initialDocumentId
       <View style={styles.choiceRow}>{studyDocuments.map((document) => <Button key={document.id}
         label={`${selectedDocumentId === document.id ? '✓ ' : ''}${document.title}`} variant="tertiary" disabled={busy || readOnly}
         onPress={() => setDocumentId(document.id)} />)}</View>
-      <Field label="Question about the document" value={prompt} onChangeText={setPrompt} maxLength={2000} multiline editable={!busy && !readOnly} />
+      <Field label="Question about the document" value={readOnly ? '' : prompt} onChangeText={setPrompt} maxLength={2000} multiline editable={!busy && !readOnly} />
       <Button label="Ask with cited sources" onPress={() => void ask()} busy={busy}
         disabled={busy || readOnly || !selectedDocument || !prompt.trim() || !aiReady || !documentReady} />
     </>}

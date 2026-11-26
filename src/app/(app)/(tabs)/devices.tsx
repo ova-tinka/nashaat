@@ -5,7 +5,7 @@ import { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, I18nManager, Platform, Pressable, StyleSheet, View } from 'react-native';
 import BloomBlocking from '../../../../modules/bloom-blocking/src/BloomBlockingModule';
 import type { BlockingStatus } from '../../../../modules/bloom-blocking/src/BloomBlocking.types';
-import { Body, Button, ErrorText, Eyebrow, Heading, Label, Panel, Screen, sharedStyles, useIsDesktopLayout } from '../../../components/bloom-ui';
+import { Body, Button, ErrorText, Eyebrow, Heading, Label, Panel, Screen, sharedStyles, useIsDesktopColumns } from '../../../components/bloom-ui';
 import { isMacDesktop, macosFilter } from '../../../lib/macos-blocking';
 import { useBloom } from '../../../lib/bloom-context';
 import { useAuth } from '../../../lib/auth';
@@ -36,7 +36,7 @@ function DeviceRow({ device, current = false, onPress }: { device: BloomDevice; 
 
 export default function DevicesScreen() {
   const { theme } = useBloomTheme();
-  const desktop = useIsDesktopLayout();
+  const desktopColumns = useIsDesktopColumns();
   const { profileId } = useAuth();
   const { blockingRulesSyncError, blockingRulesSyncedAt, blockingRulesSyncStatus } = useBloom();
   const [device, setDevice] = useState<DeviceSummary | null>(null);
@@ -194,8 +194,8 @@ export default function DevicesScreen() {
       <Heading>Devices</Heading>
       <Body>Each profile has its own device list. Permissions and enforcement are reported by the device that checked them.</Body>
     </View>
-    <View style={[styles.workspace, desktop && styles.desktopWorkspace]}>
-      <View style={[styles.column, desktop && styles.desktopColumn]}>
+    <View style={[styles.workspace, desktopColumns && styles.desktopWorkspace]}>
+      <View style={[styles.column, desktopColumns && styles.desktopColumn]}>
         <Panel>
           <View style={sharedStyles.row}>
             <View style={[sharedStyles.row, sharedStyles.grow]}>
@@ -237,7 +237,7 @@ export default function DevicesScreen() {
             : <Body>Bloom has not confirmed a rule sync on this device yet.</Body>}
         </Panel>}
       </View>
-      <View style={[styles.column, desktop && styles.desktopColumn]}>
+      <View style={[styles.column, desktopColumns && styles.desktopColumn]}>
         <Panel>
           <Eyebrow>Devices on this profile</Eyebrow>
           <Label>{profileMatchesRegistry && registryError && visibleDevices.length === 0

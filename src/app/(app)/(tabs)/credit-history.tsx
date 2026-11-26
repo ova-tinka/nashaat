@@ -3,7 +3,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import { Body, Button, ErrorText, Eyebrow, Heading, Label, Panel, Screen, sharedStyles } from '../../../components/bloom-ui';
+import { Body, Button, DesktopContent, ErrorText, Eyebrow, Heading, Label, Panel, Screen, sharedStyles } from '../../../components/bloom-ui';
 import { loadCreditLedger, type CreditLedgerEntry } from '../../../lib/bloom';
 import { useBloom } from '../../../lib/bloom-context';
 import { useBloomTheme } from '../../../lib/theme-context';
@@ -34,10 +34,11 @@ export default function CreditHistoryScreen() {
   useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
 
   return <Screen safeAreaTop={false}>
+    <DesktopContent maxWidth={880}>
     <View style={sharedStyles.column}>
       <Eyebrow>Shared screen-time credits</Eyebrow>
       <Heading>Credit history</Heading>
-      <Body>Review the latest changes recorded in your shared credit ledger.</Body>
+      <Body>See the screen-time minutes you earned and used.</Body>
       <Button label="Back" variant="tertiary" onPress={() => router.back()} />
     </View>
     <Panel>
@@ -64,6 +65,7 @@ export default function CreditHistoryScreen() {
       </Panel>;
     })}
     {entries && !failed && entries.length === 100 && <Body>Showing the latest 100 transactions.</Body>}
+    </DesktopContent>
   </Screen>;
 }
 

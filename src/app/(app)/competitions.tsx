@@ -2,7 +2,7 @@ import { getAppLocale } from '../../lib/locale-context';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Share, View } from 'react-native';
-import { Body, Button, ErrorText, Eyebrow, Field, Heading, Label, Panel, Screen, sharedStyles, LocalizedText as Text } from '../../components/bloom-ui';
+import { Body, Button, DesktopContent, ErrorText, Eyebrow, Field, Heading, Label, LocalizedText as Text, Panel, Screen, sharedStyles } from '../../components/bloom-ui';
 import { useAuth } from '../../lib/auth';
 import { localCompetitionDate, parseCompetitionDate } from '../../lib/competition-dates';
 import { acceptCompetitionLink, acceptFriendInvite, competitionResults, createCompetitionLink, inviteFriend, joinPublicCompetition,
@@ -82,6 +82,7 @@ export default function CompetitionsScreen() {
   }
 
   return <Screen safeAreaTop={false}>
+    <DesktopContent maxWidth={1160}>
     <View style={sharedStyles.column}><Eyebrow>Move together</Eyebrow><Heading>Competitions</Heading><Body>Workouts and active minutes are self-reported. Events award recognition and winner badges only.</Body></View>
     <Button label="Back to Exercise" secondary onPress={() => router.replace('/exercise')} disabled={busy} />
     {loading && <ActivityIndicator color={theme.colors.action} />}{error && <ErrorText>{error}</ErrorText>}{notice && <Body>{notice}</Body>}
@@ -132,5 +133,6 @@ export default function CompetitionsScreen() {
         </Panel>;
       })}
     </>}
+    </DesktopContent>
   </Screen>;
 }

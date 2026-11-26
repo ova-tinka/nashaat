@@ -1,22 +1,26 @@
 import { getAppLocale } from '../lib/locale-context';
-import { router, type Href } from 'expo-router';
+import { router, useLocalSearchParams, type Href } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useState } from 'react';
 import { ActivityIndicator, ImageBackground, Pressable, StyleSheet, View } from 'react-native';
-import { Body, Button, ErrorText, Eyebrow, FeatureTile, Heading, Label, Panel, ProgressBar, Screen, sharedStyles, LocalizedText as Text } from './bloom-ui';
+import { Body, Button, ErrorText, Eyebrow, FeatureTile, Heading, Label, LocalizedText as Text, Panel, ProgressBar, Screen, sharedStyles, useIsDesktopLayout } from './bloom-ui';
 import { GrowthModuleScreen } from './growth-module-screen';
 import { useBloom } from '../lib/bloom-context';
 import { useBloomTheme } from '../lib/theme-context';
 import type { ModuleKey } from '../theme';
-import { bloomPillarImages } from '../assets/bloom-images';
+import { bloomPillarCollectionImages } from '../assets/bloom-images';
 import { formatScheduledDays, SCHEDULE_DAYS, startWorkout, type WorkoutHistoryItem, type WorkoutPlan } from '../lib/bloom';
 import { dateKeyInTimeZone } from '../lib/date-utils';
 import { WeeklyPillarPlanner } from './weekly-pillar-planner';
 import { ReadModuleScreen } from './read-module-screen';
 
-type ExerciseSection = 'today' | 'plans' | 'progress' | 'more';
+type ExerciseSection = 'today' | 'plans' | 'library' | 'progress' | 'more';
+function isExerciseSection(value: unknown): value is ExerciseSection {
+  return value === 'today' || value === 'plans' || value === 'library' || value === 'progress' || value === 'more';
+}
+
 const exerciseSections: { id: ExerciseSection; title: string }[] = [
-  { id: 'today', title: 'Today' }, { id: 'plans', title: 'Plans' },
+  { id: 'today', title: 'Today' }, { id: 'plans', title: 'Plans' }, { id: 'library', title: 'Library' },
   { id: 'progress', title: 'Progress' }, { id: 'more', title: 'More' },
 ];
 
@@ -27,10 +31,15 @@ export function PillarHomeScreen({ moduleId }: { moduleId: ModuleKey }) {
 }
 
 function ExerciseHomeScreen() {
+  const params = useLocalSearchParams<{ section?: string | string[] }>();
+  const routeSection = Array.isArray(params.section) ? params.section[0] : params.section;
+  const desktop = useIsDesktopLayout();
   const { plans, activeWorkout, workoutAnalytics, creditSettings, creditsEnabled, loading, error, refresh } = useBloom();
   const { theme } = useBloomTheme();
   const colors = theme.modules.exercise;
-  const [section, setSection] = useState<ExerciseSection>('today');
+  const [localSection, setLocalSection] = useState<ExerciseSection>(isExerciseSection(routeSection) && routeSection !== 'library' ? routeSection : 'today');
+  const selectedRouteSection = isExerciseSection(routeSection) && routeSection !== 'library' ? routeSection : null;
+  const section = desktop && selectedRouteSection ? selectedRouteSection : localSection;
   const [startingId, setStartingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [referenceDate] = useState(() => new Date());
@@ -41,6 +50,15 @@ function ExerciseHomeScreen() {
   const scheduledToday = plans.filter((plan) => plan.scheduled_days.includes(todayIsoDay));
   const currentPlan = activeWorkout?.plan_id ? plans.find((plan) => plan.id === activeWorkout.plan_id) : undefined;
   const analytics = workoutAnalytics;
+
+  function selectSection(next: ExerciseSection) {
+    if (next === 'library') {
+      router.push('/library' as Href);
+      return;
+    }
+    setLocalSection(next);
+    if (desktop) router.setParams({ section: next });
+  }
 
   async function startPlan(planId: string) {
     if (activeWorkout) {
@@ -65,7 +83,7 @@ function ExerciseHomeScreen() {
   }
 
   return <Screen safeAreaTop={false}>
-    {section === 'today' && <ImageBackground source={bloomPillarImages.exercise} resizeMode="cover" imageStyle={styles.heroImage} style={styles.hero}>
+    {section === 'today' && <ImageBackground source={bloomPillarCollectionImages.exercise} resizeMode="cover" imageStyle={styles.heroImage} style={styles.hero}>
       <View style={styles.heroShade} />
       <View style={styles.heroContent}>
         <View style={styles.heroTopRow}>
@@ -77,7 +95,7 @@ function ExerciseHomeScreen() {
         </View>
         <Text style={styles.heroTitle}>{activeWorkout ? 'Pick up where you left off.' : 'A little movement goes a long way.'}</Text>
         <Text style={styles.heroSubtitle}>{activeWorkout ? 'Your workout is ready to continue.' : 'Build consistency, one workout at a time.'}</Text>
-        {!activeWorkout && <Pressable accessibilityRole="button" onPress={() => scheduledToday[0] ? void startPlan(scheduledToday[0].id) : setSection('plans')}
+        {!activeWorkout && <Pressable accessibilityRole="button" onPress={() => scheduledToday[0] ? void startPlan(scheduledToday[0].id) : selectSection('plans')}
           disabled={Boolean(startingId)} style={({ pressed }) => [styles.heroAction, pressed && styles.pressed]}>
           <Text style={[styles.heroActionText, { color: colors.deep }]}>{scheduledToday[0] ? 'Start today’s workout' : 'View plans'}</Text>
           {startingId ? <ActivityIndicator color={colors.deep} /> : <MaterialIcons name="arrow-forward" size={18} color={colors.deep} />}
@@ -85,15 +103,17 @@ function ExerciseHomeScreen() {
       </View>
     </ImageBackground>}
 
-    <View accessibilityRole="tablist" style={[styles.localNav, { backgroundColor: theme.colors.surfaceSoft, borderColor: theme.colors.border }]}>
+    {!desktop && <View accessibilityRole="tablist" style={[styles.localNav, { backgroundColor: theme.colors.surfaceSoft, borderColor: theme.colors.border }]}>
       {exerciseSections.map((item) => {
         const selected = section === item.id;
-        return <Pressable key={item.id} accessibilityRole="tab" accessibilityState={{ selected }} onPress={() => { setActionError(null); setSection(item.id); }}
-          style={[styles.localNavItem, selected && { backgroundColor: theme.colors.surface, shadowColor: theme.colors.ink, shadowOpacity: 0.06, shadowRadius: 6, elevation: 1 }]}>
+        return <Pressable key={item.id} accessibilityRole="tab" accessibilityState={{ selected }} onPress={() => {
+          setActionError(null);
+          selectSection(item.id);
+        }} style={[styles.localNavItem, selected && { backgroundColor: theme.colors.surface, shadowColor: theme.colors.ink, shadowOpacity: 0.06, shadowRadius: 6, elevation: 1 }]}>
           <Text style={[styles.localNavText, { color: selected ? colors.deep : theme.colors.inkMuted }]}>{item.title}</Text>
         </Pressable>;
       })}
-    </View>
+    </View>}
 
     {loading && <ActivityIndicator color={colors.deep} />}
     {error && <Panel>
@@ -130,7 +150,7 @@ function ExerciseHomeScreen() {
             disabled={Boolean(startingId && startingId !== scheduledToday[0].id)} />
         </> : <>
           <Body>No workout is scheduled today. Take a rest day or choose a plan when you’re ready.</Body>
-          <Button label={plans.length ? 'Choose a workout' : 'Create a plan'} variant="secondary" onPress={() => plans.length ? setSection('plans') : router.push('/new-plan' as Href)} />
+          <Button label={plans.length ? 'Choose a workout' : 'Create a plan'} variant="secondary" onPress={() => plans.length ? selectSection('plans') : router.push('/new-plan' as Href)} />
         </>}
       </Panel>}
 

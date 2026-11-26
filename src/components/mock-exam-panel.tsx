@@ -1,5 +1,6 @@
 import { getAppLocale } from '../lib/locale-context';
 import { randomUUID } from 'expo-crypto';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Switch, StyleSheet, View } from 'react-native';
 import { Body, Button, ErrorText, Eyebrow, Field, Label, Panel, sharedStyles } from './bloom-ui';
@@ -23,12 +24,25 @@ function parseExam(record: GrowthRecord): ExamDefinition | null {
   } catch { return null; }
 }
 
+function isExamQuestion(value: unknown): value is ExamQuestion {
+  if (!value || typeof value !== 'object') return false;
+  const question = value as Partial<ExamQuestion>;
+  return typeof question.id === 'string' && question.id.length <= 128
+    && (question.type === 'multiple_choice' || question.type === 'true_false' || question.type === 'short_answer')
+    && typeof question.prompt === 'string' && question.prompt.length <= 1000
+    && Array.isArray(question.options) && question.options.length <= 6
+    && question.options.every((option) => typeof option === 'string' && option.length <= 500)
+    && typeof question.expected_answer === 'string' && question.expected_answer.length <= 1000
+    && typeof question.rubric === 'string' && question.rubric.length <= 2000
+    && typeof question.explanation === 'string' && question.explanation.length <= 1500;
+}
+
 export function MockExamPanel({ profileId, items, records, readOnly, onSaved }: {
   profileId: string; items: GrowthItem[]; records: GrowthRecord[]; readOnly: boolean; onSaved: () => void;
 }) {
   const { childProfile } = useAuth();
-  const studyItems = items.filter((item) => item.module_id === 'study' && item.state !== 'archived'
-    && ['subject', 'course', 'lesson', 'assignment'].includes(item.item_type));
+  const studyItems = useMemo(() => items.filter((item) => item.module_id === 'study' && item.state !== 'archived'
+    && ['subject', 'course', 'lesson', 'assignment'].includes(item.item_type)), [items]);
   const [itemId, setItemId] = useState(studyItems[0]?.id ?? '');
   const [title, setTitle] = useState('');
   const [sourceReference, setSourceReference] = useState('');
@@ -56,8 +70,10 @@ export function MockExamPanel({ profileId, items, records, readOnly, onSaved }: 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [loadedDraftKey, setLoadedDraftKey] = useState<string | null>(null);
   const pendingRequest = useRef<{ signature: string; requestId: string } | null>(null);
   const pendingSave = useRef<{ signature: string; requestId: string } | null>(null);
+  const draftKey = profileId ? `bloom.mock-exam-builder-draft.v1:${profileId}` : null;
 
   const exams = useMemo(() => records.filter((record) => record.kind === 'exam').flatMap((record) => {
     const definition = parseExam(record);
@@ -77,6 +93,74 @@ export function MockExamPanel({ profileId, items, records, readOnly, onSaved }: 
   const examAttempts = attempts.flatMap((record) => record.metadata.exam_id
     ? [{ record, examId: String(record.metadata.exam_id), parsed: parseAttempt(record) }]
     : []);
+
+  useEffect(() => {
+    let activeRequest = true;
+    if (readOnly || !draftKey) return () => { activeRequest = false; };
+    void AsyncStorage.getItem(draftKey).then((raw) => {
+      if (!activeRequest) return;
+      if (raw && raw.length <= 250_000) {
+        try {
+          const saved: unknown = JSON.parse(raw);
+          if (saved && typeof saved === 'object' && 'version' in saved && saved.version === 1) {
+            const value = saved as Record<string, unknown>;
+            if (Array.isArray(value.draftQuestions) && value.draftQuestions.length <= 50 && value.draftQuestions.every(isExamQuestion)) {
+              setDraftQuestions(value.draftQuestions);
+            }
+            if (typeof value.itemId === 'string' && studyItems.some((item) => item.id === value.itemId)) setItemId(value.itemId);
+            if (typeof value.title === 'string' && value.title.length <= 120) setTitle(value.title);
+            if (typeof value.sourceReference === 'string' && value.sourceReference.length <= 300) setSourceReference(value.sourceReference);
+            if (typeof value.timeLimit === 'string' && value.timeLimit.length <= 3) setTimeLimit(value.timeLimit);
+            if (value.questionType === 'multiple_choice' || value.questionType === 'true_false' || value.questionType === 'short_answer') setQuestionType(value.questionType);
+            if (typeof value.prompt === 'string' && value.prompt.length <= 1000) setPrompt(value.prompt);
+            if (typeof value.optionsText === 'string' && value.optionsText.length <= 1000) setOptionsText(value.optionsText);
+            if (typeof value.expectedAnswer === 'string' && value.expectedAnswer.length <= 1000) setExpectedAnswer(value.expectedAnswer);
+            if (typeof value.rubric === 'string' && value.rubric.length <= 2000) setRubric(value.rubric);
+            if (typeof value.explanation === 'string' && value.explanation.length <= 1500) setExplanation(value.explanation);
+            if (typeof value.editingQuestionId === 'string' && Array.isArray(value.draftQuestions)
+              && value.draftQuestions.some((question) => isExamQuestion(question) && question.id === value.editingQuestionId)) setEditingQuestionId(value.editingQuestionId);
+            if (typeof value.editingExamId === 'string') {
+              const savedExam = exams.find((exam) => exam.record.id === value.editingExamId);
+              if (savedExam) setEditingExam(savedExam.record);
+            }
+            const activeExam = typeof value.activeExamId === 'string' ? exams.find((exam) => exam.record.id === value.activeExamId) : null;
+            if (activeExam && typeof value.startTime === 'number' && Number.isFinite(value.startTime)
+              && value.startTime > 0 && value.startTime <= Date.now() + 60_000) {
+              setActiveExamId(activeExam.record.id);
+              if (typeof value.activeQuestion === 'number' && Number.isInteger(value.activeQuestion)
+                && value.activeQuestion >= 0 && value.activeQuestion < activeExam.definition.questions.length) setActiveQuestion(value.activeQuestion);
+              if (value.answers && typeof value.answers === 'object' && !Array.isArray(value.answers)) {
+                const allowedQuestionIds = new Set(activeExam.definition.questions.map((question) => question.id));
+                const nextAnswers: Record<string, string> = {};
+                for (const [questionId, answer] of Object.entries(value.answers)) {
+                  if (allowedQuestionIds.has(questionId) && typeof answer === 'string' && answer.length <= 3000) nextAnswers[questionId] = answer;
+                }
+                setAnswers(nextAnswers);
+              }
+              setStartTime(value.startTime);
+            }
+          }
+        } catch { /* Ignore an unreadable local mock-exam draft. */ }
+      }
+      setLoadedDraftKey(draftKey);
+    }).catch(() => { if (activeRequest) setLoadedDraftKey(draftKey); });
+    return () => { activeRequest = false; };
+  }, [draftKey, exams, readOnly, studyItems]);
+
+  useEffect(() => {
+    if (readOnly || !draftKey || loadedDraftKey !== draftKey) return;
+    const hasDraft = Boolean(title || sourceReference || prompt || optionsText || expectedAnswer || rubric || explanation
+      || draftQuestions.length || editingExam || activeExamId || startTime);
+    if (!hasDraft) {
+      void AsyncStorage.removeItem(draftKey).catch(() => undefined);
+      return;
+    }
+    const serialized = JSON.stringify({ version: 1, itemId, title, sourceReference, timeLimit, questionType, prompt, optionsText,
+      expectedAnswer, rubric, explanation, draftQuestions, editingQuestionId, editingExamId: editingExam?.id ?? null,
+      activeExamId, activeQuestion, answers, startTime });
+    if (serialized.length <= 250_000) void AsyncStorage.setItem(draftKey, serialized).catch(() => undefined);
+  }, [draftKey, draftQuestions, editingExam, editingQuestionId, explanation, expectedAnswer, itemId, loadedDraftKey, optionsText,
+    activeExamId, activeQuestion, answers, prompt, questionType, readOnly, rubric, sourceReference, startTime, timeLimit, title]);
 
   useEffect(() => {
     let currentRequest = true;
@@ -146,6 +230,7 @@ export function MockExamPanel({ profileId, items, records, readOnly, onSaved }: 
       if (editingExam) await updateGrowthRecord(editingExam.id, title.trim(), body, metadata);
       else await saveGrowthRecord({ moduleId: 'study', itemId, kind: 'exam', title: title.trim(), body,
         metadata, requestId: pendingSave.current!.requestId });
+      if (draftKey) await AsyncStorage.removeItem(draftKey).catch(() => undefined);
       pendingSave.current = null; setEditingExam(null); setTitle(''); setSourceReference(''); setDraftQuestions([]);
       setNotice(editingExam ? 'Mock exam updated.' : 'Mock exam saved. Its source or rubric reference stays with the review history.'); onSaved();
     } catch { setError('Could not save the mock exam. Your draft remains available to retry.'); }
@@ -195,7 +280,8 @@ export function MockExamPanel({ profileId, items, records, readOnly, onSaved }: 
       const result = hasShortAnswer
         ? await requestMockExamAssessment(pendingRequest.current.requestId, active.record.id, answers, elapsed)
         : await saveMockExamAttempt(active.record.id, answers, elapsed, pendingRequest.current.requestId);
-      setActiveExamId(null); setStartTime(null); setNotice(`Attempt saved · ${result.score}% suggested result. ${hasShortAnswer ? 'Short-answer results are AI suggestions; review the explanations and uncertainty.' : 'Objective answers were checked against this exam’s saved key.'}`);
+      setActiveExamId(null); setStartTime(null); setAnswers({}); setActiveQuestion(0);
+      setNotice(`Attempt saved · ${result.score}% suggested result. ${hasShortAnswer ? 'Short-answer results are AI suggestions; review the explanations and uncertainty.' : 'Objective answers were checked against this exam’s saved key.'}`);
       pendingRequest.current = null; onSaved();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not submit this exam. Your answers remain available to retry.');
@@ -209,20 +295,20 @@ export function MockExamPanel({ profileId, items, records, readOnly, onSaved }: 
       label={`${itemId === item.id ? '✓ ' : ''}${item.title}`} variant="tertiary" disabled={busy || readOnly}
       onPress={() => setItemId(item.id)} />)}</View>}
     {!active && <View style={sharedStyles.column}>
-      <Field label="Exam title" value={title} onChangeText={setTitle} maxLength={120} editable={!busy && !readOnly} />
-      <Field label="Source or rubric reference" value={sourceReference} onChangeText={setSourceReference} maxLength={300} editable={!busy && !readOnly}
+      <Field label="Exam title" value={readOnly ? '' : title} onChangeText={setTitle} maxLength={120} editable={!busy && !readOnly} />
+      <Field label="Source or rubric reference" value={readOnly ? '' : sourceReference} onChangeText={setSourceReference} maxLength={300} editable={!busy && !readOnly}
         placeholder="Chapter 4 notes · page 18" helperText="Link the questions to a source you can revisit." />
-      <Field label="Time limit in minutes" value={timeLimit} onChangeText={setTimeLimit} keyboardType="number-pad" editable={!busy && !readOnly} />
+      <Field label="Time limit in minutes" value={readOnly ? '' : timeLimit} onChangeText={setTimeLimit} keyboardType="number-pad" editable={!busy && !readOnly} />
       <View style={styles.choiceRow}>{(['multiple_choice', 'true_false', 'short_answer'] as const).map((type) => <Button key={type}
         label={`${questionType === type ? '✓ ' : ''}${type === 'multiple_choice' ? 'Multiple choice' : type === 'true_false' ? 'True or false' : 'Short answer'}`}
         variant="tertiary" disabled={busy || readOnly} onPress={() => { setQuestionType(type); setError(null); }} />)}</View>
-      <Field label="Question" value={prompt} onChangeText={setPrompt} maxLength={1000} multiline editable={!busy && !readOnly} />
-      {questionType === 'multiple_choice' && <Field label="Answer choices (one per line)" value={optionsText} onChangeText={setOptionsText} maxLength={1000} multiline editable={!busy && !readOnly} />}
-      <Field label={questionType === 'short_answer' ? 'Expected answer (optional)' : 'Correct answer'} value={expectedAnswer} onChangeText={setExpectedAnswer} maxLength={1000} editable={!busy && !readOnly} />
-      {questionType === 'short_answer' && <Field label="Marking rubric" value={rubric} onChangeText={setRubric} maxLength={2000} multiline editable={!busy && !readOnly} />}
-      <Field label="Explanation shown in review" value={explanation} onChangeText={setExplanation} maxLength={1500} multiline editable={!busy && !readOnly} />
+      <Field label="Question" value={readOnly ? '' : prompt} onChangeText={setPrompt} maxLength={1000} multiline editable={!busy && !readOnly} />
+      {questionType === 'multiple_choice' && <Field label="Answer choices (one per line)" value={readOnly ? '' : optionsText} onChangeText={setOptionsText} maxLength={1000} multiline editable={!busy && !readOnly} />}
+      <Field label={questionType === 'short_answer' ? 'Expected answer (optional)' : 'Correct answer'} value={readOnly ? '' : expectedAnswer} onChangeText={setExpectedAnswer} maxLength={1000} editable={!busy && !readOnly} />
+      {questionType === 'short_answer' && <Field label="Marking rubric" value={readOnly ? '' : rubric} onChangeText={setRubric} maxLength={2000} multiline editable={!busy && !readOnly} />}
+      <Field label="Explanation shown in review" value={readOnly ? '' : explanation} onChangeText={setExplanation} maxLength={1500} multiline editable={!busy && !readOnly} />
       <Button label={editingQuestionId ? 'Save question changes' : 'Add question to draft'} variant="secondary" disabled={busy || readOnly} onPress={addQuestion} />
-      {draftQuestions.length > 0 && <View style={sharedStyles.column}>
+      {!readOnly && draftQuestions.length > 0 && <View style={sharedStyles.column}>
         <Label>Draft questions · {draftQuestions.length}</Label>
         {draftQuestions.map((question, index) => <View key={question.id} style={styles.row}>
           <View style={sharedStyles.grow}><Label>{index + 1}. {question.prompt}</Label><Body>{question.type.replace('_', ' ')}</Body></View>
@@ -246,12 +332,12 @@ export function MockExamPanel({ profileId, items, records, readOnly, onSaved }: 
       <Body>Practice timer · {formatClock(timeLeft)} remaining{timeExpired ? ' · time is up; submit to save this attempt' : ''}</Body>
       <Label>{current.prompt}</Label>
       {current.type === 'multiple_choice' && current.options.map((option) => <Button key={option}
-        label={`${answers[current.id] === option ? '✓ ' : ''}${option}`} variant={answers[current.id] === option ? 'secondary' : 'tertiary'}
+        label={`${!readOnly && answers[current.id] === option ? '✓ ' : ''}${option}`} variant={!readOnly && answers[current.id] === option ? 'secondary' : 'tertiary'}
         disabled={busy || readOnly || timeExpired} onPress={() => setAnswers((currentAnswers) => ({ ...currentAnswers, [current.id]: option }))} />)}
       {current.type === 'true_false' && ['true', 'false'].map((option) => <Button key={option}
-        label={`${answers[current.id] === option ? '✓ ' : ''}${option === 'true' ? 'True' : 'False'}`} variant="tertiary"
+        label={`${!readOnly && answers[current.id] === option ? '✓ ' : ''}${option === 'true' ? 'True' : 'False'}`} variant="tertiary"
         disabled={busy || readOnly || timeExpired} onPress={() => setAnswers((currentAnswers) => ({ ...currentAnswers, [current.id]: option }))} />)}
-      {current.type === 'short_answer' && <Field label="Your answer" value={answers[current.id] ?? ''} onChangeText={(value) => setAnswers((currentAnswers) => ({ ...currentAnswers, [current.id]: value }))}
+      {current.type === 'short_answer' && <Field label="Your answer" value={readOnly ? '' : answers[current.id] ?? ''} onChangeText={(value) => setAnswers((currentAnswers) => ({ ...currentAnswers, [current.id]: value }))}
         multiline maxLength={3000} editable={!busy && !readOnly && !timeExpired} />}
       <View style={styles.row}>
         <Button label="Previous" variant="secondary" disabled={busy || readOnly || activeQuestion === 0} onPress={() => setActiveQuestion((index) => Math.max(0, index - 1))} />
@@ -259,7 +345,7 @@ export function MockExamPanel({ profileId, items, records, readOnly, onSaved }: 
           ? <Button label="Next question" onPress={() => setActiveQuestion((index) => index + 1)} disabled={busy || readOnly} />
           : <Button label="Submit attempt" onPress={() => void submit()} busy={busy} disabled={busy || readOnly} />}
       </View>
-      <Button label="Leave this attempt" variant="tertiary" disabled={busy} onPress={() => { setActiveExamId(null); setStartTime(null); pendingRequest.current = null; }} />
+      <Button label="Leave this attempt" variant="tertiary" disabled={busy} onPress={() => { setActiveExamId(null); setStartTime(null); setActiveQuestion(0); setAnswers({}); pendingRequest.current = null; }} />
     </View>}
 
     {examsNeedAi && <View style={sharedStyles.row}>

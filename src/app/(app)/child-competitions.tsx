@@ -2,7 +2,7 @@ import { getAppLocale } from '../../lib/locale-context';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
-import { Body, Button, ErrorText, Eyebrow, Heading, Label, Panel, Screen, sharedStyles } from '../../components/bloom-ui';
+import { Body, Button, DesktopContent, ErrorText, Eyebrow, Heading, Label, Panel, Screen, sharedStyles } from '../../components/bloom-ui';
 import { approveChildCompetition, loadChildCompetitions, setChildSearch } from '../../lib/competitions';
 import { useBloomTheme } from '../../lib/theme-context';
 
@@ -29,6 +29,7 @@ export default function ChildCompetitionsScreen() {
     finally { setBusy(false); }
   }
   return <Screen safeAreaTop={false}>
+    <DesktopContent maxWidth={1000}>
     <View style={sharedStyles.column}><Eyebrow>Family competitions</Eyebrow><Heading>{name || 'Child competitions'}</Heading><Body>Review participation requests and control search visibility.</Body></View>
     <Button label="Back" secondary onPress={() => router.back()} disabled={busy} />
     {loading && <ActivityIndicator color={theme.colors.action} />}{error && <ErrorText>{error}</ErrorText>}{notice && <Body>{notice}</Body>}
@@ -49,7 +50,7 @@ export default function ChildCompetitionsScreen() {
         {competition && <Body>{competition.visibility} · {competition.metric === 'minutes' ? 'active workout minutes' : 'completed workouts'} · {new Date(competition.starts_at).toLocaleString(getAppLocale())} – {new Date(competition.ends_at).toLocaleString(getAppLocale())}</Body>}
         <Body>Results use display names and self-reported workouts. Participation begins when you approve it.</Body>
         {pendingDecision?.competitionId === competition_id ? <>
-          <Body>Confirm you want to {pendingDecision.approve ? 'approve' : 'decline'} {name || 'this child'}’s participation in {competition?.title ?? 'this competition'}? The server records the decision.</Body>
+          <Body>{pendingDecision.approve ? 'Approve' : 'Decline'} {name || 'this child'}’s participation in {competition?.title ?? 'this competition'}?</Body>
           <Button label={`Confirm ${pendingDecision.approve ? 'approval' : 'decline'}`} onPress={() => { const approve = pendingDecision.approve; setPendingDecision(null); void run(() => approveChildCompetition(competition_id, childId, approve), approve ? 'Participation approved.' : 'Participation declined.'); }} busy={busy} />
           <Button label="Cancel" variant="secondary" onPress={() => setPendingDecision(null)} disabled={busy} />
         </> : <>
@@ -58,5 +59,6 @@ export default function ChildCompetitionsScreen() {
         </>}
       </Panel>)}
     </>}
+    </DesktopContent>
   </Screen>;
 }

@@ -139,11 +139,58 @@ async fn macos_filter(action: String, domains: Option<Vec<String>>, apps: Option
   }).await.map_err(|_| "The macOS filter request failed.".to_string())?
 }
 
+#[cfg(target_os = "macos")]
+fn validate_reader_browser_url(value: &str) -> Result<url::Url, String> {
+  if value.len() > 2048 || value.chars().any(|character| character.is_control() || character.is_whitespace()) {
+    return Err("Invalid Bloom web reader address.".into());
+  }
+  let parsed = url::Url::parse(value).map_err(|_| "Invalid Bloom web reader address.")?;
+  let loopback_http = parsed.scheme() == "http" && parsed.host().is_some_and(|host| match host {
+    url::Host::Domain(domain) => domain == "localhost",
+    url::Host::Ipv4(address) => address.is_loopback(),
+    url::Host::Ipv6(address) => address.is_loopback(),
+  });
+  if (parsed.scheme() != "https" && !loopback_http) || !parsed.username().is_empty()
+    || parsed.password().is_some() || parsed.host().is_none() {
+    return Err("Bloom web reader links must use HTTPS.".into());
+  }
+  Ok(parsed)
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+fn open_reader_in_browser(url: String) -> Result<(), String> {
+  let parsed = validate_reader_browser_url(&url)?;
+  std::process::Command::new("/usr/bin/open")
+    .arg(parsed.as_str())
+    .spawn()
+    .map(|_| ())
+    .map_err(|_| "Could not open Bloom in the default web browser.".into())
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod reader_browser_tests {
+  use super::validate_reader_browser_url;
+
+  #[test]
+  fn accepts_https_and_local_development_urls() {
+    assert!(validate_reader_browser_url("https://bloom.example/apps/read/reader/abc").is_ok());
+    assert!(validate_reader_browser_url("http://localhost:8081/apps/read/reader/abc").is_ok());
+  }
+
+  #[test]
+  fn rejects_insecure_public_urls_and_credentials() {
+    assert!(validate_reader_browser_url("http://bloom.example/apps/read/reader/abc").is_err());
+    assert!(validate_reader_browser_url("https://user@bloom.example/apps/read/reader/abc").is_err());
+    assert!(validate_reader_browser_url("file:///etc/passwd").is_err());
+  }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   let builder = tauri::Builder::default();
   #[cfg(target_os = "macos")]
-  let builder = builder.invoke_handler(tauri::generate_handler![macos_filter])
+  let builder = builder.invoke_handler(tauri::generate_handler![macos_filter, open_reader_in_browser])
     .on_window_event(|window, event| {
       if window.label() == "main" {
         if let tauri::WindowEvent::CloseRequested { api, .. } = event {

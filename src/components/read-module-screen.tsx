@@ -1,11 +1,12 @@
 import { getAppLocale } from '../lib/locale-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { randomUUID } from 'expo-crypto';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, ImageBackground, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams, type Href } from 'expo-router';
 import {
-  Body, Button, ErrorText, Eyebrow, Field, Heading, Label, LocalizedText as Text, Panel, ProgressBar, Screen, sharedStyles, useIsDesktopLayout,
+  Body, Button, ErrorText, Eyebrow, Field, Heading, Label, LocalizedText as Text, Panel, ProgressBar, Screen, sharedStyles, useIsDesktopColumns, useIsDesktopLayout,
 } from './bloom-ui';
 import { GrowthDocumentLibraryPanel } from './growth-document-panels';
 import { GrowthRecordPanel, ReadingDiscoveryPanel } from './growth-feature-panels';
@@ -21,12 +22,13 @@ import { useAuth } from '../lib/auth';
 import { useBloom } from '../lib/bloom-context';
 import { useBloomTheme } from '../lib/theme-context';
 import { dateKeyInTimeZone } from '../lib/date-utils';
-import { bloomPillarImages } from '../assets/bloom-images';
+import { bloomPillarCollectionImages, bloomPillarImages } from '../assets/bloom-images';
 
 type ReadSection = 'today' | 'library' | 'discover' | 'progress' | 'item' | 'add' | 'edit' | 'session' | 'session-complete';
 type LibraryFilter = 'want_to_read' | 'currently_reading' | 'finished';
 type ProgressPeriod = 'day' | 'week' | 'month';
 type ItemTab = 'overview' | 'sessions' | 'notes' | 'files';
+type AddReturnSection = 'today' | 'library';
 const localTabs: { id: ReadSection; label: string }[] = [
   { id: 'today', label: 'Today' }, { id: 'library', label: 'Library' },
   { id: 'discover', label: 'Discover' }, { id: 'progress', label: 'Progress' },
@@ -35,6 +37,10 @@ const localTabs: { id: ReadSection; label: string }[] = [
 function routeFor(section: ReadSection, itemId?: string, editPages = false): Href {
   if (section === 'today') return '/read';
   return { pathname: '/apps/read/[section]', params: { section, ...(itemId ? { itemId } : {}), ...(editPages ? { editPages: '1' } : {}) } };
+}
+
+function addRouteFor(returnTo: AddReturnSection): Href {
+  return { pathname: '/apps/read/[section]', params: { section: 'add', returnTo } };
 }
 
 function statusLabel(status: ReadingStatus) {
@@ -83,7 +89,7 @@ function formatClock(value: string) {
 }
 
 export function ReadModuleScreen({ sectionId }: { sectionId?: string }) {
-  const params = useLocalSearchParams<{ itemId?: string | string[]; editPages?: string | string[]; durationSeconds?: string | string[]; rewardStatus?: string | string[]; rewardMinutes?: string | string[] }>();
+  const params = useLocalSearchParams<{ itemId?: string | string[]; editPages?: string | string[]; returnTo?: string | string[]; durationSeconds?: string | string[]; rewardStatus?: string | string[]; rewardMinutes?: string | string[] }>();
   const routeItemId = typeof params.itemId === 'string' ? params.itemId : undefined;
   const completionSeconds = typeof params.durationSeconds === 'string' ? Number(params.durationSeconds) : 0;
   const completionRewardStatus = typeof params.rewardStatus === 'string' ? params.rewardStatus : '';
@@ -95,6 +101,7 @@ export function ReadModuleScreen({ sectionId }: { sectionId?: string }) {
   const { creditSettings } = useBloom();
   const { theme } = useBloomTheme();
   const desktop = useIsDesktopLayout();
+  const desktopColumns = useIsDesktopColumns();
   const accent = theme.modules.read;
   const timeZone = creditSettings?.credit_timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC';
   const [items, setItems] = useState<GrowthItem[]>([]);
@@ -271,7 +278,7 @@ export function ReadModuleScreen({ sectionId }: { sectionId?: string }) {
           }
         } catch { /* The recovery read can also be offline; keep the session outcome unconfirmed. */ }
       }
-      setError('Bloom could not confirm the session finish. Reconnect and retry; no completion or reward is shown until the server confirms it.');
+      setError('Bloom could not save the session yet. Reconnect and retry. It will count as complete after it is saved.');
     } finally { setSaving(false); }
   }
 
@@ -317,8 +324,8 @@ export function ReadModuleScreen({ sectionId }: { sectionId?: string }) {
 
   async function saveItem(item: GrowthItem | null, details: {
     title: string; kind: ReadingKind; author: string; genre: string; pageCount: number | null; notes: string; status: ReadingStatus;
-  }, requestId: string) {
-    if (!profileId) return;
+  }, requestId: string): Promise<boolean> {
+    if (!profileId) return false;
     setSaving(true); setError(null); setNotice(null);
     try {
       let itemId = item?.id;
@@ -340,8 +347,10 @@ export function ReadModuleScreen({ sectionId }: { sectionId?: string }) {
       });
       await refresh();
       router.replace(routeFor(item ? 'item' : 'library', itemId));
+      return true;
     } catch {
       setError('Could not save this entry. It is still in the form; check your connection and try again.');
+      return false;
     } finally { setSaving(false); }
   }
 
@@ -363,11 +372,11 @@ export function ReadModuleScreen({ sectionId }: { sectionId?: string }) {
   }
 
   return <Screen safeAreaTop={['item', 'add', 'edit', 'session', 'session-complete'].includes(section)}>
-    {!['item', 'add', 'edit', 'session', 'session-complete'].includes(section) && <>
+    {!desktop && !['item', 'add', 'edit', 'session', 'session-complete'].includes(section) && <>
       <View style={styles.header}>
         <View style={[styles.headerIcon, { backgroundColor: accent.surface }]}><MaterialIcons name="menu-book" size={23} color={accent.deep} /></View>
         <View style={sharedStyles.grow}><Eyebrow>Bloom · Read</Eyebrow><Heading>Read</Heading><Text style={[styles.tagline, { color: theme.colors.inkMuted }]}>Read. Reflect. Grow.</Text></View>
-        {section === 'library' && <Pressable accessibilityRole="button" accessibilityLabel="Add a book or article" onPress={() => router.push(routeFor('add'))} style={[styles.iconButton, { backgroundColor: accent.surface }]}>
+        {section === 'library' && <Pressable accessibilityRole="button" accessibilityLabel="Add a book or article" onPress={() => router.push(addRouteFor('library'))} style={[styles.iconButton, { backgroundColor: accent.surface }]}>
           <MaterialIcons name="add" size={23} color={accent.deep} />
         </Pressable>}
       </View>
@@ -379,7 +388,7 @@ export function ReadModuleScreen({ sectionId }: { sectionId?: string }) {
     {!loading && notice && section !== 'session-complete' && <View style={[styles.notice, { backgroundColor: accent.surface }]}><MaterialIcons name="check-circle-outline" size={19} color={accent.deep} /><Text style={[styles.noticeText, { color: accent.deep }]}>{notice}</Text></View>}
 
     {!loading && !error && section === 'today' && <>
-      <ImageBackground source={bloomPillarImages.read} resizeMode="cover" imageStyle={styles.heroImage} style={[styles.hero, desktop && styles.heroDesktop]}>
+      <ImageBackground source={bloomPillarCollectionImages.read} resizeMode="cover" imageStyle={styles.heroImage} style={[styles.hero, desktop && styles.heroDesktop]}>
         <View style={styles.heroShade} />
         <View style={styles.heroCopy}>
           <Text style={styles.heroEyebrow}>A QUIET MOMENT FOR IDEAS</Text>
@@ -393,10 +402,10 @@ export function ReadModuleScreen({ sectionId }: { sectionId?: string }) {
           <View style={sharedStyles.grow}><Eyebrow>Reading session in progress</Eyebrow><Label>{activeSessionItem?.title ?? 'Reading item'}</Label></View>
           <Text style={[styles.timerSmall, { color: accent.deep }]}>{elapsedFromStart(activeSession.started_at, tick)}</Text>
         </View>
-        <Body>Elapsed time is estimated from the server start time. Bloom confirms the recorded duration when you finish.</Body>
+        <Body>Your timer starts when you begin reading. Bloom saves the total time when you finish.</Body>
         <Button label="Return to session" onPress={() => router.push(routeFor('session'))} />
       </Panel>}
-      <View style={[styles.todayColumns, desktop && styles.todayColumnsDesktop]}>
+      <View style={[styles.todayColumns, desktopColumns && styles.todayColumnsDesktop]}>
         <View style={sharedStyles.grow}>
           <SectionTitle eyebrow="Pick up where you left off" title="Continue reading" />
           {currentlyReading[0] ? <ContinueCard item={currentlyReading[0]} saving={saving}
@@ -407,7 +416,7 @@ export function ReadModuleScreen({ sectionId }: { sectionId?: string }) {
               <Eyebrow>Your next read</Eyebrow>
               <Label>{wantToRead[0]?.title ?? 'Choose something for your shelf'}</Label>
               <Body>{wantToRead[0] ? 'Start a timed session when you are ready. Page position is optional.' : 'Add a book or article to keep your reading plans together.'}</Body>
-              <Button label={wantToRead[0] ? 'Start reading session' : 'Add your first book'} onPress={() => wantToRead[0] ? void startSession(wantToRead[0]) : router.push(routeFor('add'))} busy={saving} />
+              <Button label={wantToRead[0] ? 'Start reading session' : 'Add your first book'} onPress={() => wantToRead[0] ? void startSession(wantToRead[0]) : router.push(addRouteFor('today'))} busy={saving} />
               {wantToRead[0] && <Button label="View reading list" variant="tertiary" onPress={() => router.push(routeFor('item', wantToRead[0].id))} />}
             </Panel>}
         </View>
@@ -467,7 +476,7 @@ export function ReadModuleScreen({ sectionId }: { sectionId?: string }) {
           onOpen={(item) => router.push(routeFor('item', item.id))}
           onStart={(item) => void changeStatus(item, 'currently_reading')}
           onSession={(item) => void startSession(item)} />}
-        <Button label="Add a book or article" onPress={() => router.push(routeFor('add'))} />
+        <Button label="Add a book or article" onPress={() => router.push(addRouteFor('library'))} />
       </> : <>
         <Body>Private PDF and EPUB files · maximum 25 MB each. The integrated reader is available on web where supported.</Body>
         <GrowthDocumentLibraryPanel moduleId="read" items={items} records={records} documents={documents}
@@ -489,9 +498,9 @@ export function ReadModuleScreen({ sectionId }: { sectionId?: string }) {
         {([{ id: 'day', label: 'Day' }, { id: 'week', label: 'Week' }, { id: 'month', label: 'Month' }] as const).map((entry) =>
           <Segment key={entry.id} label={entry.label} selected={progressPeriod === entry.id} onPress={() => setProgressPeriod(entry.id)} />)}
       </View>
-      <View style={[styles.progressColumns, desktop && styles.progressColumnsDesktop]}>
+      <View style={[styles.progressColumns, desktopColumns && styles.progressColumnsDesktop]}>
         <Panel><Eyebrow>Completed sessions</Eyebrow><Text style={[styles.metric, { color: theme.colors.ink }]}>{selectedReportSessions.length}</Text><Body>{periodLabel(progressPeriod)}</Body></Panel>
-        <Panel><Eyebrow>Recorded reading time</Eyebrow><Text style={[styles.metric, { color: theme.colors.ink }]}>{formatMinutes(selectedReportSessions.reduce((sum, entry) => sum + (entry.duration_seconds ?? 0), 0))}</Text><Body>From server-completed sessions</Body></Panel>
+        <Panel><Eyebrow>Recorded reading time</Eyebrow><Text style={[styles.metric, { color: theme.colors.ink }]}>{formatMinutes(selectedReportSessions.reduce((sum, entry) => sum + (entry.duration_seconds ?? 0), 0))}</Text><Body>Completed sessions only</Body></Panel>
         <Panel><Eyebrow>Reading list</Eyebrow><View style={styles.metricPair}><View><Label>{currentlyReading.length}</Label><Body>in progress</Body></View><View><Label>{finished.length}</Label><Body>finished</Body></View></View></Panel>
       </View>
       {progressPeriod === 'week' && <Panel>
@@ -526,18 +535,58 @@ export function ReadModuleScreen({ sectionId }: { sectionId?: string }) {
     </>}
 
     {!loading && !error && (section === 'add' || section === 'edit') && <ReadItemForm
-      item={section === 'edit' ? currentItem : null} saving={saving} onCancel={() => router.back()}
-      onSave={(item, details, requestId) => void saveItem(item, details, requestId)} />}
+      key={`${profileId ?? 'no-profile'}:${section}:${section === 'edit' ? currentItem?.id ?? 'missing' : 'new'}`}
+      item={section === 'edit' ? currentItem : null} saving={saving}
+      draftKey={profileId ? `bloom.read-item-draft.v1:${profileId}:${section === 'edit' ? currentItem?.id ?? 'missing' : 'new'}` : null}
+      onCancel={() => section === 'add'
+        ? router.replace(routeFor(params.returnTo === 'today' ? 'today' : 'library'))
+        : router.back()} onSave={saveItem} />}
 
-    {!loading && !error && section === 'item' && <ItemDetail
-      item={selectedReadItem} items={items} sessions={sessions} records={records} documents={documents}
-      activeSession={activeSession} saving={saving} selectedTab={sectionId === 'notes' ? 'notes' : itemTab} setSelectedTab={setItemTab}
-      editPages={params.editPages === '1'}
-      onSavePages={(pageCount, currentPage) => selectedReadItem ? savePageProgress(selectedReadItem, pageCount, currentPage) : Promise.resolve(false)}
-      onEdit={() => selectedReadItem && router.push(routeFor('edit', selectedReadItem.id))}
-      onStart={() => selectedReadItem && void startSession(selectedReadItem)}
-      onStatus={(status) => selectedReadItem && void changeStatus(selectedReadItem, status)}
-      onSaved={() => void refresh()} />}
+    {!loading && !error && section === 'item' && (desktopColumns
+      ? <View style={styles.libraryWorkspace}>
+        <View style={styles.libraryColumn}>
+          <SectionTitle eyebrow="Your personal collection" title="My Library" />
+          <Field label="Search your reading list" value={librarySearch} onChangeText={setLibrarySearch} placeholder="Title, author, or topic" />
+          <View style={styles.filterRow} accessibilityRole="tablist" accessibilityLabel="Reading list filters">
+            {([{ id: 'want_to_read', label: 'Want to read', count: wantToRead.length }, { id: 'currently_reading', label: 'Currently reading', count: currentlyReading.length }, { id: 'finished', label: 'Finished', count: finished.length }] as const).map((entry) =>
+              <Segment key={entry.id} label={entry.label + ' · ' + entry.count} selected={libraryFilter === entry.id} onPress={() => setLibraryFilter(entry.id)} />)}
+          </View>
+          {libraryFilter === 'want_to_read' && <ReadingCollection items={searchItems(wantToRead, librarySearch)} filter="want_to_read" saving={saving} searchTerm={librarySearch}
+            onOpen={(item) => router.replace(routeFor('item', item.id))}
+            onStart={(item) => void changeStatus(item, 'currently_reading')}
+            onSession={(item) => void startSession(item)} />}
+          {libraryFilter === 'currently_reading' && <ReadingCollection items={searchItems(currentlyReading, librarySearch)} filter="currently_reading" saving={saving} searchTerm={librarySearch}
+            onOpen={(item) => router.replace(routeFor('item', item.id))}
+            onStart={(item) => void startSession(item)}
+            onSession={(item) => void startSession(item)}
+            onFinish={(item) => void changeStatus(item, 'finished')} />}
+          {libraryFilter === 'finished' && <ReadingCollection items={searchItems(finished, librarySearch)} filter="finished" saving={saving} searchTerm={librarySearch}
+            onOpen={(item) => router.replace(routeFor('item', item.id))}
+            onStart={(item) => void changeStatus(item, 'currently_reading')}
+            onSession={(item) => void startSession(item)} />}
+          <Button label="Add a book or article" variant="secondary" onPress={() => router.push(addRouteFor('library'))} />
+        </View>
+        <View style={styles.detailColumn}>
+          <ItemDetail
+            item={selectedReadItem} items={items} sessions={sessions} records={records} documents={documents}
+            activeSession={activeSession} saving={saving} selectedTab={sectionId === 'notes' ? 'notes' : itemTab} setSelectedTab={setItemTab}
+            editPages={params.editPages === '1'}
+            onSavePages={(pageCount, currentPage) => selectedReadItem ? savePageProgress(selectedReadItem, pageCount, currentPage) : Promise.resolve(false)}
+            onEdit={() => selectedReadItem && router.push(routeFor('edit', selectedReadItem.id))}
+            onStart={() => selectedReadItem && void startSession(selectedReadItem)}
+            onStatus={(status) => selectedReadItem && void changeStatus(selectedReadItem, status)}
+            onSaved={() => void refresh()} />
+        </View>
+      </View>
+      : <ItemDetail
+        item={selectedReadItem} items={items} sessions={sessions} records={records} documents={documents}
+        activeSession={activeSession} saving={saving} selectedTab={sectionId === 'notes' ? 'notes' : itemTab} setSelectedTab={setItemTab}
+        editPages={params.editPages === '1'}
+        onSavePages={(pageCount, currentPage) => selectedReadItem ? savePageProgress(selectedReadItem, pageCount, currentPage) : Promise.resolve(false)}
+        onEdit={() => selectedReadItem && router.push(routeFor('edit', selectedReadItem.id))}
+        onStart={() => selectedReadItem && void startSession(selectedReadItem)}
+        onStatus={(status) => selectedReadItem && void changeStatus(selectedReadItem, status)}
+        onSaved={() => void refresh()} />)}
 
     {!loading && section === 'session' && <SessionScreen
       session={activeSession} item={activeSessionItem} elapsed={activeSession ? elapsedFromStart(activeSession.started_at, tick) : null}
@@ -568,10 +617,10 @@ function SectionTitle({ eyebrow, title, subtitle }: { eyebrow: string; title: st
   return <View style={styles.sectionTitle}><Eyebrow>{eyebrow}</Eyebrow><Heading>{title}</Heading>{subtitle ? <Body>{subtitle}</Body> : null}</View>;
 }
 
-function Segment({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+function Segment({ label, selected, disabled = false, onPress }: { label: string; selected: boolean; disabled?: boolean; onPress: () => void }) {
   const { theme } = useBloomTheme();
   const accent = theme.modules.read;
-  return <Pressable accessibilityRole="button" accessibilityState={{ selected }} onPress={onPress}
+  return <Pressable accessibilityRole="button" accessibilityState={{ selected, disabled }} disabled={disabled} onPress={onPress}
     style={[styles.segment, { borderColor: selected ? accent.deep : theme.colors.border, backgroundColor: selected ? accent.surface : theme.colors.surface }]}>
     <Text style={[styles.segmentText, { color: selected ? accent.deep : theme.colors.inkMuted }]}>{label}</Text>
   </Pressable>;
@@ -637,7 +686,7 @@ function ReadingCollection({ items, filter, saving, searchTerm, onOpen, onStart,
   const { theme } = useBloomTheme();
   const emptyCopy = filter === 'want_to_read' ? 'Save a book or article you want to read next.' : filter === 'finished' ? 'Finished books and articles will collect here.' : 'Move a title here when you begin reading.';
   if (!items.length) return <Panel><Eyebrow>{searchTerm?.trim() ? 'Search results' : statusLabel(filter)}</Eyebrow><Label>{searchTerm?.trim() ? 'No matching items' : 'Your shelf is ready'}</Label><Body>{searchTerm?.trim() ? 'Try another title, author, or topic, or clear the search.' : emptyCopy}</Body>{!searchTerm?.trim() && <>
-    <Button label="Add a book or article" variant="secondary" onPress={() => router.push(routeFor('add'))} />
+    <Button label="Add a book or article" variant="secondary" onPress={() => router.push(addRouteFor('library'))} />
     <Button label="Browse the Discover catalog" variant="tertiary" onPress={() => router.push(routeFor('discover'))} />
   </>}</Panel>;
   return <View style={styles.collection}>
@@ -662,9 +711,28 @@ function ReadingCollection({ items, filter, saving, searchTerm, onOpen, onStart,
   </View>;
 }
 
-function ReadItemForm({ item, saving, onCancel, onSave }: {
-  item: GrowthItem | null; saving: boolean; onCancel: () => void;
-  onSave: (item: GrowthItem | null, details: { title: string; kind: ReadingKind; author: string; genre: string; pageCount: number | null; notes: string; status: ReadingStatus }, requestId: string) => void;
+type ReadItemDetails = { title: string; kind: ReadingKind; author: string; genre: string; pageCount: number | null; notes: string; status: ReadingStatus };
+type ReadItemDraft = ReadItemDetails & { version: 1; pageCountText: string };
+
+function parseReadItemDraft(raw: string | null): ReadItemDraft | null {
+  if (!raw) return null;
+  try {
+    const value: unknown = JSON.parse(raw);
+    if (!value || typeof value !== 'object') return null;
+    const draft = value as Partial<ReadItemDraft>;
+    if (draft.version !== 1 || typeof draft.title !== 'string' || draft.title.length > 120
+      || !['book', 'article'].includes(draft.kind ?? '') || typeof draft.author !== 'string' || draft.author.length > 160
+      || typeof draft.genre !== 'string' || draft.genre.length > 80 || typeof draft.notes !== 'string' || draft.notes.length > 2000
+      || !['want_to_read', 'currently_reading', 'finished'].includes(draft.status ?? '')
+      || typeof draft.pageCountText !== 'string' || draft.pageCountText.length > 6
+      || (draft.pageCount !== null && (typeof draft.pageCount !== 'number' || !Number.isInteger(draft.pageCount) || draft.pageCount < 1 || draft.pageCount > 100000))) return null;
+    return draft as ReadItemDraft;
+  } catch { return null; }
+}
+
+function ReadItemForm({ item, saving, draftKey, onCancel, onSave }: {
+  item: GrowthItem | null; saving: boolean; draftKey: string | null; onCancel: () => void;
+  onSave: (item: GrowthItem | null, details: ReadItemDetails, requestId: string) => Promise<boolean>;
 }) {
   const [title, setTitle] = useState(item?.title ?? '');
   const [kind, setKind] = useState<ReadingKind>(item?.reading_kind ?? 'book');
@@ -674,11 +742,36 @@ function ReadItemForm({ item, saving, onCancel, onSave }: {
   const [notes, setNotes] = useState(item?.notes ?? '');
   const [status, setStatus] = useState<ReadingStatus>(item ? getReadingStatus(item) : 'want_to_read');
   const [formError, setFormError] = useState<string | null>(null);
+  const [draftReady, setDraftReady] = useState(draftKey === null);
   const pendingRequest = useRef<{ signature: string; requestId: string } | null>(null);
   const { theme } = useBloomTheme();
   const accent = theme.modules.read;
 
-  function submit() {
+  useEffect(() => {
+    let active = true;
+    if (!draftKey) return () => { active = false; };
+    void AsyncStorage.getItem(draftKey).then((raw) => {
+      if (!active) return;
+      const draft = parseReadItemDraft(raw);
+      if (!draft) return;
+      setTitle(draft.title); setKind(draft.kind); setAuthor(draft.author); setGenre(draft.genre);
+      setPageCount(draft.pageCountText); setNotes(draft.notes); setStatus(draft.status);
+    }).catch(() => undefined).finally(() => { if (active) setDraftReady(true); });
+    return () => { active = false; };
+  }, [draftKey]);
+
+  useEffect(() => {
+    if (!draftKey || !draftReady || saving) return;
+    const parsedPageCount = pageCount.trim() ? Number(pageCount) : null;
+    const pageCountValue = parsedPageCount !== null && Number.isInteger(parsedPageCount) && parsedPageCount > 0
+      ? parsedPageCount : null;
+    const draft: ReadItemDraft = { version: 1, title, kind, author, genre, pageCountText: pageCount,
+      pageCount: pageCountValue, notes, status };
+    void AsyncStorage.setItem(draftKey, JSON.stringify(draft)).catch(() => undefined);
+  }, [author, draftKey, draftReady, genre, kind, notes, pageCount, saving, status, title]);
+
+  async function submit() {
+    if (!draftReady || saving) return;
     if (!title.trim()) { setFormError('Add a title to your reading list.'); return; }
     const count = pageCount.trim() ? Number(pageCount) : null;
     if (count !== null && (!Number.isInteger(count) || count < 1 || count > 100000)) { setFormError('Enter a total page count from 1 to 100,000, or leave it blank.'); return; }
@@ -691,34 +784,42 @@ function ReadItemForm({ item, saving, onCancel, onSave }: {
     const details = { title: title.trim(), kind, author: author.trim(), genre: genre.trim(), pageCount: count, notes: notes.trim(), status };
     const signature = JSON.stringify(details);
     if (pendingRequest.current?.signature !== signature) pendingRequest.current = { signature, requestId: randomUUID() };
-    onSave(item, details, pendingRequest.current.requestId);
+    const saved = await onSave(item, details, pendingRequest.current.requestId);
+    if (saved && draftKey) await AsyncStorage.removeItem(draftKey).catch(() => undefined);
+  }
+
+  async function cancel() {
+    if (!draftReady || saving) return;
+    if (draftKey) await AsyncStorage.removeItem(draftKey).catch(() => undefined);
+    onCancel();
   }
 
   return <>
     <View style={styles.formHeader}><Eyebrow>PERSONAL READING LIST</Eyebrow><Heading>{item ? 'Edit reading item' : 'Add to your Library'}</Heading><Body>Keep your edition and reading position organized. Bloom does not include the book text.</Body></View>
     <Panel>
-      <Field label="Title" value={title} onChangeText={setTitle} placeholder="Book or article title" maxLength={120} />
+      {!draftReady && <Body>Restoring your unsaved reading details…</Body>}
+      <Field label="Title" value={title} onChangeText={setTitle} placeholder="Book or article title" maxLength={120} editable={draftReady && !saving} />
       <Body>Type</Body>
       <View style={styles.filterRow}>
         {([{ id: 'book', label: 'Book', icon: 'menu-book' }, { id: 'article', label: 'Article', icon: 'article' }] as const).map((entry) =>
-          <Pressable key={entry.id} accessibilityRole="radio" accessibilityState={{ selected: kind === entry.id }} onPress={() => setKind(entry.id)}
+          <Pressable key={entry.id} accessibilityRole="radio" accessibilityState={{ selected: kind === entry.id, disabled: !draftReady || saving }} disabled={!draftReady || saving} onPress={() => setKind(entry.id)}
             style={[styles.kindChoice, { backgroundColor: kind === entry.id ? accent.surface : theme.colors.surface, borderColor: kind === entry.id ? accent.deep : theme.colors.border }]}>
             <MaterialIcons name={entry.icon} size={18} color={kind === entry.id ? accent.deep : theme.colors.inkMuted} /><Text style={[styles.segmentText, { color: kind === entry.id ? accent.deep : theme.colors.ink }]}>{entry.label}</Text>
           </Pressable>)}
       </View>
-      <Field label="Author (optional)" value={author} onChangeText={setAuthor} placeholder="Author or publication" maxLength={160} />
-      <Field label="Genre or topic (optional)" value={genre} onChangeText={setGenre} placeholder="History, science, essays…" maxLength={80} />
-      <Field label="Total pages (optional)" value={pageCount} onChangeText={setPageCount} placeholder="For a printed edition" keyboardType="number-pad" maxLength={6}
+      <Field label="Author (optional)" value={author} onChangeText={setAuthor} placeholder="Author or publication" maxLength={160} editable={draftReady && !saving} />
+      <Field label="Genre or topic (optional)" value={genre} onChangeText={setGenre} placeholder="History, science, essays…" maxLength={80} editable={draftReady && !saving} />
+      <Field label="Total pages (optional)" value={pageCount} onChangeText={setPageCount} placeholder="For a printed edition" keyboardType="number-pad" maxLength={6} editable={draftReady && !saving}
         helperText="You can save an article without knowing its page count." />
-      <Field label="Private notes (optional)" value={notes} onChangeText={setNotes} placeholder="A source, reminder, or reason you saved it" maxLength={2000} multiline />
+      <Field label="Private notes (optional)" value={notes} onChangeText={setNotes} placeholder="A source, reminder, or reason you saved it" maxLength={2000} multiline editable={draftReady && !saving} />
       <Body>Reading status</Body>
       <View style={styles.filterRow}>
         {(['want_to_read', 'currently_reading', 'finished'] as const).map((value) =>
-          <Segment key={value} label={statusLabel(value)} selected={status === value} onPress={() => setStatus(value)} />)}
+          <Segment key={value} label={statusLabel(value)} selected={status === value} disabled={!draftReady || saving} onPress={() => setStatus(value)} />)}
       </View>
       {formError && <ErrorText>{formError}</ErrorText>}
-      <Button label={item ? 'Save changes' : 'Add to Reading List'} onPress={submit} busy={saving} />
-      <Button label="Cancel" variant="tertiary" disabled={saving} onPress={onCancel} />
+      <Button label={item ? 'Save changes' : 'Add to Reading List'} onPress={() => void submit()} busy={saving} disabled={!draftReady} />
+      <Button label="Cancel" variant="tertiary" disabled={!draftReady || saving} onPress={() => void cancel()} />
     </Panel>
   </>;
 }
@@ -786,7 +887,7 @@ function ItemDetail({ item, items, sessions, records, documents, activeSession, 
     {selectedTab === 'sessions' && <Panel><Eyebrow>Timed reading history</Eyebrow>{itemSessions.length ? itemSessions.map((session) =>
       <View key={session.id} style={styles.sessionHistoryRow}><View style={sharedStyles.grow}><Label>{session.status === 'completed' ? 'Completed session' : session.status === 'cancelled' ? 'Cancelled session' : 'In progress'}</Label><Body>{new Date(session.started_at).toLocaleString(getAppLocale())}</Body></View><Label>{session.status === 'completed' ? formatMinutes(session.duration_seconds ?? 0) : '—'}</Label></View>)
       : <Body>Completed and cancelled sessions will appear here. Page position does not count as timed activity.</Body>}</Panel>}
-    {selectedTab === 'notes' && <GrowthRecordPanel profileId={profileId} moduleId="read" items={items} records={records} documents={documents}
+    {selectedTab === 'notes' && <GrowthRecordPanel key={`${profileId ?? 'no-profile'}:read:${item.id}`} profileId={profileId} moduleId="read" items={items} records={records} documents={documents}
       initialItemId={item.id} readOnly={false} onSaved={onSaved} />}
     {selectedTab === 'files' && <>
       <Panel><Eyebrow>Private documents</Eyebrow><Body>Upload authorized PDF or EPUB files for your own profile. The integrated reader is available on web where supported.</Body></Panel>
@@ -936,6 +1037,9 @@ const styles = StyleSheet.create({
   timerSmall: { fontSize: 17, fontWeight: '700', fontVariant: ['tabular-nums'] },
   todayColumns: { gap: 14 },
   todayColumnsDesktop: { flexDirection: 'row', alignItems: 'stretch' },
+  libraryWorkspace: { flexDirection: 'row', alignItems: 'flex-start', gap: 16 },
+  libraryColumn: { flex: 0.9, minWidth: 300, gap: 12 },
+  detailColumn: { flex: 1.1, minWidth: 340, gap: 12 },
   sectionTitle: { gap: 5, marginTop: 8, marginBottom: 12 },
   sectionHeaderRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: 18 },
   continueTop: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 16 },

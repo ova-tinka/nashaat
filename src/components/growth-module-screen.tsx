@@ -1,11 +1,12 @@
 import { getAppLocale } from '../lib/locale-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { randomUUID } from 'expo-crypto';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ComponentProps } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, ImageBackground, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams, type Href } from 'expo-router';
-import { Body, Button, ErrorText, Eyebrow, FeatureTile, Field, Heading, Label, LocalizedText as Text, Panel, ProgressBar, Screen, sharedStyles } from './bloom-ui';
+import { Body, Button, ErrorText, Eyebrow, FeatureTile, Field, Heading, Label, LocalizedText as Text, Panel, ProgressBar, Screen, sharedStyles, useIsDesktopColumns, useIsDesktopLayout, useReduceMotionPreference } from './bloom-ui';
 import { cancelGrowthSession, createGrowthItem, createGrowthProject, finishGrowthSession, formatElapsed, getReadingStatus, GrowthDataQueryError, loadGrowthDocuments, loadGrowthModule, loadStudyPlanModule, loadGrowthRewards, startGrowthSession, updateGrowthItem, updateGrowthReadingDetails, updateGrowthTaskMetadata, type GrowthDocument, type GrowthItem, type GrowthModuleId, type GrowthSession, type GrowthRecord, type GrowthRecordAttachment, type StudyPlanChange, type StudyPlanSlot, type TaskFocusSession, type TaskPriority, type ReadingStatus, type GrowthRewardEvent } from '../lib/growth-modules';
 import { GrowthHierarchyPanel, GrowthRecordPanel, ReadingDiscoveryPanel, StudyPlanPanel, StudyPracticeReviewPanel, StudyTutorPanel, TaskBreakdownPanel, TaskFocusPanel } from './growth-feature-panels';
 import { MockExamPanel } from './mock-exam-panel';
@@ -18,7 +19,7 @@ import { studySubjectArtworks } from '../lib/study-subject-artworks';
 import { useBloom } from '../lib/bloom-context';
 import { dateKeyInTimeZone, formatDateOnly } from '../lib/date-utils';
 import { getCurrentDeviceIdentity } from '../lib/devices';
-import { bloomPillarImages } from '../assets/bloom-images';
+import { bloomPillarCollectionImages } from '../assets/bloom-images';
 import { SubjectArtwork, suggestStudySubjectArtwork } from './study-subject-artwork';
 
 const moduleContent: Record<GrowthModuleId, { title: string; description: string; icon: 'school' | 'menu-book' | 'check-box' }> = {
@@ -75,7 +76,7 @@ const moduleSections: Record<GrowthModuleId, GrowthSection[]> = {
   tasks: [
     { id: 'today', label: 'Today', title: 'Your next steps', description: 'Capture tasks and clear today’s list.', icon: 'today' },
     { id: 'projects', label: 'Projects', title: 'Projects and milestones', description: 'Break outcomes into milestones and tasks.', icon: 'account-tree' },
-    { id: 'focus', label: 'Task focus', title: 'Focus on one step', description: 'Link a server-recorded Focus session to a task.', icon: 'timer' },
+    { id: 'focus', label: 'Task focus', title: 'Focus on one step', description: 'Count focused time toward a task.', icon: 'timer' },
     { id: 'breakdown', label: 'Break down a task', title: 'Make a task easier to start', description: 'Edit and approve AI drafted steps.', icon: 'format-list-bulleted' },
   ],
 };
@@ -91,6 +92,9 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
   const { profileId } = useAuth();
   const { creditSettings } = useBloom();
   const { theme } = useBloomTheme();
+  const reduceMotion = useReduceMotionPreference();
+  const desktop = useIsDesktopLayout();
+  const desktopColumns = useIsDesktopColumns();
   const accent = theme.modules[moduleId];
   const [items, setItems] = useState<GrowthItem[]>([]);
   const [sessions, setSessions] = useState<GrowthSession[]>([]);
@@ -117,10 +121,15 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
   const [readingStatus, setReadingStatus] = useState<ReadingStatus>('want_to_read');
   const [projectTitle, setProjectTitle] = useState('');
   const [projectNotes, setProjectNotes] = useState('');
+  const [loadedGrowthDraftKey, setLoadedGrowthDraftKey] = useState<string | null>(null);
+  const [loadedProjectDraftKey, setLoadedProjectDraftKey] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
   const [lastSyncCheckedAt, setLastSyncCheckedAt] = useState<number | null>(null);
   const [taskFilter, setTaskFilter] = useState<'today' | 'overdue' | 'upcoming' | 'postponed' | 'completed' | 'archived'>('today');
   const [taskPriority, setTaskPriority] = useState<TaskPriority>('medium');
+  const [loadedTaskDraftKey, setLoadedTaskDraftKey] = useState<string | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [focusedTaskId, setFocusedTaskId] = useState<string | null>(null);
   const [showStudyStartSetup, setShowStudyStartSetup] = useState(false);
   const [showAddSubject, setShowAddSubject] = useState(false);
   const [selectedSubjectArtwork, setSelectedSubjectArtwork] = useState('literature');
@@ -135,6 +144,7 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
   const refreshRequest = useRef(0);
   const activeTargetKey = growthModuleSnapshotKey(profileId, moduleId);
   const hasSnapshot = Boolean(activeTargetKey && snapshotTargetKey === activeTargetKey);
+  const readOnly = !hasSnapshot || hasStaleSnapshot;
   const sections = moduleSections[moduleId];
   const effectiveSectionId = moduleId === 'study' ? sectionId ?? 'today' : sectionId;
   const primarySections = moduleId === 'study'
@@ -146,6 +156,108 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
   const activeSection = sections.find((section) => section.id === effectiveSectionId);
   const pendingCreate = useRef<{ signature: string; requestId: string } | null>(null);
   const pendingStart = useRef<{ itemId: string; requestId: string } | null>(null);
+  const taskDraftKey = moduleId === 'tasks' && profileId ? `bloom.task-capture-draft.v1:${profileId}` : null;
+  const growthCreateDraftKey = moduleId !== 'tasks' && profileId ? `bloom.growth-create-draft.v1:${profileId}:${moduleId}` : null;
+  const projectDraftKey = moduleId === 'tasks' && profileId ? `bloom.task-project-draft.v1:${profileId}` : null;
+
+  useEffect(() => {
+    let active = true;
+    if (readOnly || !growthCreateDraftKey) return () => { active = false; };
+    void AsyncStorage.getItem(growthCreateDraftKey).then((raw) => {
+      if (!active) return;
+      if (raw) {
+        try {
+          const saved: unknown = JSON.parse(raw);
+          if (saved && typeof saved === 'object' && 'version' in saved && saved.version === 1) {
+            const value = saved as Record<string, unknown>;
+            if (typeof value.title === 'string' && value.title.length <= 120) setTitle(value.title);
+            if (typeof value.notes === 'string' && value.notes.length <= 2000) setNotes(value.notes);
+            if (typeof value.targetMinutes === 'string' && value.targetMinutes.length <= 5) setTargetMinutes(value.targetMinutes);
+            if (typeof value.author === 'string' && value.author.length <= 160) setAuthor(value.author);
+            if (typeof value.genre === 'string' && value.genre.length <= 80) setGenre(value.genre);
+            if (typeof value.pageCount === 'string' && value.pageCount.length <= 6) setPageCount(value.pageCount);
+            if (value.readingStatus === 'want_to_read' || value.readingStatus === 'currently_reading' || value.readingStatus === 'finished') setReadingStatus(value.readingStatus);
+            if (typeof value.selectedSubjectArtwork === 'string' && studySubjectArtworks.some((artwork) => artwork.id === value.selectedSubjectArtwork)) setSelectedSubjectArtwork(value.selectedSubjectArtwork);
+            if (typeof value.subjectArtworkChosen === 'boolean') setSubjectArtworkChosen(value.subjectArtworkChosen);
+          }
+        } catch { /* Ignore an unreadable local item draft. */ }
+      }
+      setLoadedGrowthDraftKey(growthCreateDraftKey);
+    }).catch(() => { if (active) setLoadedGrowthDraftKey(growthCreateDraftKey); });
+    return () => { active = false; };
+  }, [growthCreateDraftKey, readOnly]);
+
+  useEffect(() => {
+    if (readOnly || !growthCreateDraftKey || loadedGrowthDraftKey !== growthCreateDraftKey) return;
+    const hasDraft = Boolean(title || notes || targetMinutes || author || genre || pageCount || readingStatus !== 'want_to_read' || subjectArtworkChosen);
+    if (!hasDraft) {
+      void AsyncStorage.removeItem(growthCreateDraftKey).catch(() => undefined);
+      return;
+    }
+    void AsyncStorage.setItem(growthCreateDraftKey, JSON.stringify({ version: 1, title, notes, targetMinutes, author, genre, pageCount,
+      readingStatus, selectedSubjectArtwork, subjectArtworkChosen })).catch(() => undefined);
+  }, [author, genre, growthCreateDraftKey, loadedGrowthDraftKey, notes, pageCount, readOnly, readingStatus, selectedSubjectArtwork,
+    subjectArtworkChosen, targetMinutes, title]);
+
+  useEffect(() => {
+    let active = true;
+    if (readOnly || !projectDraftKey) return () => { active = false; };
+    void AsyncStorage.getItem(projectDraftKey).then((raw) => {
+      if (!active) return;
+      if (raw) {
+        try {
+          const saved: unknown = JSON.parse(raw);
+          if (saved && typeof saved === 'object' && 'version' in saved && saved.version === 1
+            && 'title' in saved && typeof saved.title === 'string' && saved.title.length <= 120
+            && 'notes' in saved && typeof saved.notes === 'string' && saved.notes.length <= 2000) {
+            setProjectTitle(saved.title); setProjectNotes(saved.notes);
+          }
+        } catch { /* Ignore an unreadable local project draft. */ }
+      }
+      setLoadedProjectDraftKey(projectDraftKey);
+    }).catch(() => { if (active) setLoadedProjectDraftKey(projectDraftKey); });
+    return () => { active = false; };
+  }, [projectDraftKey, readOnly]);
+
+  useEffect(() => {
+    if (readOnly || !projectDraftKey || loadedProjectDraftKey !== projectDraftKey) return;
+    if (!projectTitle && !projectNotes) {
+      void AsyncStorage.removeItem(projectDraftKey).catch(() => undefined);
+      return;
+    }
+    void AsyncStorage.setItem(projectDraftKey, JSON.stringify({ version: 1, title: projectTitle, notes: projectNotes })).catch(() => undefined);
+  }, [loadedProjectDraftKey, projectDraftKey, projectNotes, projectTitle, readOnly]);
+
+  useEffect(() => {
+    let active = true;
+    if (readOnly || !taskDraftKey) return () => { active = false; };
+    void AsyncStorage.getItem(taskDraftKey).then((raw) => {
+      if (!active) return;
+      if (raw) {
+        try {
+          const saved: unknown = JSON.parse(raw);
+          if (saved && typeof saved === 'object' && 'version' in saved && saved.version === 1
+            && 'title' in saved && typeof saved.title === 'string' && saved.title.length <= 120
+            && 'notes' in saved && typeof saved.notes === 'string' && saved.notes.length <= 2000
+            && 'dueDate' in saved && typeof saved.dueDate === 'string' && saved.dueDate.length <= 10
+            && 'priority' in saved && (saved.priority === 'low' || saved.priority === 'medium' || saved.priority === 'high' || saved.priority === 'urgent')) {
+            setTitle(saved.title); setNotes(saved.notes); setDueDate(saved.dueDate); setTaskPriority(saved.priority);
+          }
+        } catch { /* Ignore an unreadable local task capture draft. */ }
+      }
+      setLoadedTaskDraftKey(taskDraftKey);
+    }).catch(() => { if (active) setLoadedTaskDraftKey(taskDraftKey); });
+    return () => { active = false; };
+  }, [readOnly, taskDraftKey]);
+
+  useEffect(() => {
+    if (readOnly || !taskDraftKey || loadedTaskDraftKey !== taskDraftKey) return;
+    if (!title && !notes && !dueDate) {
+      void AsyncStorage.removeItem(taskDraftKey).catch(() => undefined);
+      return;
+    }
+    void AsyncStorage.setItem(taskDraftKey, JSON.stringify({ version: 1, title, notes, dueDate, priority: taskPriority })).catch(() => undefined);
+  }, [dueDate, loadedTaskDraftKey, notes, readOnly, taskDraftKey, taskPriority, title]);
 
   const refresh = useCallback(async () => {
     const request = ++refreshRequest.current;
@@ -251,6 +363,7 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
         currentPage: parsedPageCount ? (readingStatus === 'finished' ? parsedPageCount : 0) : null, status: readingStatus });
       pendingCreate.current = null;
       setTitle(''); setNotes(''); setDueDate(''); setTargetMinutes(''); setTaskPriority('medium'); setAuthor(''); setGenre(''); setPageCount(''); setReadingStatus('want_to_read');
+      if (growthCreateDraftKey) await AsyncStorage.removeItem(growthCreateDraftKey).catch(() => undefined);
       setSelectedSubjectArtwork('literature'); setSubjectArtworkChosen(false);
       if (moduleId === 'study') { setShowAddSubject(false); setShowStudyStartSetup(false); }
       setNotice(moduleId === 'study' ? subjectArtworkSaved ? 'Subject added. Its artwork is saved across your devices.' : 'Subject added, but its artwork could not sync. You can retry by changing the image.' : moduleId === 'read' ? 'Added to your reading list.' : 'Task added.');
@@ -265,7 +378,9 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
     setSaving(true); setError(null); setNotice(null);
     try {
       await createGrowthProject({ title: projectTitle.trim(), notes: projectNotes.trim(), dueDate: null, requestId: randomUUID() });
-      setProjectTitle(''); setProjectNotes(''); setNotice('Project added. Add milestones and tasks underneath it.'); await refresh();
+      setProjectTitle(''); setProjectNotes('');
+      if (projectDraftKey) await AsyncStorage.removeItem(projectDraftKey).catch(() => undefined);
+      setNotice('Project added. Add milestones and tasks underneath it.'); await refresh();
     } catch { setError('Could not save this project. Your entry is still in the form; check your connection and try again.'); }
     finally { setSaving(false); }
   }
@@ -390,7 +505,6 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
   const openItems = items.filter((item) => item.state === 'active');
   const completedItems = items.filter((item) => item.state === 'completed');
   const sessionItem = activeSession ? items.find((item) => item.id === activeSession.item_id) : null;
-  const readOnly = !hasSnapshot || hasStaleSnapshot;
   const elapsed = activeSession ? Math.max(0, Math.floor(((tick || Date.parse(activeSession.started_at)) - Date.parse(activeSession.started_at)) / 1000)) : 0;
   const sessionsByItem = new Map(items.map((item) => [item.id, item]));
   const taskTimeZone = creditSettings?.credit_timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
@@ -407,6 +521,7 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
     if (taskFilter === 'upcoming') return Boolean(item.due_date && item.due_date > todayInProfileTimeZone);
     return !item.due_date || item.due_date === todayInProfileTimeZone;
   });
+  const selectedTask = visibleTasks.find((item) => item.id === selectedTaskId) ?? visibleTasks[0] ?? null;
   const activeStudyItems = openItems.filter((item) => ['subject', 'course', 'lesson', 'assignment'].includes(item.item_type));
   const activeReadings = openItems.filter((item) => item.item_type === 'reading');
   const completedReadings = completedItems.filter((item) => item.item_type === 'reading');
@@ -438,17 +553,31 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
 
   return <Screen safeAreaTop={false}>
     {moduleId === 'study' ? (!isStudyImmersive && <>
-      <View style={styles.studyHeader}>
+      {!desktop && <View style={styles.studyHeader}>
         <View style={[styles.moduleIcon, { backgroundColor: theme.colors.surface }]}><MaterialIcons name="school" size={24} color={accent.deep} /></View>
         <View style={sharedStyles.grow}><Eyebrow>Bloom Study</Eyebrow><Heading>Study</Heading><Body>Focus. Learn. Grow.</Body></View>
-      </View>
-      <StudyLocalNavigation selected={selectedStudyTab ?? 'today'} accent={accent.deep} surface={accent.surface}
+      </View>}
+      {!desktop && <StudyLocalNavigation selected={selectedStudyTab ?? 'today'} accent={accent.deep} surface={accent.surface}
         onSelect={(id) => router.replace(sectionHref('study', id))} />
-      {effectiveSectionId === 'today' && <ImageBackground source={bloomPillarImages.study} resizeMode="cover" imageStyle={styles.studyHeroImage} style={styles.studyHero}>
+      }
+    {effectiveSectionId === 'today' && <ImageBackground source={bloomPillarCollectionImages.study} resizeMode="cover" imageStyle={styles.studyHeroImage} style={styles.studyHero}>
         <View style={styles.studyHeroShade} />
         <View style={styles.studyHeroCopy}><Text style={styles.studyHeroEyebrow}>TODAY</Text><Text style={styles.studyHeroTitle}>Deep focus, real progress.</Text></View>
       </ImageBackground>}
-    </>) : <View style={[styles.moduleHero, { backgroundColor: accent.surface, borderColor: theme.colors.border }]}>
+    </>) : moduleId === 'tasks' && (!sectionId || sectionId === 'today') ? <ImageBackground source={bloomPillarCollectionImages.tasks} resizeMode="cover" imageStyle={styles.tasksHeroImage} style={[styles.tasksHero, desktop && styles.tasksHeroDesktop]}>
+      <View pointerEvents="none" style={styles.tasksHeroShade} />
+      <View style={styles.tasksHeroContent}>
+        <View style={styles.tasksHeroTopRow}>
+          <Text style={styles.tasksHeroEyebrow}>PLAN. ACT. GROW.</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="All apps" accessibilityHint="Returns to the Bloom apps list."
+            onPress={() => router.replace('/apps' as Href)} style={({ pressed }) => [styles.tasksHeroAllApps, pressed && styles.tasksHeroAllAppsPressed]}>
+            <Text style={[styles.tasksHeroAllAppsText, { color: accent.deep }]}>All apps</Text>
+          </Pressable>
+        </View>
+        <Text style={[styles.tasksHeroTitle, desktop && styles.tasksHeroTitleDesktop]}>Make room for what matters.</Text>
+        <Text style={styles.tasksHeroSubtitle}>{content.description}</Text>
+      </View>
+    </ImageBackground> : <View style={[styles.moduleHero, { backgroundColor: accent.surface, borderColor: theme.colors.border }]}>
       <View style={styles.moduleTitleRow}>
         <View style={[styles.moduleIcon, { backgroundColor: theme.colors.surface }]}><MaterialIcons name={content.icon} size={25} color={accent.deep} /></View>
         <View style={sharedStyles.grow}>
@@ -536,7 +665,7 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
 
       {showAddSubject && <Panel>
         <View style={sharedStyles.row}><Label>Add a subject</Label><Button label="Close" variant="tertiary" onPress={() => setShowAddSubject(false)} /></View>
-        <Field label="Subject" value={title} onChangeText={(value) => {
+        <Field label="Subject" value={readOnly ? '' : title} onChangeText={(value) => {
           setTitle(value);
           if (!subjectArtworkChosen) setSelectedSubjectArtwork(suggestStudySubjectArtwork(value));
         }} placeholder="e.g. Biology" maxLength={120} editable={!readOnly} />
@@ -545,8 +674,8 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
           <SubjectArtworkPicker selectedArtwork={selectedSubjectArtwork} onSelect={(id) => { setSelectedSubjectArtwork(id); setSubjectArtworkChosen(true); }} disabled={readOnly} />
           <Body>Your image choice is saved on this device.</Body>
         </View>
-        <Field label="Weekly study target in minutes" value={targetMinutes} onChangeText={setTargetMinutes} keyboardType="number-pad" placeholder="e.g. 240" editable={!readOnly} />
-        <Field label="Notes (optional)" value={notes} onChangeText={setNotes} multiline maxLength={2000} placeholder="Topics or a short plan" editable={!readOnly} />
+        <Field label="Weekly study target in minutes" value={readOnly ? '' : targetMinutes} onChangeText={setTargetMinutes} keyboardType="number-pad" placeholder="e.g. 240" editable={!readOnly} />
+        <Field label="Notes (optional)" value={readOnly ? '' : notes} onChangeText={setNotes} multiline maxLength={2000} placeholder="Topics or a short plan" editable={!readOnly} />
         <Button label="Add subject" onPress={() => void addItem()} busy={saving} disabled={readOnly} />
       </Panel>}
 
@@ -686,10 +815,10 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
       <Panel>
         <Eyebrow>Reading list</Eyebrow>
         <Label>Add a book or article</Label>
-        <Field label="Title" value={title} onChangeText={setTitle} placeholder="What would you like to read?" maxLength={120} editable={!readOnly} />
-        <Field label="Author (optional)" value={author} onChangeText={setAuthor} maxLength={160} placeholder="Author" editable={!readOnly} />
-        <Field label="Genre (optional)" value={genre} onChangeText={setGenre} maxLength={80} placeholder="Fiction, history, science…" editable={!readOnly} />
-        <Field label="Total pages (optional)" value={pageCount} onChangeText={setPageCount} keyboardType="number-pad" maxLength={6} placeholder="e.g. 320" editable={!readOnly} />
+        <Field label="Title" value={readOnly ? '' : title} onChangeText={setTitle} placeholder="What would you like to read?" maxLength={120} editable={!readOnly} />
+        <Field label="Author (optional)" value={readOnly ? '' : author} onChangeText={setAuthor} maxLength={160} placeholder="Author" editable={!readOnly} />
+        <Field label="Genre (optional)" value={readOnly ? '' : genre} onChangeText={setGenre} maxLength={80} placeholder="Fiction, history, science…" editable={!readOnly} />
+        <Field label="Total pages (optional)" value={readOnly ? '' : pageCount} onChangeText={setPageCount} keyboardType="number-pad" maxLength={6} placeholder="e.g. 320" editable={!readOnly} />
         <Body>Reading status</Body>
         <View style={styles.filterRow} accessibilityRole="radiogroup" accessibilityLabel="New reading status">
           {(['want_to_read', 'currently_reading', 'finished'] as const).map((status) => <Pressable key={status} accessibilityRole="radio"
@@ -698,7 +827,7 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
             <Label>{readingStatusLabel(status)}</Label>
           </Pressable>)}
         </View>
-        <Field label="Source or notes (optional)" value={notes} onChangeText={setNotes} multiline maxLength={2000} placeholder="Publication or a reminder" editable={!readOnly} />
+        <Field label="Source or notes (optional)" value={readOnly ? '' : notes} onChangeText={setNotes} multiline maxLength={2000} placeholder="Publication or a reminder" editable={!readOnly} />
         <Button label="Add to reading list" onPress={() => void addItem()} busy={saving} disabled={readOnly} />
       </Panel>
       <Panel>
@@ -730,6 +859,7 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
     {!loading && moduleId === 'read' && sectionId === 'reader' && <GrowthDocumentLibraryPanel moduleId="read" items={items} records={records} documents={documents} readOnly={readOnly} onSaved={() => void refresh()} />}
 
     {!loading && moduleId === 'tasks' && sectionId === 'today' && <>
+      {!desktopColumns && <>
       <Panel>
         <Eyebrow>Quick add</Eyebrow>
         <Label>What needs doing?</Label>
@@ -777,16 +907,84 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
           </View>
         </View>)}
       </Panel>
+      </>}
+
+      {desktopColumns && <View style={styles.taskWorkspace}>
+        <View style={styles.taskListColumn}>
+          <Panel>
+            <Eyebrow>Quick add</Eyebrow>
+            <Label>What needs doing?</Label>
+            <Field label="Task" value={readOnly ? '' : title} onChangeText={setTitle} placeholder="A small next step" maxLength={120} editable={!readOnly} />
+            <Button label="Add task" onPress={() => void addItem()} busy={saving} disabled={readOnly} />
+            <Body>Priority</Body>
+            <View style={styles.filterRow} accessibilityRole="radiogroup" accessibilityLabel="New task priority">
+              {(['low', 'medium', 'high', 'urgent'] as const).map((value) => <Pressable key={value} accessibilityRole="radio" accessibilityState={{ selected: taskPriority === value }} onPress={() => setTaskPriority(value)} style={[styles.filter, { backgroundColor: taskPriority === value ? accent.surface : theme.colors.surface, borderColor: taskPriority === value ? accent.deep : theme.colors.border }]}>
+                <Label>{value[0].toUpperCase() + value.slice(1)}</Label>
+              </Pressable>)}
+            </View>
+            <Field label="Due date (optional)" value={readOnly ? '' : dueDate} onChangeText={setDueDate} placeholder="YYYY-MM-DD" autoCapitalize="none" maxLength={10} editable={!readOnly} />
+            <Field label="Notes (optional)" value={readOnly ? '' : notes} onChangeText={setNotes} multiline maxLength={2000} placeholder="Add a useful detail" editable={!readOnly} />
+          </Panel>
+          <Panel>
+            <Eyebrow>Tasks · {items.filter((item) => item.item_type === 'task' && item.state === 'active').length} open · {items.filter((item) => item.item_type === 'task' && item.state === 'completed').length} completed</Eyebrow>
+            <View style={styles.filterRow} accessibilityRole="tablist" accessibilityLabel="Task view">
+              {(['today', 'overdue', 'upcoming', 'postponed', 'completed', 'archived'] as const).map((filter) => <Pressable key={filter} accessibilityRole="tab" accessibilityState={{ selected: taskFilter === filter }} onPress={() => setTaskFilter(filter)} style={[styles.filter, { backgroundColor: taskFilter === filter ? accent.surface : theme.colors.surface, borderColor: taskFilter === filter ? accent.deep : theme.colors.border }]}>
+                <Label>{filter[0].toUpperCase() + filter.slice(1)}</Label>
+              </Pressable>)}
+            </View>
+            {visibleTasks.length === 0 ? <Body>{taskFilter === 'completed' ? 'Finished tasks will stay here.' : taskFilter === 'archived' ? 'Archived tasks will appear here.' : taskFilter === 'postponed' ? 'No tasks are postponed.' : taskFilter === 'upcoming' ? 'Nothing is scheduled for a later date.' : taskFilter === 'overdue' ? 'You’re caught up on overdue tasks.' : 'Your next priorities will appear here.'}</Body> : visibleTasks.map((item) => <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={`${item.title}, ${item.state}, ${item.priority} priority`} accessibilityState={{ selected: selectedTask?.id === item.id }} onFocus={() => setFocusedTaskId(item.id)} onBlur={() => setFocusedTaskId((current) => current === item.id ? null : current)} onPress={() => setSelectedTaskId(item.id)} style={[styles.taskChoice, { borderColor: focusedTaskId === item.id ? theme.colors.focusRing : selectedTask?.id === item.id ? accent.deep : theme.colors.border, backgroundColor: selectedTask?.id === item.id ? accent.surface : theme.colors.surface }]}>
+              <View style={[styles.check, { borderColor: item.state === 'completed' ? accent.deep : theme.colors.borderStrong, backgroundColor: item.state === 'completed' ? accent.surface : theme.colors.surface }]}>
+                {item.state === 'completed' && <MaterialIcons name="check" size={17} color={accent.deep} />}
+              </View>
+              <View style={sharedStyles.grow}>
+                <Label>{item.title}</Label>
+                <Body>{item.due_date ? `Due ${formatDateOnly(item.due_date, getAppLocale())}` : 'No due date'} · {item.priority} priority{item.postponed_until && item.postponed_until >= todayInProfileTimeZone ? ` · postponed until ${formatDateOnly(item.postponed_until, getAppLocale())}` : ''}</Body>
+              </View>
+              <MaterialIcons name="chevron-right" size={20} color={theme.colors.inkMuted} />
+            </Pressable>)}
+          </Panel>
+        </View>
+        <View style={styles.taskDetailColumn}>
+          {selectedTask ? <Panel>
+            <Eyebrow>Selected task · {selectedTask.state}</Eyebrow>
+            <Heading>{selectedTask.title}</Heading>
+            <View style={sharedStyles.row}><View style={sharedStyles.grow}><Body>Due date</Body></View><Label>{selectedTask.due_date ? formatDateOnly(selectedTask.due_date, getAppLocale()) : 'Not set'}</Label></View>
+            <View style={sharedStyles.row}><View style={sharedStyles.grow}><Body>Priority</Body></View><Label>{selectedTask.priority}</Label></View>
+            {selectedTask.postponed_until && selectedTask.postponed_until >= todayInProfileTimeZone && <Body>Postponed until {formatDateOnly(selectedTask.postponed_until, getAppLocale())}</Body>}
+            <View style={[styles.taskNotes, { borderTopColor: theme.colors.border }]}>
+              <Eyebrow>Notes</Eyebrow><Body>{selectedTask.notes || 'No notes added.'}</Body>
+            </View>
+            <View style={styles.taskPriorityGroup} accessibilityRole="radiogroup" accessibilityLabel={`${selectedTask.title} priority`}>
+              <Body>Change priority</Body>
+              <View style={styles.priorityRow}>{(['low', 'medium', 'high', 'urgent'] as const).map((priority) => <Pressable key={priority} accessibilityRole="radio" accessibilityState={{ selected: selectedTask.priority === priority, disabled: readOnly || saving }} disabled={readOnly || saving || selectedTask.priority === priority} onPress={() => void changeTaskMetadata(selectedTask, priority, selectedTask.postponed_until, `${selectedTask.title} priority updated.`)} style={[styles.priorityChoice, { borderColor: selectedTask.priority === priority ? accent.deep : theme.colors.border, backgroundColor: selectedTask.priority === priority ? accent.surface : theme.colors.surface }]}>
+                <Body>{priority[0].toUpperCase() + priority.slice(1)}</Body>
+              </Pressable>)}</View>
+            </View>
+            <View style={styles.actionRow}>
+              {selectedTask.state === 'archived' ? <Button label="Restore task" variant="secondary" disabled={readOnly || saving} onPress={() => void changeItem(selectedTask, { state: 'active' }, 'Task restored.')} /> : <>
+                <Button label={selectedTask.state === 'completed' ? 'Reopen task' : 'Complete task'} variant={selectedTask.state === 'completed' ? 'secondary' : 'primary'} disabled={readOnly || saving} onPress={() => void changeItem(selectedTask, { state: selectedTask.state === 'completed' ? 'active' : 'completed', progressPercent: selectedTask.state === 'completed' ? 0 : 100 }, selectedTask.state === 'completed' ? 'Task reopened.' : 'Task completed.')} />
+                {selectedTask.state === 'active' && (selectedTask.postponed_until && selectedTask.postponed_until >= todayInProfileTimeZone
+                  ? <Button label="Bring back" variant="tertiary" disabled={readOnly || saving} onPress={() => void changeTaskMetadata(selectedTask, selectedTask.priority, null, 'Task moved back to your active list.')} />
+                  : <Button label="Postpone 1 day" variant="tertiary" disabled={readOnly || saving} onPress={() => {
+                    const tomorrow = new Date(`${todayInProfileTimeZone}T00:00:00.000Z`); tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+                    void changeTaskMetadata(selectedTask, selectedTask.priority, tomorrow.toISOString().slice(0, 10), 'Task postponed until tomorrow.');
+                  }} />)}
+                {selectedTask.state === 'active' && <Button label="Archive" variant="tertiary" disabled={readOnly || saving} onPress={() => void changeItem(selectedTask, { state: 'archived' }, 'Task archived.')} />}
+              </>}
+            </View>
+          </Panel> : <Panel><Eyebrow>Task details</Eyebrow><Label>Choose a task</Label><Body>Select an item from the list to review its due date, priority, notes, and actions.</Body></Panel>}
+        </View>
+      </View>}
     </>}
 
     {!loading && moduleId === 'tasks' && sectionId === 'projects' && <>
       <Panel>
         <Eyebrow>New project</Eyebrow>
-        <Field label="Project name" value={projectTitle} onChangeText={setProjectTitle} maxLength={120} placeholder="A larger outcome" editable={!readOnly} />
-        <Field label="Notes (optional)" value={projectNotes} onChangeText={setProjectNotes} multiline maxLength={2000} editable={!readOnly} />
+        <Field label="Project name" value={readOnly ? '' : projectTitle} onChangeText={setProjectTitle} maxLength={120} placeholder="A larger outcome" editable={!readOnly} />
+        <Field label="Notes (optional)" value={readOnly ? '' : projectNotes} onChangeText={setProjectNotes} multiline maxLength={2000} editable={!readOnly} />
         <Button label="Add project" variant="secondary" onPress={() => void addProject()} busy={saving} disabled={readOnly} />
       </Panel>
-      <GrowthHierarchyPanel moduleId="tasks" items={items} readOnly={readOnly} onSaved={() => void refresh()} />
+      <GrowthHierarchyPanel key={`${profileId}:tasks-hierarchy`} moduleId="tasks" items={items} readOnly={readOnly} onSaved={() => void refresh()} />
     </>}
 
     {!loading && moduleId === 'tasks' && sectionId === 'focus' && <>
@@ -797,11 +995,11 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
       <TaskBreakdownPanel key={profileId} profileId={profileId} items={items} readOnly={readOnly} onSaved={() => void refresh()} />
     </>}
 
-    <Modal visible={imageEditingSubject !== null} transparent animationType="slide" onRequestClose={() => setImageEditingSubject(null)} statusBarTranslucent>
-      <View style={styles.subjectArtworkModal}>
+    <Modal visible={imageEditingSubject !== null} transparent animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={() => setImageEditingSubject(null)} statusBarTranslucent>
+      <View style={[styles.subjectArtworkModal, desktop && styles.subjectArtworkModalDesktop]}>
         <Pressable accessibilityRole="button" accessibilityLabel="Close subject image picker" style={StyleSheet.absoluteFill}
           onPress={() => { if (!savingSubjectArtwork) setImageEditingSubject(null); }} />
-        <View style={[styles.subjectArtworkSheet, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+        <View style={[styles.subjectArtworkSheet, desktop && styles.subjectArtworkSheetDesktop, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
           <View style={sharedStyles.column}>
             <Eyebrow>Subject image</Eyebrow>
             <Heading>{imageEditingSubject ? imageEditingSubject.title : 'Choose artwork'}</Heading>
@@ -1076,6 +1274,21 @@ function isValidDate(value: string) {
 
 const styles = StyleSheet.create({
   moduleHero: { borderWidth: 1, borderRadius: 24, padding: 20, gap: 12 },
+  moduleHeroImage: { borderRadius: 24 },
+  moduleHeroImageWash: { ...StyleSheet.absoluteFill, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.66)' },
+  tasksHero: { minHeight: 198, borderRadius: 26, overflow: 'hidden', justifyContent: 'center', padding: 20 },
+  tasksHeroDesktop: { minHeight: 218, padding: 26 },
+  tasksHeroImage: { borderRadius: 26 },
+  tasksHeroShade: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(31, 27, 22, 0.57)' },
+  tasksHeroContent: { gap: 8 },
+  tasksHeroTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  tasksHeroEyebrow: { color: 'rgba(255,255,255,0.94)', fontSize: 11, lineHeight: 16, fontWeight: '800', letterSpacing: 1.3 },
+  tasksHeroTitle: { color: '#FFFFFF', fontSize: 29, lineHeight: 35, fontWeight: '800', maxWidth: 390 },
+  tasksHeroTitleDesktop: { fontSize: 34, lineHeight: 40, maxWidth: 560 },
+  tasksHeroSubtitle: { color: 'rgba(255,255,255,0.94)', fontSize: 14, lineHeight: 20, fontWeight: '600', maxWidth: 520 },
+  tasksHeroAllApps: { minHeight: 44, paddingHorizontal: 13, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.94)' },
+  tasksHeroAllAppsPressed: { opacity: 0.84 },
+  tasksHeroAllAppsText: { fontSize: 13, lineHeight: 18, fontWeight: '800' },
   moduleTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   moduleIcon: { width: 48, height: 48, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
   sectionHeading: { gap: 5, paddingTop: 2 },
@@ -1111,7 +1324,9 @@ const styles = StyleSheet.create({
   subjectArtworkChoice: { width: '22%', minWidth: 60, minHeight: 78, borderWidth: 1, borderRadius: 14, padding: 6, alignItems: 'center', gap: 4 },
   subjectArtworkLabel: { minHeight: 26, fontSize: 9, lineHeight: 12, fontWeight: '700', textAlign: 'center' },
   subjectArtworkModal: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(9, 17, 32, 0.48)' },
+  subjectArtworkModalDesktop: { justifyContent: 'center', alignItems: 'center', padding: 24 },
   subjectArtworkSheet: { maxHeight: '92%', borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, padding: 20, paddingBottom: 26, gap: 14 },
+  subjectArtworkSheetDesktop: { width: '100%', maxWidth: 720, borderRadius: 28 },
   subjectArtworkSheetContent: { paddingBottom: 5 },
   subjectArtworkActions: { gap: 8 },
   liveIndicator: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, alignItems: 'center', flexDirection: 'row', gap: 6 },
@@ -1121,12 +1336,18 @@ const styles = StyleSheet.create({
   historyCount: { fontSize: 13, fontWeight: '700' },
   immersiveTitle: { gap: 4, marginBottom: 8 },
   sessionTimer: { fontSize: 50, lineHeight: 60, fontWeight: '800', letterSpacing: -1.5, fontVariant: ['tabular-nums'] },
-  loadingNotice: { minHeight: 76, alignItems: 'center', justifyContent: 'center', gap: 8 },
   connectionNotice: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  loadingNotice: { minHeight: 76, alignItems: 'center', justifyContent: 'center', gap: 8 },
   dashboardSection: { gap: 12 },
   moreTools: { gap: 8 },
   dashboardGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   dashboardTile: { width: '48%', minWidth: 145, flexGrow: 1, flexBasis: 150 },
+  taskWorkspace: { flexDirection: 'row', alignItems: 'flex-start', gap: 16 },
+  taskListColumn: { flex: 0.95, minWidth: 300, gap: 16 },
+  taskDetailColumn: { flex: 1.05, minWidth: 340 },
+  taskChoice: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 14, padding: 11, marginTop: 8 },
+  taskNotes: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 12, gap: 5 },
+  taskPriorityGroup: { gap: 8, paddingTop: 4 },
   summaryMetrics: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   summaryMetric: { width: '46%', flexGrow: 1, flexBasis: '46%', gap: 4 },
   itemRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E4E8F3', paddingVertical: 10 },

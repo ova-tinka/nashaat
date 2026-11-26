@@ -2,7 +2,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router, type Href } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, I18nManager, Pressable, StyleSheet, View } from 'react-native';
-import { Body, Button, ErrorText, Eyebrow, Field, Heading, Label, Panel, Screen, sharedStyles, LocalizedText as Text } from '../../../components/bloom-ui';
+import { Body, Button, ErrorText, Eyebrow, Field, Heading, Label, LocalizedText as Text, Panel, Screen, sharedStyles, useIsDesktopColumns } from '../../../components/bloom-ui';
 import { ExerciseArtwork } from '../../../components/exercise-artwork';
 import { createCustomExercise, loadCatalog, type Exercise, type Measurement } from '../../../lib/bloom';
 import { useBloomTheme } from '../../../lib/theme-context';
@@ -16,7 +16,10 @@ function isTimed(exercise: Exercise) {
 export default function ExerciseLibraryScreen() {
   const { theme } = useBloomTheme();
   const exerciseColors = theme.modules.exercise;
+  const desktopColumns = useIsDesktopColumns();
   const [exercises, setExercises] = useState<Exercise[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [focusedId, setFocusedId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
   const [loading, setLoading] = useState(true);
@@ -49,6 +52,7 @@ export default function ExerciseLibraryScreen() {
         .some((value) => value.toLowerCase().includes(term));
     });
   }, [exercises, filter, query]);
+  const selectedExercise = matching.find((exercise) => exercise.id === selectedId) ?? null;
 
   function openExercise(exercise: Exercise) {
     router.push({ pathname: '/exercise/[id]', params: { id: exercise.id } } as unknown as Href);
@@ -67,6 +71,8 @@ export default function ExerciseLibraryScreen() {
 
   return <Screen safeAreaTop={false}>
     <View style={sharedStyles.column}><Eyebrow>Move with confidence</Eyebrow><Heading>Exercise library</Heading><Body>Browse the exercise catalog, read the instructions, and add an exercise straight to a workout plan.</Body></View>
+    <View style={[styles.libraryWorkspace, desktopColumns && styles.libraryWorkspaceDesktop]}>
+    <View style={[styles.catalogColumn, desktopColumns && styles.catalogColumnDesktop]}>
     {creating ? <Panel>
       <Label>New custom exercise</Label>
       <Body>Only you and an authorized parent can see this exercise. It will be available on your devices.</Body>
@@ -92,7 +98,7 @@ export default function ExerciseLibraryScreen() {
     {loading && <ActivityIndicator color={exerciseColors.deep} />}
     {error && <Panel><ErrorText>{error}</ErrorText><Button label="Try again" onPress={() => void load()} /></Panel>}
     {!loading && !error && matching.length === 0 && <Panel><Label>No exercises found</Label><Body>Try a different search or exercise type.</Body></Panel>}
-    {!loading && !error && matching.map((exercise) => <Pressable key={exercise.id} onPress={() => openExercise(exercise)} accessibilityRole="button" accessibilityLabel={`View ${exercise.name}`}>
+    {!loading && !error && matching.map((exercise) => <Pressable key={exercise.id} onPress={() => desktopColumns ? setSelectedId(exercise.id) : openExercise(exercise)} accessibilityRole="button" accessibilityLabel={`${desktopColumns ? 'Select' : 'View'} ${exercise.name}`} accessibilityState={{ selected: selectedId === exercise.id }} onFocus={() => setFocusedId(exercise.id)} onBlur={() => setFocusedId((current) => current === exercise.id ? null : current)} style={[styles.exerciseChoice, { borderColor: focusedId === exercise.id ? theme.colors.focusRing : selectedId === exercise.id && desktopColumns ? exerciseColors.deep : 'transparent' }]}>
       <Panel>
         <View style={styles.exerciseRow}>
           <ExerciseArtwork exercise={exercise} size="small" />
@@ -106,10 +112,39 @@ export default function ExerciseLibraryScreen() {
         <Body>{isTimed(exercise) ? 'Time-based targets' : exercise.measurement_type === 'reps_weight' ? 'Repetitions and weight targets' : 'Repetition targets'}</Body>
       </Panel>
     </Pressable>)}
+    </View>
+    {desktopColumns && <View style={styles.detailColumn}>
+      <Panel>
+        {selectedExercise ? <>
+          <ExerciseArtwork exercise={selectedExercise} size="large" />
+          <View style={sharedStyles.column}>
+            <Eyebrow>{selectedExercise.muscle_groups?.length ? selectedExercise.muscle_groups.join(' · ') : selectedExercise.muscle_group || 'Exercise'}</Eyebrow>
+            <Heading>{selectedExercise.name}</Heading>
+            <Body>{isTimed(selectedExercise) ? 'Time-based targets' : selectedExercise.measurement_type === 'reps_weight' ? 'Repetitions and weight targets' : 'Repetition targets'}</Body>
+          </View>
+          {selectedExercise.description && <View style={sharedStyles.column}><Label>About this exercise</Label><Body>{selectedExercise.description}</Body></View>}
+          <View style={sharedStyles.column}>
+            <Label>Instructions</Label>
+            {selectedExercise.instructions?.length ? selectedExercise.instructions.map((instruction, index) => <View key={`${selectedExercise.id}-${index}`} style={sharedStyles.row}>
+              <Label>{index + 1}.</Label><View style={sharedStyles.grow}><Body>{instruction}</Body></View>
+            </View>) : <Body>Written instructions are not available for this exercise yet.</Body>}
+          </View>
+          <Button label="Add to a workout plan" onPress={() => router.push({ pathname: '/new-plan', params: { exerciseId: selectedExercise.id } })} />
+          <Button label="Open full exercise details" secondary onPress={() => openExercise(selectedExercise)} />
+        </> : <View style={sharedStyles.column}><Eyebrow>Exercise details</Eyebrow><Label>Select a movement</Label><Body>Choose an exercise from the catalog to review its instructions and add it to a plan.</Body></View>}
+      </Panel>
+    </View>}
+    </View>
   </Screen>;
 }
 
 const styles = StyleSheet.create({
+  libraryWorkspace: { gap: 16 },
+  libraryWorkspaceDesktop: { flexDirection: 'row', alignItems: 'flex-start' },
+  catalogColumn: { minWidth: 0 },
+  catalogColumnDesktop: { flex: 1, minWidth: 320 },
+  detailColumn: { flex: 1.05, minWidth: 340 },
+  exerciseChoice: { borderWidth: 2, borderRadius: 22, marginBottom: 8 },
   filters: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   exerciseRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   filter: { minHeight: 44, paddingHorizontal: 14, justifyContent: 'center', borderWidth: 1, borderRadius: 20 },

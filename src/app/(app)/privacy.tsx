@@ -1,7 +1,7 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Switch, View } from 'react-native';
-import { Body, Button, ErrorText, Eyebrow, Field, Heading, Label, Panel, Screen, sharedStyles } from '../../components/bloom-ui';
+import { Body, Button, DesktopContent, ErrorText, Eyebrow, Field, Heading, Label, Panel, Screen, sharedStyles } from '../../components/bloom-ui';
 import { useAuth } from '../../lib/auth';
 import { loadSocialProfile, saveSocialProfile } from '../../lib/competitions';
 import { useBloomTheme } from '../../lib/theme-context';
@@ -35,6 +35,7 @@ export default function PrivacyScreen() {
     finally { setBusy(false); }
   }
   return <Screen safeAreaTop={false}>
+    <DesktopContent maxWidth={760}>
     <View style={sharedStyles.column}><Eyebrow>Account</Eyebrow><Heading>Privacy</Heading><Body>Choose how others can find your profile.</Body><Button label="Back to account" variant="tertiary" onPress={() => router.back()} /></View>
     {loading && <ActivityIndicator color={theme.colors.action} />}
     {error && <ErrorText>{error}</ErrorText>}{notice && <Body>{notice}</Body>}
@@ -45,5 +46,6 @@ export default function PrivacyScreen() {
       <Button label="Save privacy settings" onPress={() => void save()} disabled={busy || !name.trim()} busy={busy} />
     </Panel>}
     {error && !loading && <Button label="Retry" variant="secondary" onPress={() => void load()} />}
+    </DesktopContent>
   </Screen>;
 }

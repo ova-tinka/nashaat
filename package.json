@@ -69,7 +69,7 @@
     "desktop:build:local": "node scripts/build-macos-local.cjs",
     "desktop:sign": "node scripts/sign-macos-app.cjs",
     "typecheck": "tsc --noEmit",
-    "test:growth-features": "node --experimental-strip-types --test tests/exercise-records.test.mjs tests/weekly-planner.test.mjs tests/study-practice.test.mjs tests/platform-capabilities.test.mjs",
+    "test:growth-features": "node --experimental-strip-types --test tests/exercise-records.test.mjs tests/weekly-planner.test.mjs tests/study-practice.test.mjs tests/platform-capabilities.test.mjs tests/bloom-web-reader.test.mjs",
     "test:schema": "bash tests/run-schema.sh",
     "lint": "eslint src",
     "import:free-exercise-db": "node scripts/import-free-exercise-db.mjs"
