@@ -50,8 +50,12 @@ create table auth.users (id uuid primary key, raw_app_meta_data jsonb not null d
 create table public.profiles (id uuid primary key references auth.users(id) on delete cascade, first_name text, last_name text,
   username text, streak_count integer default 0, last_workout_date date, timezone text default 'UTC');
 create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
+create function auth.jwt() returns jsonb language sql stable as $$
+  select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb
+$$;
 grant usage on schema auth, public to authenticated, anon;
 grant execute on function auth.uid() to authenticated, anon;
+grant execute on function auth.jwt() to authenticated, anon;
 create table storage.buckets (id text primary key, name text not null, public boolean not null default false,
   file_size_limit bigint, allowed_mime_types text[]);
 create table storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text not null, name text not null);
@@ -90,6 +94,7 @@ bloom_fixtures+=(default-personal-memory.sql)
 bloom_fixtures+=(study-tutor-quota.sql)
 bloom_fixtures+=(weekly-earning-cap.sql)
 bloom_fixtures+=(reader-records.sql)
+bloom_fixtures+=(device-revocation.sql)
 if [[ "${BLOOM_SKIP_PUBLIC_COMPETITIONS:-0}" != "1" ]]; then
   bloom_fixtures+=(competitions.sql)
 fi

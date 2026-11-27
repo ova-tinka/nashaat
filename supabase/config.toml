@@ -468,3 +468,9 @@ enabled = true
 verify_jwt = true
 import_map = "./functions/bloom-study-document-help/deno.json"
 entrypoint = "./functions/bloom-study-document-help/index.ts"
+
+[functions.bloom-revoke-device]
+enabled = true
+verify_jwt = true
+import_map = "./functions/bloom-revoke-device/deno.json"
+entrypoint = "./functions/bloom-revoke-device/index.ts"

@@ -105,6 +105,11 @@ export async function renameDevice(deviceId: string, displayName: string) {
 }
 
 export async function removeDevice(deviceId: string) {
-  const { error } = await client().rpc('bloom_remove_device', { p_device_id: deviceId });
-  if (error) throw error;
+  const db = client();
+  const { data, error } = await db.functions.invoke('bloom-revoke-device', {
+    body: { device_id: deviceId },
+  });
+  if (error || data?.revoked !== true) {
+    throw error ?? new Error('Could not revoke this device.');
+  }
 }

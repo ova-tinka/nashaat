@@ -1,7 +1,7 @@
 import { body, preliminary, reply } from '../_shared/child-pairing.ts';
 import { coachAccess } from '../_shared/coach-access.ts';
 import { extractDocxSections, extractPdfSections, selectRelevantSections, type ExtractedSection } from '../_shared/document-extract.ts';
-import { admin, userClient } from '../_shared/supabase.ts';
+import { admin, authenticateActiveUser, userClient } from '../_shared/supabase.ts';
 
 const model = Deno.env.get('FIREWORKS_MODEL') ?? '';
 const apiKey = Deno.env.get('FIREWORKS_API_KEY') ?? '';
@@ -67,8 +67,8 @@ Deno.serve(async (request) => {
   if (!access.enabled) return reply(503, { error: 'Source-aware Study help is not available yet.' });
   let started = false; let authorized = false;
   try {
-    const { data: identity, error: identityError } = await userClient().auth.getUser(token);
-    if (identityError || !identity.user || !access.permits(identity.user.id)) return reply(401, { error: 'Sign in required' });
+    const active = await authenticateActiveUser(token);
+    if (!active || !access.permits(active.user.id)) return reply(401, { error: 'Sign in required' });
     authorized = true;
     const { data: context, error: beginError } = await userClient(token).rpc('bloom_begin_document_help_request', {
       p_request_id: requestId, p_document_id: documentId, p_prompt: prompt,

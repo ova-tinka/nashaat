@@ -34,7 +34,6 @@ values (current_setting('bloom.convert_child')::uuid, 12, 'adjustment', 'convers
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000161', true);
 select set_config('bloom.convert_code', public.bloom_create_child_account_link(current_setting('bloom.convert_child')::uuid), true);
-select public.bloom_register_parent_pin('16000000-0000-0000-0000-000000000162', repeat('a', 64), '123456');
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000164', true);
 do $$ begin
   begin
@@ -85,9 +84,8 @@ do $$ declare v_profile jsonb; v_rows integer; v_plan uuid; begin
 end $$;
 set local role service_role;
 do $$ begin
-  if public.bloom_verify_parent_pin('00000000-0000-0000-0000-000000000162', '16000000-0000-0000-0000-000000000162', repeat('a', 64), '123456')
-    is distinct from '00000000-0000-0000-0000-000000000161'::uuid then
-    raise exception 'Linked email account could not unlock its parent';
+  if public.bloom_verify_parent_pin('00000000-0000-0000-0000-000000000162', '16000000-0000-0000-0000-000000000162', repeat('a', 64), '123456') is not null then
+    raise exception 'Retired parent PIN unlocked parent for linked account';
   end if;
 end $$;
 rollback;

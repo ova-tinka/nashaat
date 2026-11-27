@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.118.0';
 import type { Identity, SessionTokens } from './child-pairing.ts';
+import { extractJwtSessionId } from './session-revocation.ts';
 
 function configuredKey(legacyName: string, collectionName: string): string {
   const legacy = Deno.env.get(legacyName);
@@ -23,6 +24,32 @@ export function userClient(token?: string) {
   return createClient(url!, publishable, { ...options, global: { ...options.global,
     ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}) } });
 }
+
+export async function authenticateActiveUser(token: string) {
+  const { data, error } = await userClient().auth.getUser(token);
+  if (error || !data.user) return null;
+  const sessionId = extractJwtSessionId(token);
+  if (sessionId) {
+    const { data: revoked, error: revokeError } = await admin.rpc('bloom_is_session_revoked', { p_session_id: sessionId });
+    if (revokeError || revoked === true) return null;
+  }
+  return { user: data.user, sessionId };
+}
+
+export async function invalidateAuthSession(userId: string, sessionId: string) {
+  const response = await fetch(`${url}/auth/v1/admin/users/${encodeURIComponent(userId)}/sessions/${encodeURIComponent(sessionId)}`, {
+    method: 'DELETE',
+    headers: {
+      apikey: secret,
+      authorization: `Bearer ${secret}`,
+    },
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!response.ok && response.status !== 404) {
+    throw new Error('Could not terminate the device Auth session');
+  }
+}
+
 export async function findIdentity(profileId: string): Promise<Identity | null> {
   const { data, error } = await admin.auth.admin.getUserById(profileId);
   if (error) {

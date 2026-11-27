@@ -251,9 +251,109 @@ fn open_reader_in_browser(document_id: String) -> Result<(), String> {
     .map_err(|_| "Could not open Bloom in the default web browser.".into())
 }
 
+#[cfg(target_os = "macos")]
+const KEYCHAIN_SERVICE: &str = "app.bloom.exercise";
+
+#[cfg(target_os = "macos")]
+fn validate_keychain_key(key: &str) -> Result<(), String> {
+  if key.is_empty()
+    || key.len() > 128
+    || !key.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-' | b':'))
+  {
+    return Err("Invalid secure storage key.".into());
+  }
+  Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn encode_hex(value: &str) -> String {
+  let mut out = String::with_capacity(value.len() * 2);
+  for byte in value.as_bytes() {
+    use std::fmt::Write;
+    let _ = write!(&mut out, "{byte:02x}");
+  }
+  out
+}
+
+#[cfg(target_os = "macos")]
+fn decode_keychain_output(raw: &str) -> Result<String, String> {
+  let trimmed = raw.trim();
+  if trimmed.is_empty() {
+    return Ok(String::new());
+  }
+  if trimmed.len() % 2 == 0 && trimmed.bytes().all(|b| b.is_ascii_hexdigit()) {
+    let mut bytes = Vec::with_capacity(trimmed.len() / 2);
+    for pair in trimmed.as_bytes().chunks_exact(2) {
+      let hex_pair = std::str::from_utf8(pair).map_err(|_| "Invalid Keychain value.")?;
+      let byte = u8::from_str_radix(hex_pair, 16).map_err(|_| "Invalid Keychain value.")?;
+      bytes.push(byte);
+    }
+    if let Ok(text) = String::from_utf8(bytes) {
+      return Ok(text);
+    }
+  }
+  Ok(trimmed.to_string())
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+fn macos_secure_storage_get(key: String) -> Result<Option<String>, String> {
+  validate_keychain_key(&key)?;
+  let output = std::process::Command::new("/usr/bin/security")
+    .args(["find-generic-password", "-s", KEYCHAIN_SERVICE, "-a", &key, "-w"])
+    .output()
+    .map_err(|_| "Could not access macOS Keychain.")?;
+  if !output.status.success() {
+    return Ok(None);
+  }
+  let raw = String::from_utf8(output.stdout).map_err(|_| "Invalid Keychain response.")?;
+  decode_keychain_output(&raw).map(Some)
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+fn macos_secure_storage_set(key: String, value: String) -> Result<(), String> {
+  use std::io::Write;
+  validate_keychain_key(&key)?;
+  if value.len() > 32_768 {
+    return Err("Secure storage value exceeds size limit.".into());
+  }
+  let hex_value = encode_hex(&value);
+  let mut child = std::process::Command::new("/usr/bin/security")
+    .arg("-i")
+    .stdin(std::process::Stdio::piped())
+    .stdout(std::process::Stdio::null())
+    .stderr(std::process::Stdio::null())
+    .spawn()
+    .map_err(|_| "Could not access macOS Keychain.")?;
+  if let Some(mut stdin) = child.stdin.take() {
+    writeln!(
+      stdin,
+      "add-generic-password -U -s {KEYCHAIN_SERVICE} -a {key} -X {hex_value}"
+    )
+    .map_err(|_| "Could not write to macOS Keychain.")?;
+  }
+  let status = child.wait().map_err(|_| "Could not save to macOS Keychain.")?;
+  if !status.success() {
+    return Err("Could not save to macOS Keychain.".into());
+  }
+  Ok(())
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+fn macos_secure_storage_delete(key: String) -> Result<(), String> {
+  validate_keychain_key(&key)?;
+  let _ = std::process::Command::new("/usr/bin/security")
+    .args(["delete-generic-password", "-s", KEYCHAIN_SERVICE, "-a", &key])
+    .output()
+    .map_err(|_| "Could not remove item from macOS Keychain.")?;
+  Ok(())
+}
+
 #[cfg(all(test, target_os = "macos"))]
 mod reader_browser_tests {
-  use super::build_reader_browser_url;
+  use super::{build_reader_browser_url, decode_keychain_output, encode_hex, validate_keychain_key};
 
   const DOC_ID: &str = "7e09a2d3-f94c-47ac-82d6-8b64af1064e1";
 
@@ -275,6 +375,17 @@ mod reader_browser_tests {
     assert!(build_reader_browser_url(DOC_ID, Some("https://bloom.example/subpath")).is_err());
     assert!(build_reader_browser_url(DOC_ID, Some("file:///etc/passwd")).is_err());
   }
+
+  #[test]
+  fn validates_keychain_keys_and_hex_roundtrip() {
+    assert!(validate_keychain_key("bloom.child.refresh.v1").is_ok());
+    assert!(validate_keychain_key("sb-project-auth-token:chunk:0").is_ok());
+    assert!(validate_keychain_key("").is_err());
+    assert!(validate_keychain_key("bad key with spaces").is_err());
+    assert!(validate_keychain_key("bad\nkey").is_err());
+    let encoded = encode_hex("{\"refresh_token\":\"secret-123\"}");
+    assert_eq!(decode_keychain_output(&encoded).unwrap(), "{\"refresh_token\":\"secret-123\"}");
+  }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -287,6 +398,9 @@ pub fn run() {
     macos_manage_app_rules,
     macos_credit_session,
     macos_usage_session,
+    macos_secure_storage_get,
+    macos_secure_storage_set,
+    macos_secure_storage_delete,
     open_reader_in_browser
   ])
     .on_window_event(|window, event| {

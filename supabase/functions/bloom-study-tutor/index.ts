@@ -1,6 +1,6 @@
 import { coachAccess } from '../_shared/coach-access.ts';
 import { studyTutorHandler, studyTutorInstructions, studyTutorSchema } from '../_shared/study-tutor.ts';
-import { admin, userClient } from '../_shared/supabase.ts';
+import { admin, authenticateActiveUser, userClient } from '../_shared/supabase.ts';
 
 const model = Deno.env.get('FIREWORKS_MODEL') ?? '';
 const apiKey = Deno.env.get('FIREWORKS_API_KEY') ?? '';
@@ -45,8 +45,8 @@ Deno.serve(studyTutorHandler({
   enabled: access.enabled,
   minorsApproved,
   async authenticate(token) {
-    const { data, error } = await userClient().auth.getUser(token);
-    return !error && Boolean(data.user) && access.permits(data.user.id);
+    const active = await authenticateActiveUser(token);
+    return Boolean(active) && access.permits(active!.user.id);
   },
   async begin(token, requestId, itemId, prompt) {
     const { data, error } = await userClient(token).rpc('bloom_begin_study_tutor_request', {

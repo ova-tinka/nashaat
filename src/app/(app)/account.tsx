@@ -11,7 +11,7 @@ export default function AccountScreen() {
     <Panel><Label>Account details</Label><Body>{session?.user.email || 'No email address on this account.'}</Body><Body>{childProfile ? 'Child profile' : 'Personal profile'}</Body></Panel>
     <Panel><Label>Privacy</Label><Body>Manage your display name and whether others can find your profile.</Body><Button label="Privacy settings" variant="secondary" onPress={() => router.push('/privacy' as Href)} /></Panel>
     {!childProfile && <Panel><Label>Family Space</Label><Body>Manage your family, profiles and permissions.</Body><Button label="Open Family Space" variant="secondary" onPress={() => router.push('/family' as Href)} /></Panel>}
-    <Panel><Label>Profiles</Label><Button label={childProfile ? 'Switch to parent' : 'Profile switching and PIN'} variant="secondary" onPress={() => router.push('/profile-switch' as Href)} /></Panel>
+    <Panel><Label>Profiles</Label><Button label={childProfile ? 'Switch to parent' : 'Profile switching'} variant="secondary" onPress={() => router.push('/profile-switch' as Href)} /></Panel>
     </DesktopContent>
   </Screen>;
 }

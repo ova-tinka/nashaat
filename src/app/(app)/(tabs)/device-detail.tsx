@@ -142,13 +142,13 @@ export default function DeviceDetailScreen() {
             </View>}
         </Panel>
         <Panel>
-          <Eyebrow>Remove from list</Eyebrow>
-          <Body>Removing a device deletes its inventory entry for this profile. It does not sign that device out or disable its Bloom session.</Body>
+          <Eyebrow>Revoke and remove</Eyebrow>
+          <Body>Removing a device revokes its Bloom session, blocks further data and private file access from that device, and removes its inventory entry without affecting your other devices.</Body>
           {!confirmRemove
-            ? <Button label="Review removing this device" variant="destructive" onPress={() => setConfirmRemove(true)} disabled={busy} />
+            ? <Button label="Review revoking this device" variant="destructive" onPress={() => setConfirmRemove(true)} disabled={busy} />
             : <View style={sharedStyles.column}>
-              <Body>Remove {device.display_name} from this profile’s device list? That device will need a new installation ID to appear here again.</Body>
-              <Button label="Confirm remove from list" variant="destructive" onPress={() => void deleteFromList()} busy={busy} />
+              <Body>Revoke {device.display_name} and remove it from this profile’s device list? That device will need to sign in again with a new installation ID.</Body>
+              <Button label="Confirm revoke device" variant="destructive" onPress={() => void deleteFromList()} busy={busy} />
               <Button label="Keep device" secondary onPress={() => setConfirmRemove(false)} disabled={busy} />
             </View>}
         </Panel>

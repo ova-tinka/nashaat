@@ -26,8 +26,12 @@ create table auth.users (id uuid primary key, raw_app_meta_data jsonb not null d
 create table public.profiles (id uuid primary key references auth.users(id) on delete cascade, first_name text, last_name text,
   username text, streak_count integer default 0, last_workout_date date, timezone text default 'UTC');
 create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
+create function auth.jwt() returns jsonb language sql stable as $$
+  select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb
+$$;
 grant usage on schema auth, public to authenticated, anon;
 grant execute on function auth.uid() to authenticated, anon;
+grant execute on function auth.jwt() to authenticated, anon;
 create table storage.buckets (id text primary key, name text not null, public boolean not null default false,
   file_size_limit bigint, allowed_mime_types text[]);
 create table storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text not null, name text not null);
@@ -122,6 +126,8 @@ docker exec -i "$bloom_test_container" psql -q -v ON_ERROR_STOP=1 -U postgres -d
   < "$bloom_dir/tests/weekly-earning-cap.sql" >/dev/null
 docker exec -i "$bloom_test_container" psql -q -v ON_ERROR_STOP=1 -U postgres -d postgres \
   < "$bloom_dir/tests/reader-records.sql" >/dev/null
+docker exec -i "$bloom_test_container" psql -q -v ON_ERROR_STOP=1 -U postgres -d postgres \
+  < "$bloom_dir/tests/device-revocation.sql" >/dev/null
 python3 "$bloom_dir/tests/credit-concurrency.py" "$bloom_test_container"
 python3 "$bloom_dir/tests/profile-concurrency.py" "$bloom_test_container"
 python3 "$bloom_dir/tests/competition-concurrency.py" "$bloom_test_container"
