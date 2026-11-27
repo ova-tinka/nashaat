@@ -71,6 +71,8 @@ begin
     'pdf', 'application/pdf', 1200, '90000000-0000-0000-0000-000000000407');
   v_document_id := (v_document->>'id')::uuid;
   v_document_path := v_document->>'storage_path';
+  insert into storage.objects(bucket_id, name) values ('bloom-growth-content', v_document_path);
+  perform public.bloom_confirm_growth_document(v_document_id);
   v_verification_id := public.bloom_save_study_verification(v_document_item, 'Lab report artifact', '', v_document_id,
     '90000000-0000-0000-0000-000000000410');
   v_retry_verification_id := public.bloom_save_study_verification(v_document_item, 'Lab report artifact', '', v_document_id,
@@ -146,8 +148,6 @@ end $$;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000402', true);
 
 reset role;
-insert into storage.objects(bucket_id, name)
-  values ('bloom-growth-content', current_setting('bloom.test_document_path'));
 set local role service_role;
 do $$
 declare

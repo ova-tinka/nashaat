@@ -1,4 +1,5 @@
 import type { ModuleKey } from '../theme';
+import { runDocumentDelete, type DocumentLifecycleStatus } from './document-lifecycle';
 import { supabase } from './supabase';
 
 export type GrowthModuleId = Extract<ModuleKey, 'study' | 'read' | 'tasks'>;
@@ -62,7 +63,7 @@ export type GrowthRecord = {
 export type GrowthDocument = {
   id: string; profile_id: string; module_id: 'study' | 'read'; item_id: string; title: string;
   file_name: string; format: 'pdf' | 'docx' | 'epub'; mime_type: string; byte_size: number;
-  storage_path: string; created_at: string;
+  storage_path: string; status?: DocumentLifecycleStatus; created_at: string;
 };
 export type GrowthRecordAttachment = { record_id: string; document_id: string };
 export type StudyPlanSlot = { id: string; item_id: string; day_of_week: number; target_minutes: number };
@@ -207,9 +208,20 @@ export async function loadReadSessionsSince(profileId: string, startedAfter: str
 
 export async function loadGrowthDocuments(moduleId: 'study' | 'read'): Promise<GrowthDocument[]> {
   const { data } = await growthQuery('bloom_growth_documents', client().from('bloom_growth_documents')
-    .select('id,profile_id,module_id,item_id,title,file_name,format,mime_type,byte_size,storage_path,created_at')
-    .eq('module_id', moduleId).order('created_at', { ascending: false }).limit(100));
+    .select('id,profile_id,module_id,item_id,title,file_name,format,mime_type,byte_size,storage_path,status,created_at')
+    .eq('module_id', moduleId).eq('status', 'ready').order('created_at', { ascending: false }).limit(100));
   return (data ?? []).map((document) => ({ ...document, byte_size: Number(document.byte_size) })) as GrowthDocument[];
+}
+
+export async function loadIncompleteGrowthDocuments(moduleId: 'study' | 'read'): Promise<{ id: string; storagePath: string; status: 'pending' | 'deleting' }[]> {
+  const { data } = await growthQuery('bloom_growth_documents', client().from('bloom_growth_documents')
+    .select('id,storage_path,status')
+    .eq('module_id', moduleId).in('status', ['pending', 'deleting']).order('created_at', { ascending: false }).limit(25));
+  return (data ?? []).map((row) => ({
+    id: String(row.id),
+    storagePath: String(row.storage_path),
+    status: row.status === 'deleting' ? 'deleting' : 'pending',
+  }));
 }
 
 export async function loadGrowthDocumentsPage(
@@ -219,8 +231,9 @@ export async function loadGrowthDocumentsPage(
   const limit = Math.max(1, Math.min(100, options.limit ?? 25));
   const offset = Math.max(0, options.offset ?? 0);
   const { data } = await growthQuery('bloom_growth_documents', client().from('bloom_growth_documents')
-    .select('id,profile_id,module_id,item_id,title,file_name,format,mime_type,byte_size,storage_path,created_at')
+    .select('id,profile_id,module_id,item_id,title,file_name,format,mime_type,byte_size,storage_path,status,created_at')
     .eq('module_id', moduleId)
+    .eq('status', 'ready')
     .order('created_at', { ascending: false })
     .range(offset, offset + limit));
   const rows = ((data ?? []).map((document) => ({ ...document, byte_size: Number(document.byte_size) })) as GrowthDocument[]);
@@ -236,9 +249,10 @@ export async function loadGrowthDocumentById(
   documentId: string,
 ): Promise<GrowthDocument | null> {
   const { data } = await growthQuery('bloom_growth_documents', client().from('bloom_growth_documents')
-    .select('id,profile_id,module_id,item_id,title,file_name,format,mime_type,byte_size,storage_path,created_at')
+    .select('id,profile_id,module_id,item_id,title,file_name,format,mime_type,byte_size,storage_path,status,created_at')
     .eq('profile_id', profileId)
     .eq('module_id', moduleId)
+    .eq('status', 'ready')
     .eq('id', documentId)
     .maybeSingle());
   return data ? ({ ...data, byte_size: Number(data.byte_size) } as GrowthDocument) : null;
@@ -290,15 +304,48 @@ export async function createGrowthDocument(args: {
   });
   if (error) throw error;
   if (!data || typeof data.id !== 'string' || typeof data.storage_path !== 'string') throw new Error('Could not prepare the private upload.');
-  return { id: data.id as string, storagePath: data.storage_path as string };
+  const status: DocumentLifecycleStatus = data.status === 'ready' || data.status === 'deleting' ? data.status : 'pending';
+  return { id: data.id as string, storagePath: data.storage_path as string, status };
+}
+
+export async function confirmGrowthDocument(documentId: string) {
+  const { error } = await client().rpc('bloom_confirm_growth_document', { p_document_id: documentId });
+  if (error) throw error;
+}
+
+export async function beginDeleteGrowthDocument(documentId: string) {
+  const { error } = await client().rpc('bloom_begin_delete_growth_document', { p_document_id: documentId });
+  if (error) throw error;
+}
+
+export async function finalizeDeleteGrowthDocument(documentId: string) {
+  const { error } = await client().rpc('bloom_delete_growth_document', { p_document_id: documentId });
+  if (error) throw error;
+}
+
+export async function removeGrowthDocumentObject(storagePath: string) {
+  const { error } = await client().storage.from('bloom-growth-content').remove([storagePath]);
+  if (error) throw error;
+}
+
+export async function storageObjectExists(storagePath: string): Promise<boolean> {
+  const parts = storagePath.split('/');
+  const fileName = parts.pop();
+  const folder = parts.join('/');
+  if (!fileName) return false;
+  const { data, error } = await client().storage.from('bloom-growth-content').list(folder, { search: fileName, limit: 10 });
+  if (error) throw error;
+  return (data ?? []).some((entry) => entry.name === fileName);
 }
 
 export async function deleteGrowthDocument(document: Pick<GrowthDocument, 'id' | 'storage_path'>) {
-  const db = client();
-  const { error: storageError } = await db.storage.from('bloom-growth-content').remove([document.storage_path]);
-  if (storageError) throw storageError;
-  const { error } = await db.rpc('bloom_delete_growth_document', { p_document_id: document.id });
-  if (error) throw error;
+  await runDocumentDelete({
+    documentId: document.id,
+    storagePath: document.storage_path,
+    beginDelete: beginDeleteGrowthDocument,
+    removeObject: removeGrowthDocumentObject,
+    finalizeDelete: finalizeDeleteGrowthDocument,
+  });
 }
 
 export async function uploadGrowthDocumentContent(storagePath: string, content: ArrayBuffer, mimeType: string) {

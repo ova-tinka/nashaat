@@ -8,7 +8,12 @@ import { ActivityIndicator, Platform, StyleSheet, Switch, View } from 'react-nat
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { Body, Button, ErrorText, Eyebrow, Field, Label, Panel, sharedStyles } from './bloom-ui';
 import { useAuth } from '../lib/auth';
-import { createGrowthDocument, deleteGrowthDocument, type GrowthDocument, type GrowthItem, type GrowthRecord, uploadGrowthDocumentContent } from '../lib/growth-modules';
+import {
+  confirmGrowthDocument, createGrowthDocument, deleteGrowthDocument, finalizeDeleteGrowthDocument,
+  loadIncompleteGrowthDocuments, removeGrowthDocumentObject, storageObjectExists, type GrowthDocument,
+  type GrowthItem, type GrowthRecord, uploadGrowthDocumentContent,
+} from '../lib/growth-modules';
+import { checkFileByteSizeBeforeBuffer, reconcileIncompleteDocuments, runDocumentUpload } from '../lib/document-lifecycle';
 import {
   loadGrowthAiPreferences, saveGrowthAiPreferences,
   type GrowthAiPreferences,
@@ -42,6 +47,23 @@ export function GrowthDocumentLibraryPanel({ moduleId, items, records, documents
   const [notice, setNotice] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<GrowthDocument | null>(null);
   const pendingUpload = useRef<{ signature: string; requestId: string } | null>(null);
+  const reconciledRef = useRef(false);
+
+  useFocusEffect(useCallback(() => {
+    if (readOnly || reconciledRef.current) return;
+    reconciledRef.current = true;
+    void reconcileIncompleteDocuments({
+      listIncomplete: () => loadIncompleteGrowthDocuments(moduleId),
+      objectExists: storageObjectExists,
+      confirm: confirmGrowthDocument,
+      removeObject: removeGrowthDocumentObject,
+      finalizeDelete: finalizeDeleteGrowthDocument,
+    }).then((result) => {
+      if (result.confirmed > 0 || result.deleted > 0) onSaved();
+    }).catch(() => {
+      reconciledRef.current = false;
+    });
+  }, [moduleId, onSaved, readOnly]));
   const candidates = useMemo(() => items.filter((item) => moduleId === 'read'
     ? item.state !== 'archived' && item.item_type === 'reading'
     : item.state === 'active' && ['subject', 'course', 'lesson', 'assignment'].includes(item.item_type)), [items, moduleId]);
@@ -99,26 +121,34 @@ export function GrowthDocumentLibraryPanel({ moduleId, items, records, documents
     const signature = JSON.stringify([moduleId, selectedItemId, title.trim(), picked.name, picked.size, picked.uri]);
     if (pendingUpload.current?.signature !== signature) pendingUpload.current = { signature, requestId: randomUUID() };
     setBusy(true); setError(null); setNotice(null);
-    let prepared: Awaited<ReturnType<typeof createGrowthDocument>> | null = null;
+    const requestId = pendingUpload.current.requestId;
     try {
+      const checkedBytes = await checkFileByteSizeBeforeBuffer({
+        reportedSize: picked.file?.size ?? picked.size,
+        maxBytes,
+        inspectSize: () => {
+          const info = new ExpoFile(picked.uri).info();
+          return info.exists ? info.size : null;
+        },
+      });
       const content = picked.file
         ? await picked.file.arrayBuffer()
         : await new ExpoFile(picked.uri).arrayBuffer();
-      if (!content.byteLength || content.byteLength > maxBytes) {
+      if (!content.byteLength || content.byteLength > maxBytes || content.byteLength !== checkedBytes) {
         throw new Error(`Choose a non-empty file smaller than ${moduleId === 'study' ? '10 MB' : '25 MB'}.`);
       }
-      prepared = await createGrowthDocument({
-        moduleId, itemId: selectedItemId, title: title.trim(), fileName: picked.name, format: supported.format,
-        mimeType: supported.mimeType, byteSize: content.byteLength, requestId: pendingUpload.current.requestId,
+      await runDocumentUpload({
+        prepare: () => createGrowthDocument({
+          moduleId, itemId: selectedItemId, title: title.trim(), fileName: picked.name, format: supported.format,
+          mimeType: supported.mimeType, byteSize: content.byteLength, requestId,
+        }),
+        uploadObject: (storagePath) => uploadGrowthDocumentContent(storagePath, content, supported.mimeType),
+        confirm: confirmGrowthDocument,
       });
-      await uploadGrowthDocumentContent(prepared.storagePath, content, supported.mimeType);
       pendingUpload.current = null; setPicked(null); setTitle('');
       setNotice('Private document uploaded. It is available only in this profile.');
       onSaved();
     } catch (cause) {
-      if (prepared) {
-        try { await deleteGrowthDocument({ id: prepared.id, storage_path: prepared.storagePath }); } catch { /* Keep the retry state visible if cleanup is unavailable. */ }
-      }
       setError(cause instanceof Error ? cause.message : 'Could not upload this private document. Your file remains on this device; retry when connected.');
     } finally { setBusy(false); }
   }

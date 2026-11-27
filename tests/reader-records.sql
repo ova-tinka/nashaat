@@ -35,6 +35,9 @@ begin
     ))->>'id';
     if v_i = 1 then
       v_first_doc := v_doc_id;
+      insert into storage.objects(bucket_id, name)
+      values ('bloom-growth-content', bloom_private.current_profile_id()::text || '/read/' || v_first_doc::text || '.epub');
+      perform public.bloom_confirm_growth_document(v_first_doc);
       perform public.bloom_save_growth_record(
         'read', v_item, 'reader_bookmark', 'Chapter 1 bookmark', '{"page":5,"percent":12}',
         jsonb_build_object('document_id', v_first_doc::text), null, null,

@@ -95,6 +95,7 @@ bloom_fixtures+=(study-tutor-quota.sql)
 bloom_fixtures+=(weekly-earning-cap.sql)
 bloom_fixtures+=(reader-records.sql)
 bloom_fixtures+=(device-revocation.sql)
+bloom_fixtures+=(document-lifecycle.sql)
 if [[ "${BLOOM_SKIP_PUBLIC_COMPETITIONS:-0}" != "1" ]]; then
   bloom_fixtures+=(competitions.sql)
 fi

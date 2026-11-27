@@ -86,11 +86,15 @@ Deno.serve(async (request) => {
     }
     const { data: file, error: downloadError } = await admin.storage.from('bloom-growth-content').download(parsed.storage_path);
     if (downloadError || !file) throw new Error('Private document unavailable');
+    if (typeof file.size === 'number' && (file.size <= 0 || file.size > 10 * 1024 * 1024)) {
+      throw new Error('Invalid document size');
+    }
     const bytes = new Uint8Array(await file.arrayBuffer());
     if (!bytes.length || bytes.length > 10 * 1024 * 1024) throw new Error('Invalid document size');
     let sections: ExtractedSection[];
-    if (parsed.format === 'pdf') sections = await extractPdfSections(bytes);
-    else if (parsed.format === 'docx') sections = extractDocxSections(bytes);
+    const extractOptions = { maxMs: 5000, maxBytes: 10 * 1024 * 1024 };
+    if (parsed.format === 'pdf') sections = await extractPdfSections(bytes, extractOptions);
+    else if (parsed.format === 'docx') sections = extractDocxSections(bytes, extractOptions);
     else throw new Error('Unsupported Study document format');
     const relevant = selectRelevantSections(sections, prompt);
     if (!relevant.length) throw new Error('No relevant text found');
