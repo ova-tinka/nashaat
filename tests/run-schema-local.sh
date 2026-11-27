@@ -4,6 +4,9 @@ set -euo pipefail
 bloom_dir="$(cd "$(dirname "$0")/.." && pwd)"
 bloom_root="$bloom_dir"
 bloom_pg_bin="${BLOOM_TEST_POSTGRES_BIN:-}"
+if [[ -z "$bloom_pg_bin" && -x "/opt/homebrew/bin/initdb" && -x "/opt/homebrew/bin/pg_ctl" && -x "/opt/homebrew/bin/postgres" ]]; then
+  bloom_pg_bin="/opt/homebrew/bin"
+fi
 if [[ -z "$bloom_pg_bin" || ! -x "$bloom_pg_bin/initdb" || ! -x "$bloom_pg_bin/pg_ctl" ]]; then
   echo 'Set BLOOM_TEST_POSTGRES_BIN to a local PostgreSQL server bin directory containing initdb and pg_ctl.' >&2
   exit 1
@@ -83,6 +86,7 @@ bloom_fixtures+=(growth-modules.sql)
 bloom_fixtures+=(selected-growth-scope.sql)
 bloom_fixtures+=(mock-exams-documents.sql)
 bloom_fixtures+=(read-reflection-memory.sql)
+bloom_fixtures+=(default-personal-memory.sql)
 if [[ "${BLOOM_SKIP_PUBLIC_COMPETITIONS:-0}" != "1" ]]; then
   bloom_fixtures+=(competitions.sql)
 fi

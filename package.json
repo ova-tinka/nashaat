@@ -72,6 +72,7 @@
     "test:unit": "node --experimental-strip-types --test tests/*.test.mjs tests/*.test.cjs",
     "test:growth-features": "node --experimental-strip-types --test tests/exercise-records.test.mjs tests/weekly-planner.test.mjs tests/study-practice.test.mjs tests/platform-capabilities.test.mjs tests/bloom-web-reader.test.mjs",
     "test:schema": "bash tests/run-schema.sh",
+    "test:bootstrap": "bash tests/run-full-bootstrap.sh",
     "lint": "eslint src",
     "import:free-exercise-db": "node scripts/import-free-exercise-db.mjs"
   },
