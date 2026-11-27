@@ -10,6 +10,24 @@ import {
 } from './bloom-ui';
 import { GrowthDocumentLibraryPanel } from './growth-document-panels';
 import { GrowthRecordPanel, ReadingDiscoveryPanel } from './growth-feature-panels';
+import { OfflinePendingBanner } from './offline-pending-banner';
+import {
+  addReadDateDays as addDateDays,
+  formatReadClock as formatClock,
+  formatReadMinutes as formatMinutes,
+  localReadTabs as localTabs,
+  readAddRouteFor as addRouteFor,
+  readKindLabel as kindLabel,
+  readPeriodLabel as periodLabel,
+  readRouteFor as routeFor,
+  readStatusLabel as statusLabel,
+  searchReadItems as searchItems,
+  startOfReadWeekKey as startOfWeekKey,
+  type ItemTab,
+  type LibraryFilter,
+  type ProgressPeriod,
+  type ReadSection,
+} from './read-workflow-helpers';
 import { WeeklyPillarPlanner } from './weekly-pillar-planner';
 import {
   cancelGrowthSession, createGrowthItem, finishGrowthSession, formatElapsed, getReadingStatus, GrowthDataQueryError, loadGrowthDocuments, loadGrowthModule,
@@ -24,70 +42,6 @@ import { useBloom } from '../lib/bloom-context';
 import { useBloomTheme } from '../lib/theme-context';
 import { dateKeyInTimeZone } from '../lib/date-utils';
 import { bloomPillarCollectionImages, bloomPillarImages } from '../assets/bloom-images';
-
-type ReadSection = 'today' | 'library' | 'discover' | 'progress' | 'item' | 'add' | 'edit' | 'session' | 'session-complete';
-type LibraryFilter = 'want_to_read' | 'currently_reading' | 'finished';
-type ProgressPeriod = 'day' | 'week' | 'month';
-type ItemTab = 'overview' | 'sessions' | 'notes' | 'files';
-type AddReturnSection = 'today' | 'library';
-const localTabs: { id: ReadSection; label: string }[] = [
-  { id: 'today', label: 'Today' }, { id: 'library', label: 'Library' },
-  { id: 'discover', label: 'Discover' }, { id: 'progress', label: 'Progress' },
-];
-
-function routeFor(section: ReadSection, itemId?: string, editPages = false): Href {
-  if (section === 'today') return '/read';
-  return { pathname: '/apps/read/[section]', params: { section, ...(itemId ? { itemId } : {}), ...(editPages ? { editPages: '1' } : {}) } };
-}
-
-function addRouteFor(returnTo: AddReturnSection): Href {
-  return { pathname: '/apps/read/[section]', params: { section: 'add', returnTo } };
-}
-
-function statusLabel(status: ReadingStatus) {
-  if (status === 'currently_reading') return 'Currently reading';
-  if (status === 'finished') return 'Finished';
-  return 'Want to read';
-}
-
-function searchItems(items: GrowthItem[], query: string) {
-  const value = query.trim().toLocaleLowerCase();
-  if (!value) return items;
-  return items.filter((item) => [item.title, item.author, item.genre, item.notes].some((part) => part.toLocaleLowerCase().includes(value)));
-}
-
-function periodLabel(period: ProgressPeriod) {
-  if (period === 'day') return 'Today';
-  if (period === 'month') return 'This month';
-  return 'This week';
-}
-
-function kindLabel(kind: ReadingKind | null) {
-  return kind === 'article' ? 'Article' : 'Book';
-}
-
-function formatMinutes(seconds: number) {
-  if (seconds > 0 && seconds < 60) return Math.floor(seconds) + 's';
-  const minutes = Math.floor(Math.max(0, seconds) / 60);
-  const hours = Math.floor(minutes / 60);
-  return hours ? hours + 'h ' + (minutes % 60 ? (minutes % 60) + 'm' : '') : minutes + 'm';
-}
-
-function startOfWeekKey(dateKey: string) {
-  const date = new Date(dateKey + 'T12:00:00Z');
-  date.setUTCDate(date.getUTCDate() - date.getUTCDay());
-  return date.toISOString().slice(0, 10);
-}
-
-function addDateDays(dateKey: string, amount: number) {
-  const date = new Date(dateKey + 'T12:00:00Z');
-  date.setUTCDate(date.getUTCDate() + amount);
-  return date.toISOString().slice(0, 10);
-}
-
-function formatClock(value: string) {
-  return new Date(value).toLocaleTimeString(getAppLocale(), { hour: 'numeric', minute: '2-digit' });
-}
 
 export function ReadModuleScreen({ sectionId }: { sectionId?: string }) {
   const params = useLocalSearchParams<{ itemId?: string | string[]; editPages?: string | string[]; returnTo?: string | string[]; durationSeconds?: string | string[]; rewardStatus?: string | string[]; rewardMinutes?: string | string[] }>();
@@ -415,11 +369,7 @@ export function ReadModuleScreen({ sectionId }: { sectionId?: string }) {
     {loading && <View style={styles.loading}><ActivityIndicator color={accent.deep} /></View>}
     {!loading && error && section !== 'session' && <Panel><ErrorText>{error}</ErrorText><Body>Your saved reading records remain private and available when the connection returns.</Body><Button label="Try again" variant="secondary" onPress={() => void refresh()} /></Panel>}
     {!loading && notice && section !== 'session-complete' && <View style={[styles.notice, { backgroundColor: accent.surface }]}><MaterialIcons name="check-circle-outline" size={19} color={accent.deep} /><Text style={[styles.noticeText, { color: accent.deep }]}>{notice}</Text></View>}
-    {!loading && pendingOfflineCount > 0 && <Panel>
-      <Label>Pending offline activity · {pendingOfflineCount}</Label>
-      <Body>Saved on this device and waiting for connection. Pending records never unlock Screen Time.</Body>
-      {profileId && <Button label="Sync pending activity" variant="secondary" onPress={() => void flushOfflineActivitiesForProfile(profileId).then(async () => { setPendingOfflineCount(await getPendingOfflineCount(profileId)); await refresh(); }).catch(() => undefined)} />}
-    </Panel>}
+    {!loading && <OfflinePendingBanner profileId={profileId} pendingCount={pendingOfflineCount} onCountUpdated={setPendingOfflineCount} onSynced={refresh} />}
 
     {!loading && !error && section === 'today' && <>
       <ImageBackground source={bloomPillarCollectionImages.read} resizeMode="cover" imageStyle={styles.heroImage} style={[styles.hero, desktop && styles.heroDesktop]}>

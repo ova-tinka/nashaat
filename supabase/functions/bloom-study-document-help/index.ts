@@ -1,3 +1,4 @@
+import { createFireworksJsonProvider } from '../_shared/ai-provider.ts';
 import { body, preliminary, reply } from '../_shared/child-pairing.ts';
 import { coachAccess } from '../_shared/coach-access.ts';
 import { extractDocxSections, extractPdfSections, selectRelevantSections, type ExtractedSection } from '../_shared/document-extract.ts';
@@ -5,6 +6,7 @@ import { admin, authenticateActiveUser, userClient } from '../_shared/supabase.t
 
 const model = Deno.env.get('FIREWORKS_MODEL') ?? '';
 const apiKey = Deno.env.get('FIREWORKS_API_KEY') ?? '';
+const aiProvider = createFireworksJsonProvider({ apiKey, model });
 const access = coachAccess({ enabled: Deno.env.get('BLOOM_COACH_ENABLED') === 'true',
   providerApproved: Deno.env.get('FIREWORKS_DATA_SHARING_APPROVED') === 'true',
   modelVerified: Deno.env.get('FIREWORKS_MODEL_VERIFIED') === 'true', model, apiKeyPresent: Boolean(apiKey), testMode: false,
@@ -103,20 +105,15 @@ Deno.serve(async (request) => {
       await admin.rpc('bloom_fail_growth_ai_request', { p_request_id: requestId }); started = false;
       return reply(400, { error: 'Remove contact details and unsafe content before asking about this document.' });
     }
-    const response = await fetch('https://api.fireworks.ai/inference/v1/chat/completions', {
-      method: 'POST', headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
-      signal: AbortSignal.timeout(20000),
-      body: JSON.stringify({ model, max_tokens: 1400, temperature: 0.1,
-        ...(model === 'accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b' ? { chat_template_kwargs: { enable_thinking: false } } : {}),
-        response_format: { type: 'json_schema', json_schema: { name: 'bloom_document_help', schema } },
-        messages: [{ role: 'system', content: `${instructions}\nSchema: ${JSON.stringify(schema)}` }, { role: 'user', content: userData }],
-      }),
+    const rawAnswer = await aiProvider.completeJson({
+      schemaName: 'bloom_document_help',
+      schema,
+      systemPrompt: `${instructions}\nSchema: ${JSON.stringify(schema)}`,
+      userPrompt: userData,
+      maxTokens: 1400,
+      temperature: 0.1,
     });
-    if (!response.ok) throw new Error('Provider unavailable');
-    const payload = await limitedJson(response) as { choices?: { finish_reason?: string; message?: { content?: unknown } }[] };
-    const choice = payload.choices?.[0];
-    if (!choice || choice.finish_reason === 'length' || typeof choice.message?.content !== 'string') throw new Error('Invalid provider response');
-    const answer = validateAnswer(JSON.parse(choice.message.content), relevant);
+    const answer = validateAnswer(rawAnswer, relevant);
     const { data: saved, error: saveError } = await admin.rpc('bloom_finish_document_help_request', {
       p_request_id: requestId, p_prompt: prompt, p_answer: answer.answer, p_uncertainty: answer.uncertainty,
       p_citations: answer.citations,

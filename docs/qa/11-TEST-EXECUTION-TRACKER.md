@@ -94,3 +94,8 @@ See `../macos-verification.md` for detailed observations. The latest live Brave 
 - Verification: `npm run test:macos-native` passed, including policy-broker cache bounds; `npm run test:filter-version` passed. `npm run desktop:build:local` produced host 0.1.0/filter 1.1.10. Apple accepted notarization submission `6018ff84-c9cc-448b-9e73-fb4a03ab830a`; stapling, `stapler validate`, strict codesign verification, and Gatekeeper assessment passed. Archive SHA-256: `3f44c9942d68a4a7746faee393997ef2e4f54e598b640859bba46d9d4549881d`.
 - Installed copy: `/Applications/Bloom Exercise QA 1.1.10 Broker fallback.app`. Opening it reached sign-in, so its setup did not refresh the monitor or activate the new extension. `systemextensionsctl` still reports filter 1.1.9 active/enabled; 1.1.10 is not registered. The 1.1.9 app remains available for rollback. No 1.1.10 live enforcement result is claimed; the latest confirmed Brave target bypass remains the 1.1.1 test.
 - Next: the user must sign in to the 1.1.10 QA app themselves. After setup, verify the monitor path and broker acknowledgement point to 1.1.10, activate the filter, and repeat the isolated `example.com` block / `example.org` control test without starting a credit session.
+
+### Audit remediation automated baseline (2026-11-28, branch `audit`)
+
+- Automated source, schema, bootstrap, Deno, Rust, and macOS deterministic native suites run against the `audit` branch commits (`docs/repository-audit-2026-11-26.md` records each commit SHA and result).
+- Live signed-build enforcement checks on macOS (`WEB-BRV-03`, `APP-01`, `APP-02`, `EASY-01`, `EASY-04`), iOS Screen Time, and Android Accessibility/Gradle unit execution remain explicitly **OPEN / BLOCKED** until physical devices and signed builds are exercised.

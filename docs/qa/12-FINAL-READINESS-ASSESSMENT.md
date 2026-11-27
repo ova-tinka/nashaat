@@ -67,7 +67,7 @@ These tests establish source behavior and isolated database invariants. They do 
 - **Provider health:** The UI reports broker readiness only after the daemon, monitor, and fresh snapshot acknowledgement are present. The current daemon does not accept the monitor connection, so the policy snapshot is not confirmed and provider traffic is not proven.
 - **Application enforcement:** `NSRunningApplication.hide()` is best effort and can race. The live Calculator test failed: its window remained usable while app protection was active. Bloom cannot claim launch denial.
 - **Easy measurement:** Server time verifies the access-window duration only. If product intent is actual foreground use or attention, a distinct trustworthy OS measurement source remains required; this server-timed choice does not provide it.
-- **Security:** `tauri.conf.json` still has `csp: null`; audit of the renderer command surface remains open. The local account and app-group state are within the logged-in user boundary.
+- **Security:** `src-tauri/tauri.conf.json` now enforces an explicit production CSP (`tests/desktop-csp.test.cjs` passes) and the macOS renderer bridge uses typed Tauri commands (`macos_blocking_status`, `macos_manage_website_rules`, `macos_manage_app_rules`, `macos_credit_session`, `macos_usage_session`, `macos_secure_storage_*`, and `open_reader_in_browser`) verified by `cargo test`. The local account and app-group state are within the logged-in user boundary.
 - **Cross-device:** Database simulation passes; no second physical device was available.
 - **Reliability:** No evidence-based performance budgets or paired CPU, memory, energy, latency, drift, or recovery measurements exist.
 

@@ -1,9 +1,11 @@
+import { createFireworksJsonProvider } from '../_shared/ai-provider.ts';
 import { coachAccess } from '../_shared/coach-access.ts';
 import { studyTutorHandler, studyTutorInstructions, studyTutorSchema } from '../_shared/study-tutor.ts';
 import { admin, authenticateActiveUser, userClient } from '../_shared/supabase.ts';
 
 const model = Deno.env.get('FIREWORKS_MODEL') ?? '';
 const apiKey = Deno.env.get('FIREWORKS_API_KEY') ?? '';
+const aiProvider = createFireworksJsonProvider({ apiKey, model });
 const testMode = Deno.env.get('BLOOM_COACH_TEST_MODE') === 'true';
 const access = coachAccess({
   enabled: Deno.env.get('BLOOM_COACH_ENABLED') === 'true',
@@ -75,32 +77,13 @@ Deno.serve(studyTutorHandler({
     await admin.rpc('bloom_fail_growth_ai_request', { p_request_id: requestId });
   },
   async generate(userData) {
-    const response = await fetch('https://api.fireworks.ai/inference/v1/chat/completions', {
-      method: 'POST',
-      headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
-      signal: AbortSignal.timeout(20000),
-      body: JSON.stringify({
-        model,
-        max_tokens: 1200,
-        temperature: 0.25,
-        ...(model === 'accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b'
-          ? { chat_template_kwargs: { enable_thinking: false } }
-          : {}),
-        response_format: { type: 'json_schema', json_schema: { name: 'bloom_study_tutor', schema: studyTutorSchema } },
-        messages: [
-          { role: 'system', content: `${studyTutorInstructions}\nSchema: ${JSON.stringify(studyTutorSchema)}` },
-          { role: 'user', content: userData },
-        ],
-      }),
+    return aiProvider.completeJson({
+      schemaName: 'bloom_study_tutor',
+      schema: studyTutorSchema,
+      systemPrompt: `${studyTutorInstructions}\nSchema: ${JSON.stringify(studyTutorSchema)}`,
+      userPrompt: userData,
+      maxTokens: 1200,
+      temperature: 0.25,
     });
-    if (!response.ok) throw new Error('Provider unavailable');
-    const payload = await limitedJson(response) as {
-      choices?: { finish_reason?: string; message?: { content?: unknown } }[];
-    };
-    const choice = payload.choices?.[0];
-    if (!choice || choice.finish_reason === 'length' || typeof choice.message?.content !== 'string') {
-      throw new Error('Invalid provider response');
-    }
-    return JSON.parse(choice.message.content);
   },
 }));
