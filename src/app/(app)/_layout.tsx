@@ -1,8 +1,9 @@
-import { Redirect, Stack, usePathname } from 'expo-router';
+import { Redirect, Stack, usePathname, type Href } from 'expo-router';
 import { ActivityIndicator, Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Button, ErrorText, Panel, Screen } from '../../components/bloom-ui';
 import { BloomAppHeader, BloomDesktopNavigation, BloomDesktopSectionNavigation } from '../../components/app-shell';
 import { useAuth } from '../../lib/auth';
+import { buildSignInHref } from '../../lib/auth-return-path';
 import { BloomProvider } from '../../lib/bloom-context';
 import { MacCreditRecovery } from '../../components/mac-credit-recovery';
 import { supabase } from '../../lib/supabase';
@@ -19,7 +20,7 @@ export default function AppLayout() {
   const desktop = isMacDesktop() || (Platform.OS === 'web' && width >= 1024);
   const immersive = pathname === '/session' || ['/apps/read/session', '/apps/read/session-complete', '/apps/study/active-session', '/apps/study/session-complete', '/apps/study/learning-check'].includes(pathname) || pathname.startsWith('/apps/read/reader/');
   if (loading || (session && profileLoading)) return <Screen><ActivityIndicator color={theme.colors.action} /></Screen>;
-  if (!session) return <Redirect href="/sign-in" />;
+  if (!session) return <Redirect href={buildSignInHref(pathname) as Href} />;
   if (profileError || !profileId) return <Screen><Panel><ErrorText>{profileError ?? 'Profile unavailable.'}</ErrorText><Button label="Try again" onPress={() => void refreshProfile()} /><Button label="Sign out" secondary onPress={() => { void supabase?.auth.signOut({ scope: 'local' }); }} /></Panel></Screen>;
   if (isChildRestrictedRoute(pathname, childProfile, assignedModules)) return <Redirect href="/" />;
   return <BloomProvider key={`${session.user.id}:${profileId}`} userId={profileId}>

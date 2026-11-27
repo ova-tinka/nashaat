@@ -120,6 +120,8 @@ docker exec -i "$bloom_test_container" psql -q -v ON_ERROR_STOP=1 -U postgres -d
   < "$bloom_dir/tests/study-tutor-quota.sql" >/dev/null
 docker exec -i "$bloom_test_container" psql -q -v ON_ERROR_STOP=1 -U postgres -d postgres \
   < "$bloom_dir/tests/weekly-earning-cap.sql" >/dev/null
+docker exec -i "$bloom_test_container" psql -q -v ON_ERROR_STOP=1 -U postgres -d postgres \
+  < "$bloom_dir/tests/reader-records.sql" >/dev/null
 python3 "$bloom_dir/tests/credit-concurrency.py" "$bloom_test_container"
 python3 "$bloom_dir/tests/profile-concurrency.py" "$bloom_test_container"
 python3 "$bloom_dir/tests/competition-concurrency.py" "$bloom_test_container"

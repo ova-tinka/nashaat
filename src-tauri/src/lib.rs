@@ -1,6 +1,13 @@
 #[cfg(target_os = "macos")]
-#[tauri::command]
-async fn macos_filter(action: String, domains: Option<Vec<String>>, apps: Option<Vec<String>>, timing: Option<serde_json::Value>, targets: Option<serde_json::Value>, usage: Option<serde_json::Value>, account_id: Option<String>) -> Result<serde_json::Value, String> {
+async fn dispatch_filter_request(
+  action: String,
+  domains: Option<Vec<String>>,
+  apps: Option<Vec<String>>,
+  timing: Option<serde_json::Value>,
+  targets: Option<serde_json::Value>,
+  usage: Option<serde_json::Value>,
+  account_id: Option<String>,
+) -> Result<serde_json::Value, String> {
   if !matches!(action.as_str(), "activate" | "start" | "stop" | "clearManualDomains" | "cleanupHosts" | "hostsRecoveryStatus" | "hostsPolicyStatus" | "syncHostsManaged" | "enrollHosts" | "startHostsUsage" | "stopHostsUsage" | "clearManualApps" | "status" | "appStatus" | "clock" | "startCreditAccess" | "endCreditAccess" | "activateApps" | "chooseApp" | "listInstalledApps" | "startApps" | "stopApps" | "getUsageAccess" | "startUsageAccess" | "closeUsageAccess" | "clearUsageAccess" | "openAccessibilitySettings" | "syncManagedRules") {
     return Err("Invalid filter action.".into());
   }
@@ -140,27 +147,103 @@ async fn macos_filter(action: String, domains: Option<Vec<String>>, apps: Option
 }
 
 #[cfg(target_os = "macos")]
-fn validate_reader_browser_url(value: &str) -> Result<url::Url, String> {
-  if value.len() > 2048 || value.chars().any(|character| character.is_control() || character.is_whitespace()) {
-    return Err("Invalid Bloom web reader address.".into());
+#[tauri::command]
+async fn macos_blocking_status(action: String, usage: Option<serde_json::Value>) -> Result<serde_json::Value, String> {
+  if !matches!(action.as_str(), "status" | "appStatus" | "clock" | "hostsRecoveryStatus" | "hostsPolicyStatus" | "openAccessibilitySettings") {
+    return Err("Invalid blocking status operation.".into());
   }
-  let parsed = url::Url::parse(value).map_err(|_| "Invalid Bloom web reader address.")?;
-  let loopback_http = parsed.scheme() == "http" && parsed.host().is_some_and(|host| match host {
-    url::Host::Domain(domain) => domain == "localhost",
-    url::Host::Ipv4(address) => address.is_loopback(),
-    url::Host::Ipv6(address) => address.is_loopback(),
-  });
-  if (parsed.scheme() != "https" && !loopback_http) || !parsed.username().is_empty()
-    || parsed.password().is_some() || parsed.host().is_none() {
-    return Err("Bloom web reader links must use HTTPS.".into());
-  }
-  Ok(parsed)
+  dispatch_filter_request(action, None, None, None, None, usage, None).await
 }
 
 #[cfg(target_os = "macos")]
 #[tauri::command]
-fn open_reader_in_browser(url: String) -> Result<(), String> {
-  let parsed = validate_reader_browser_url(&url)?;
+async fn macos_manage_website_rules(
+  action: String,
+  domains: Option<Vec<String>>,
+  usage: Option<serde_json::Value>,
+  account_id: Option<String>,
+) -> Result<serde_json::Value, String> {
+  if !matches!(action.as_str(), "activate" | "start" | "stop" | "clearManualDomains" | "cleanupHosts" | "syncHostsManaged" | "enrollHosts" | "syncManagedRules") {
+    return Err("Invalid website rule operation.".into());
+  }
+  dispatch_filter_request(action, domains, None, None, None, usage, account_id).await
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+async fn macos_manage_app_rules(action: String, apps: Option<Vec<String>>) -> Result<serde_json::Value, String> {
+  if !matches!(action.as_str(), "activateApps" | "chooseApp" | "listInstalledApps" | "startApps" | "stopApps" | "clearManualApps") {
+    return Err("Invalid app rule operation.".into());
+  }
+  dispatch_filter_request(action, None, apps, None, None, None, None).await
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+async fn macos_credit_session(
+  action: String,
+  timing: Option<serde_json::Value>,
+  targets: Option<serde_json::Value>,
+  account_id: Option<String>,
+) -> Result<serde_json::Value, String> {
+  if !matches!(action.as_str(), "startCreditAccess" | "endCreditAccess") {
+    return Err("Invalid credit session operation.".into());
+  }
+  dispatch_filter_request(action, None, None, timing, targets, None, account_id).await
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+async fn macos_usage_session(action: String, usage: Option<serde_json::Value>) -> Result<serde_json::Value, String> {
+  if !matches!(action.as_str(), "getUsageAccess" | "startUsageAccess" | "closeUsageAccess" | "clearUsageAccess" | "startHostsUsage" | "stopHostsUsage") {
+    return Err("Invalid usage session operation.".into());
+  }
+  dispatch_filter_request(action, None, None, None, None, usage, None).await
+}
+
+#[cfg(target_os = "macos")]
+fn valid_uuid_str(value: &str) -> bool {
+  value.len() == 36 && value.bytes().enumerate().all(|(index, byte)| {
+    if [8, 13, 18, 23].contains(&index) { byte == b'-' } else { byte.is_ascii_hexdigit() }
+  })
+}
+
+#[cfg(target_os = "macos")]
+fn build_reader_browser_url(document_id: &str, configured_origin: Option<&str>) -> Result<url::Url, String> {
+  if !valid_uuid_str(document_id) {
+    return Err("Invalid Bloom reading document identifier.".into());
+  }
+  let origin_raw = configured_origin.map(str::trim).filter(|s| !s.is_empty())
+    .ok_or_else(|| "Bloom web reader address is not configured.".to_string())?;
+  if origin_raw.len() > 512 || origin_raw.chars().any(|c| c.is_control() || c.is_whitespace()) {
+    return Err("Invalid Bloom web reader address.".into());
+  }
+  let origin = url::Url::parse(origin_raw).map_err(|_| "Invalid Bloom web reader address.")?;
+  let loopback_http = origin.scheme() == "http" && origin.host().is_some_and(|host| match host {
+    url::Host::Domain(domain) => domain == "localhost",
+    url::Host::Ipv4(address) => address.is_loopback(),
+    url::Host::Ipv6(address) => address.is_loopback(),
+  });
+  if (origin.scheme() != "https" && !loopback_http)
+    || !origin.username().is_empty()
+    || origin.password().is_some()
+    || origin.host().is_none()
+    || origin.path() != "/"
+    || origin.query().is_some()
+    || origin.fragment().is_some() {
+    return Err("Bloom web reader origin must be a clean HTTPS root URL.".into());
+  }
+  origin.join(&format!("/apps/read/reader/{document_id}"))
+    .map_err(|_| "Could not build Bloom web reader address.".into())
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+fn open_reader_in_browser(document_id: String) -> Result<(), String> {
+  let runtime_origin = std::env::var("EXPO_PUBLIC_BLOOM_WEB_URL").ok();
+  let configured = option_env!("EXPO_PUBLIC_BLOOM_WEB_URL")
+    .or(runtime_origin.as_deref());
+  let parsed = build_reader_browser_url(&document_id, configured)?;
   std::process::Command::new("/usr/bin/open")
     .arg(parsed.as_str())
     .spawn()
@@ -170,19 +253,27 @@ fn open_reader_in_browser(url: String) -> Result<(), String> {
 
 #[cfg(all(test, target_os = "macos"))]
 mod reader_browser_tests {
-  use super::validate_reader_browser_url;
+  use super::build_reader_browser_url;
+
+  const DOC_ID: &str = "7e09a2d3-f94c-47ac-82d6-8b64af1064e1";
 
   #[test]
-  fn accepts_https_and_local_development_urls() {
-    assert!(validate_reader_browser_url("https://bloom.example/apps/read/reader/abc").is_ok());
-    assert!(validate_reader_browser_url("http://localhost:8081/apps/read/reader/abc").is_ok());
+  fn accepts_https_and_local_development_origins_for_valid_document_id() {
+    let prod = build_reader_browser_url(DOC_ID, Some("https://bloom.example/")).unwrap();
+    assert_eq!(prod.as_str(), format!("https://bloom.example/apps/read/reader/{DOC_ID}"));
+    let dev = build_reader_browser_url(DOC_ID, Some("http://localhost:8081")).unwrap();
+    assert_eq!(dev.as_str(), format!("http://localhost:8081/apps/read/reader/{DOC_ID}"));
   }
 
   #[test]
-  fn rejects_insecure_public_urls_and_credentials() {
-    assert!(validate_reader_browser_url("http://bloom.example/apps/read/reader/abc").is_err());
-    assert!(validate_reader_browser_url("https://user@bloom.example/apps/read/reader/abc").is_err());
-    assert!(validate_reader_browser_url("file:///etc/passwd").is_err());
+  fn rejects_invalid_document_ids_and_untrusted_origins() {
+    assert!(build_reader_browser_url("../settings", Some("https://bloom.example")).is_err());
+    assert!(build_reader_browser_url("", Some("https://bloom.example")).is_err());
+    assert!(build_reader_browser_url(DOC_ID, None).is_err());
+    assert!(build_reader_browser_url(DOC_ID, Some("http://bloom.example")).is_err());
+    assert!(build_reader_browser_url(DOC_ID, Some("https://user@bloom.example")).is_err());
+    assert!(build_reader_browser_url(DOC_ID, Some("https://bloom.example/subpath")).is_err());
+    assert!(build_reader_browser_url(DOC_ID, Some("file:///etc/passwd")).is_err());
   }
 }
 
@@ -190,7 +281,14 @@ mod reader_browser_tests {
 pub fn run() {
   let builder = tauri::Builder::default();
   #[cfg(target_os = "macos")]
-  let builder = builder.invoke_handler(tauri::generate_handler![macos_filter, open_reader_in_browser])
+  let builder = builder.invoke_handler(tauri::generate_handler![
+    macos_blocking_status,
+    macos_manage_website_rules,
+    macos_manage_app_rules,
+    macos_credit_session,
+    macos_usage_session,
+    open_reader_in_browser
+  ])
     .on_window_event(|window, event| {
       if window.label() == "main" {
         if let tauri::WindowEvent::CloseRequested { api, .. } = event {

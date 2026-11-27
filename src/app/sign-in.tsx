@@ -1,8 +1,9 @@
-import { Redirect } from 'expo-router';
+import { Redirect, useLocalSearchParams, type Href } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Body, BloomWordmark, Button, ErrorText, Eyebrow, Field, Heading, Panel, Screen, sharedStyles, useIsDesktopLayout } from '../components/bloom-ui';
 import { useAuth } from '../lib/auth';
+import { validateInternalReturnPath } from '../lib/auth-return-path';
 import { createTransientSupabaseClient, supabase } from '../lib/supabase';
 import { getSavedChild, restoreChildSession } from '../lib/profile-switch';
 import { useBloomTheme } from '../lib/theme-context';
@@ -26,6 +27,9 @@ export default function SignInScreen() {
   const [linkCode, setLinkCode] = useState('');
   const [hasSavedChild, setHasSavedChild] = useState(false);
 
+  const { next } = useLocalSearchParams<{ next?: string }>();
+  const validatedNext = validateInternalReturnPath(Array.isArray(next) ? next[0] : next);
+
   useEffect(() => {
     let active = true;
     void getSavedChild().then((saved) => { if (active) setHasSavedChild(Boolean(saved)); }).catch(() => {});
@@ -33,7 +37,7 @@ export default function SignInScreen() {
   }, []);
 
   if (loading) return <Screen><ActivityIndicator color={theme.colors.action} /></Screen>;
-  if (session) return <Redirect href="/" />;
+  if (session) return <Redirect href={(validatedNext ?? '/') as Href} />;
 
   async function submit() {
     if (!supabase) return;

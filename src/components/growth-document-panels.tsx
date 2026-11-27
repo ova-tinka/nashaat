@@ -137,7 +137,7 @@ export function GrowthDocumentLibraryPanel({ moduleId, items, records, documents
     if (!url) { setError('Bloom’s web app address is not configured for this build.'); return; }
     setBusy(true); setError(null); setNotice(null);
     try {
-      await invoke('open_reader_in_browser', { url });
+      await invoke('open_reader_in_browser', { documentId: document.id });
       setNotice(`Opened ${document.title} in Bloom’s web reader.`);
     } catch { setError('Could not open Bloom’s web reader. Check the app address and try again.'); }
     finally { setBusy(false); }

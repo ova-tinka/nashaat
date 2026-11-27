@@ -18,9 +18,56 @@ export function macCreditMarker(userId: string) { return `bloom-mac-active:${use
 export function macUsageKey(userId: string) { return `bloom-mac-usage:${userId}`; }
 
 
-export async function macosFilter(action: 'activate' | 'start' | 'stop' | 'clearManualDomains' | 'cleanupHosts' | 'hostsRecoveryStatus' | 'hostsPolicyStatus' | 'syncHostsManaged' | 'enrollHosts' | 'startHostsUsage' | 'stopHostsUsage' | 'clearManualApps' | 'status' | 'appStatus' | 'clock' | 'startCreditAccess' | 'endCreditAccess' | 'activateApps' | 'chooseApp' | 'listInstalledApps' | 'startApps' | 'stopApps' | 'getUsageAccess' | 'startUsageAccess' | 'closeUsageAccess' | 'clearUsageAccess' | 'openAccessibilitySettings' | 'syncManagedRules', domains?: string[], timing?: FilterTiming, apps?: string[], targets?: MacCreditTargets, usage?: MacUsageRequest, accountId?: string) {
+type MacosFilterAction =
+  | 'activate' | 'start' | 'stop' | 'clearManualDomains' | 'cleanupHosts' | 'hostsRecoveryStatus'
+  | 'hostsPolicyStatus' | 'syncHostsManaged' | 'enrollHosts' | 'startHostsUsage' | 'stopHostsUsage'
+  | 'clearManualApps' | 'status' | 'appStatus' | 'clock' | 'startCreditAccess' | 'endCreditAccess'
+  | 'activateApps' | 'chooseApp' | 'listInstalledApps' | 'startApps' | 'stopApps'
+  | 'getUsageAccess' | 'startUsageAccess' | 'closeUsageAccess' | 'clearUsageAccess'
+  | 'openAccessibilitySettings' | 'syncManagedRules';
+
+function typedCommandForAction(action: MacosFilterAction): string {
+  switch (action) {
+    case 'status':
+    case 'appStatus':
+    case 'clock':
+    case 'hostsRecoveryStatus':
+    case 'hostsPolicyStatus':
+    case 'openAccessibilitySettings':
+      return 'macos_blocking_status';
+    case 'activate':
+    case 'start':
+    case 'stop':
+    case 'clearManualDomains':
+    case 'cleanupHosts':
+    case 'syncHostsManaged':
+    case 'enrollHosts':
+    case 'syncManagedRules':
+      return 'macos_manage_website_rules';
+    case 'activateApps':
+    case 'chooseApp':
+    case 'listInstalledApps':
+    case 'startApps':
+    case 'stopApps':
+    case 'clearManualApps':
+      return 'macos_manage_app_rules';
+    case 'startCreditAccess':
+    case 'endCreditAccess':
+      return 'macos_credit_session';
+    case 'getUsageAccess':
+    case 'startUsageAccess':
+    case 'closeUsageAccess':
+    case 'clearUsageAccess':
+    case 'startHostsUsage':
+    case 'stopHostsUsage':
+      return 'macos_usage_session';
+  }
+}
+
+export async function macosFilter(action: MacosFilterAction, domains?: string[], timing?: FilterTiming, apps?: string[], targets?: MacCreditTargets, usage?: MacUsageRequest, accountId?: string) {
   let result: FilterResult;
-  try { result = await invoke<FilterResult>('macos_filter', { action, domains, apps, timing, targets, usage, accountId }); }
+  const command = typedCommandForAction(action);
+  try { result = await invoke<FilterResult>(command, { action, domains, apps, timing, targets, usage, accountId }); }
   catch (cause) { throw new Error(typeof cause === 'string' ? cause : 'Could not contact the macOS filter.'); }
   if (!result.ok) throw new Error(result.error || 'Could not update the macOS filter.');
   return result;

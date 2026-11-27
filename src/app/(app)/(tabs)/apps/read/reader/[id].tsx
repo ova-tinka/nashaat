@@ -7,8 +7,8 @@ import { isTauri } from '@tauri-apps/api/core';
 import { Body, Button, ErrorText, Eyebrow, Field, Heading, Label, Panel, Screen, sharedStyles } from '../../../../../../components/bloom-ui';
 import { ReadingDocumentView } from '../../../../../../components/reading-document-view';
 import { useAuth } from '../../../../../../lib/auth';
-import { createGrowthDocumentUrl, deleteGrowthRecord, finishGrowthSession, loadGrowthDocuments, loadGrowthModule,
-  saveGrowthRecord, startGrowthSession, cancelGrowthSession, updateGrowthRecord,
+import { createGrowthDocumentUrl, deleteGrowthRecord, finishGrowthSession, loadDocumentReaderRecords, loadGrowthDocumentById,
+  loadGrowthItemById, loadGrowthModule, saveGrowthRecord, startGrowthSession, cancelGrowthSession, upsertReaderPosition,
   type GrowthDocument, type GrowthItem, type GrowthRecord, type GrowthSession } from '../../../../../../lib/growth-modules';
 import { getCurrentDeviceIdentity } from '../../../../../../lib/devices';
 import { useBloomTheme } from '../../../../../../lib/theme-context';
@@ -56,10 +56,15 @@ export default function IntegratedReaderScreen() {
     if (!profileId || !id) { setLoading(false); setError('The reading profile or file is unavailable.'); return; }
     setLoading(true); setError(null);
     try {
-      const [documents, module] = await Promise.all([loadGrowthDocuments('read'), loadGrowthModule(profileId, 'read')]);
-      const found = documents.find((entry) => entry.id === id);
-      const foundItem = found ? module.items.find((entry) => entry.id === found.item_id) ?? null : null;
-      if (!found || !foundItem) throw new Error('This private reading file is not available to this profile.');
+      const found = await loadGrowthDocumentById(profileId, 'read', id);
+      const [foundItem, docRecords, module] = found
+        ? await Promise.all([
+            loadGrowthItemById(profileId, 'read', found.item_id),
+            loadDocumentReaderRecords(profileId, found.id),
+            loadGrowthModule(profileId, 'read'),
+          ])
+        : [null, [], null];
+      if (!found || !foundItem || !module) throw new Error('This private reading file is not available to this profile.');
       if (found.format === 'docx') throw new Error('DOCX documents are available in Study, not the Read library.');
       const macTauriApp = Platform.OS === 'web' && typeof navigator !== 'undefined'
         && isTauri() && isMacTauriWebView(navigator.platform, navigator.userAgent);
@@ -69,9 +74,9 @@ export default function IntegratedReaderScreen() {
         throw new Error('Bloom’s in-app PDF and EPUB reader is available on web. Open this file from Bloom in a web browser.');
       }
       const signed = await createGrowthDocumentUrl(found.storage_path);
-      setDocument(found as GrowthDocument & { format: 'pdf' | 'epub' }); setItem(foundItem); setRecords(module.records); setUrl(signed);
+      setDocument(found as GrowthDocument & { format: 'pdf' | 'epub' }); setItem(foundItem); setRecords(docRecords); setUrl(signed);
       setSession(module.sessions.find((entry) => entry.status === 'in_progress') ?? null);
-      const record = module.records.filter((entry) => entry.kind === 'reader_position' && entry.metadata.document_id === found.id)
+      const record = docRecords.filter((entry) => entry.kind === 'reader_position' && entry.metadata.document_id === found.id)
         .sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at))[0] ?? null;
       savedPosition.current = record;
       const location = parseLocation(record);
@@ -120,17 +125,12 @@ export default function IntegratedReaderScreen() {
         const title = 'Reading position · ' + document.title;
         const body = JSON.stringify(positionToSave);
         const metadata = { document_id: document.id };
-        if (savedPosition.current) await updateGrowthRecord(savedPosition.current.id, title, body, metadata);
-        else {
-          if (pendingPosition.current?.signature !== signature) pendingPosition.current = { signature, requestId: randomUUID() };
-          const recordId = await saveGrowthRecord({ moduleId: 'read', itemId: item.id, kind: 'reader_position', title, body,
-            metadata, requestId: pendingPosition.current.requestId });
-          const now = new Date().toISOString();
-          savedPosition.current = { id: recordId, module_id: 'read', item_id: item.id,
-            kind: 'reader_position', title, body, metadata, scheduled_at: null, score: null,
-            created_at: now, updated_at: now };
-          pendingPosition.current = null;
-        }
+        const recordId = await upsertReaderPosition(document.id, title, body);
+        const now = new Date().toISOString();
+        savedPosition.current = { id: recordId, module_id: 'read', item_id: item.id,
+          kind: 'reader_position', title, body, metadata, scheduled_at: null, score: null,
+          created_at: savedPosition.current?.created_at ?? now, updated_at: now };
+        pendingPosition.current = null;
         // Keep progress scoped to this document; the item update RPC rewrites every item field.
         setNotice(null);
       } catch { setNotice('The current position is shown, but Bloom could not save it yet. Retry from this page.'); }
@@ -139,9 +139,12 @@ export default function IntegratedReaderScreen() {
   }
 
   async function syncModuleState() {
-    if (!profileId) return;
-    const module = await loadGrowthModule(profileId, 'read');
-    setRecords(module.records);
+    if (!profileId || !document) return;
+    const [docRecords, module] = await Promise.all([
+      loadDocumentReaderRecords(profileId, document.id),
+      loadGrowthModule(profileId, 'read'),
+    ]);
+    setRecords(docRecords);
     setSession(module.sessions.find((entry) => entry.status === 'in_progress') ?? null);
   }
 

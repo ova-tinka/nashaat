@@ -89,6 +89,7 @@ bloom_fixtures+=(read-reflection-memory.sql)
 bloom_fixtures+=(default-personal-memory.sql)
 bloom_fixtures+=(study-tutor-quota.sql)
 bloom_fixtures+=(weekly-earning-cap.sql)
+bloom_fixtures+=(reader-records.sql)
 if [[ "${BLOOM_SKIP_PUBLIC_COMPETITIONS:-0}" != "1" ]]; then
   bloom_fixtures+=(competitions.sql)
 fi

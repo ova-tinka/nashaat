@@ -212,6 +212,74 @@ export async function loadGrowthDocuments(moduleId: 'study' | 'read'): Promise<G
   return (data ?? []).map((document) => ({ ...document, byte_size: Number(document.byte_size) })) as GrowthDocument[];
 }
 
+export async function loadGrowthDocumentsPage(
+  moduleId: 'study' | 'read',
+  options: { limit?: number; offset?: number } = {},
+): Promise<{ documents: GrowthDocument[]; hasMore: boolean }> {
+  const limit = Math.max(1, Math.min(100, options.limit ?? 25));
+  const offset = Math.max(0, options.offset ?? 0);
+  const { data } = await growthQuery('bloom_growth_documents', client().from('bloom_growth_documents')
+    .select('id,profile_id,module_id,item_id,title,file_name,format,mime_type,byte_size,storage_path,created_at')
+    .eq('module_id', moduleId)
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit));
+  const rows = ((data ?? []).map((document) => ({ ...document, byte_size: Number(document.byte_size) })) as GrowthDocument[]);
+  return {
+    documents: rows.slice(0, limit),
+    hasMore: rows.length > limit,
+  };
+}
+
+export async function loadGrowthDocumentById(
+  profileId: string,
+  moduleId: 'study' | 'read',
+  documentId: string,
+): Promise<GrowthDocument | null> {
+  const { data } = await growthQuery('bloom_growth_documents', client().from('bloom_growth_documents')
+    .select('id,profile_id,module_id,item_id,title,file_name,format,mime_type,byte_size,storage_path,created_at')
+    .eq('profile_id', profileId)
+    .eq('module_id', moduleId)
+    .eq('id', documentId)
+    .maybeSingle());
+  return data ? ({ ...data, byte_size: Number(data.byte_size) } as GrowthDocument) : null;
+}
+
+export async function loadGrowthItemById(
+  profileId: string,
+  moduleId: GrowthModuleId,
+  itemId: string,
+): Promise<GrowthItem | null> {
+  const { data } = await growthQuery('bloom_growth_items', client().from('bloom_growth_items')
+    .select('id,parent_id,module_id,item_type,title,notes,state,due_date,target_minutes,progress_percent,priority,postponed_until,reading_status,reading_kind,author,genre,page_count,current_page,artwork_id,completed_at,created_at,updated_at')
+    .eq('profile_id', profileId)
+    .eq('module_id', moduleId)
+    .eq('id', itemId)
+    .maybeSingle());
+  return data ? ({ ...data, progress_percent: Number(data.progress_percent) } as GrowthItem) : null;
+}
+
+export async function loadDocumentReaderRecords(profileId: string, documentId: string): Promise<GrowthRecord[]> {
+  const { data } = await growthQuery('bloom_growth_records', client().from('bloom_growth_records')
+    .select('id,module_id,item_id,kind,title,body,metadata,scheduled_at,score,created_at,updated_at')
+    .eq('profile_id', profileId)
+    .eq('module_id', 'read')
+    .in('kind', ['reader_position', 'reader_bookmark'])
+    .contains('metadata', { document_id: documentId })
+    .order('created_at', { ascending: false })
+    .limit(200));
+  return (data ?? []) as GrowthRecord[];
+}
+
+export async function upsertReaderPosition(documentId: string, title: string, body: string): Promise<string> {
+  const { data, error } = await client().rpc('bloom_upsert_reader_position', {
+    p_document_id: documentId,
+    p_title: title,
+    p_body: body,
+  });
+  if (error || typeof data !== 'string') throw error ?? new Error('Could not save reading position.');
+  return data;
+}
+
 export async function createGrowthDocument(args: {
   moduleId: 'study' | 'read'; itemId: string; title: string; fileName: string; format: 'pdf' | 'docx' | 'epub';
   mimeType: string; byteSize: number; requestId: string;
