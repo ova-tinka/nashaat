@@ -1,6 +1,20 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type PropsWithChildren } from 'react';
 import { AppState, Platform } from 'react-native';
-import { loadBloomData, updateCreditRules, updateCredits, type ActiveWorkout, type CreditSettings, type Subscription, type WorkoutAnalytics, type WorkoutPlan } from './bloom';
+import {
+  ensureBloomSettingsInitialized,
+  loadAnalyticsSection,
+  loadSubscriptionSection,
+  loadWalletSection,
+  loadWorkoutsSection,
+  updateCreditRules,
+  updateCredits,
+  type ActiveWorkout,
+  type CreditSettings,
+  type Subscription,
+  type WorkoutAnalytics,
+  type WorkoutPlan,
+} from './bloom';
+import { createProfileQueryCoordinator, loadSectionsIndependently } from './bloom-data-cache';
 import { isMacDesktop } from './macos-blocking';
 import { cancelBlockingRulesSync, syncBlockingRules, type BlockingRulesPlatform } from './blocking-rules-sync';
 import type { ChildRule } from './family';
@@ -26,6 +40,7 @@ type BloomState = {
   saveCreditRules: (settings: Omit<CreditSettings, 'credits_enabled'>) => Promise<void>;
 };
 const BloomContext = createContext<BloomState | null>(null);
+const bloomCoordinator = createProfileQueryCoordinator();
 
 export function BloomProvider({ userId, children }: PropsWithChildren<{ userId: string }>) {
   const [plans, setPlans] = useState<WorkoutPlan[]>([]);
@@ -47,17 +62,32 @@ export function BloomProvider({ userId, children }: PropsWithChildren<{ userId: 
     const version = ++refreshVersion.current;
     setError(null);
     try {
-      const data = await loadBloomData(userId);
+      await bloomCoordinator.ensureInitializedOnce(userId, () => ensureBloomSettingsInitialized(userId));
+      const { values, errors } = await loadSectionsIndependently({
+        wallet: () => bloomCoordinator.runDeduplicated(userId, 'wallet', () => loadWalletSection(userId)),
+        workouts: () => bloomCoordinator.runDeduplicated(userId, 'workouts', () => loadWorkoutsSection(userId)),
+        analytics: () => bloomCoordinator.runDeduplicated(userId, 'analytics', () => loadAnalyticsSection()),
+        subscription: () => bloomCoordinator.runDeduplicated(userId, 'subscription', () => loadSubscriptionSection()),
+      });
       if (version !== refreshVersion.current) return;
-      setPlans(data.plans);
-      setCompletedSessions(data.completedSessions);
-      setActiveWorkout(data.activeWorkout);
-      setCreditsEnabled(data.creditsEnabled);
-      setCreditSettings(data.creditSettings);
-      setCreditBalance(data.creditBalance);
-      setWorkoutAnalytics(data.workoutAnalytics);
-      setSubscription(data.subscription);
-      setLastConfirmedAt({ userId, at: Date.now() });
+      if (values.wallet) {
+        setCreditsEnabled(values.wallet.creditsEnabled);
+        setCreditSettings(values.wallet.creditSettings);
+        setCreditBalance(values.wallet.creditBalance);
+      }
+      if (values.workouts) {
+        setPlans(values.workouts.plans);
+        setCompletedSessions(values.workouts.completedSessions);
+        setActiveWorkout(values.workouts.activeWorkout);
+      }
+      if (values.analytics) setWorkoutAnalytics(values.analytics);
+      if ('subscription' in values) setSubscription(values.subscription ?? null);
+      if (values.wallet || values.workouts) {
+        setLastConfirmedAt({ userId, at: Date.now() });
+      }
+      if (errors.wallet && errors.workouts) {
+        setError('Could not load your Bloom data. Check your connection and try again.');
+      }
     } catch {
       if (version === refreshVersion.current) setError('Could not load your Bloom data. Check your connection and try again.');
     } finally {
@@ -120,6 +150,7 @@ export function BloomProvider({ userId, children }: PropsWithChildren<{ userId: 
 
   async function changeCredits(enabled: boolean) {
     await updateCredits(userId, enabled);
+    bloomCoordinator.invalidate(userId, ['wallet']);
     refreshVersion.current += 1;
     setCreditsEnabled(enabled);
     setCreditSettings((current) => current ? { ...current, credits_enabled: enabled } : current);
@@ -127,6 +158,7 @@ export function BloomProvider({ userId, children }: PropsWithChildren<{ userId: 
 
   async function saveCreditRules(settings: Omit<CreditSettings, 'credits_enabled'>) {
     await updateCreditRules(userId, settings);
+    bloomCoordinator.invalidate(userId, ['wallet']);
     refreshVersion.current += 1;
     setCreditSettings((current) => current ? { ...current, ...settings } : current);
   }

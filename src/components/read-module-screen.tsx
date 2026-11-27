@@ -140,23 +140,29 @@ export function ReadModuleScreen({ sectionId }: { sectionId?: string }) {
     try {
       await flushOfflineActivitiesForProfile(profileId).catch(() => undefined);
       setPendingOfflineCount(await getPendingOfflineCount(profileId).catch(() => 0));
+      const needsReport = section === 'today' || section === 'progress';
+      const needsDocs = section === 'library' || section === 'item';
       const rangeStart = new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString();
-      const [moduleData, nextDocuments, rewards, nextGoals, nextReportSessions] = await Promise.all([
-        loadGrowthModule(profileId, 'read'),
-        loadGrowthDocuments('read'),
-        loadGrowthRewards(profileId),
-        loadWeeklyPillarGoals(),
-        loadReadSessionsSince(profileId, rangeStart),
-      ]);
+      const moduleData = await loadGrowthModule(profileId, 'read');
       if (version !== requestVersion.current) return;
       setItems(moduleData.items);
       setSessions(moduleData.sessions);
       setRecords(moduleData.records);
-      setDocuments(nextDocuments);
-      setRewardRules(rewards.rules);
-      setRewardEvents(rewards.events);
-      setGoals(nextGoals);
-      setReportSessions(nextReportSessions);
+
+      const [docsRes, rewardsRes, goalsRes, reportRes] = await Promise.allSettled([
+        needsDocs ? loadGrowthDocuments('read') : Promise.resolve(null),
+        needsReport ? loadGrowthRewards(profileId) : Promise.resolve(null),
+        needsReport ? loadWeeklyPillarGoals() : Promise.resolve(null),
+        needsReport ? loadReadSessionsSince(profileId, rangeStart) : Promise.resolve(null),
+      ]);
+      if (version !== requestVersion.current) return;
+      if (docsRes.status === 'fulfilled' && docsRes.value) setDocuments(docsRes.value);
+      if (rewardsRes.status === 'fulfilled' && rewardsRes.value) {
+        setRewardRules(rewardsRes.value.rules);
+        setRewardEvents(rewardsRes.value.events);
+      }
+      if (goalsRes.status === 'fulfilled' && goalsRes.value) setGoals(goalsRes.value);
+      if (reportRes.status === 'fulfilled' && reportRes.value) setReportSessions(reportRes.value);
       setTick(Date.now());
     } catch (cause) {
       if (version === requestVersion.current) {
@@ -167,7 +173,7 @@ export function ReadModuleScreen({ sectionId }: { sectionId?: string }) {
     } finally {
       if (version === requestVersion.current) setLoading(false);
     }
-  }, [profileId]);
+  }, [profileId, section]);
 
   useFocusEffect(useCallback(() => {
     void refresh();

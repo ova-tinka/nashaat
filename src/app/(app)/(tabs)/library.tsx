@@ -1,13 +1,14 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router, type Href } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, I18nManager, Pressable, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, FlatList, I18nManager, Pressable, StyleSheet, View } from 'react-native';
 import { Body, Button, ErrorText, Eyebrow, Field, Heading, Label, LocalizedText as Text, Panel, Screen, sharedStyles, useIsDesktopColumns } from '../../../components/bloom-ui';
 import { ExerciseArtwork } from '../../../components/exercise-artwork';
-import { createCustomExercise, loadCatalog, type Exercise, type Measurement } from '../../../lib/bloom';
+import { createCustomExercise, loadCatalogPage, loadExercise, type Exercise, type Measurement } from '../../../lib/bloom';
 import { useBloomTheme } from '../../../lib/theme-context';
 
 type Filter = 'all' | 'reps' | 'timed';
+const PAGE_SIZE = 25;
 
 function isTimed(exercise: Exercise) {
   return exercise.measurement_type === 'time_only' || exercise.measurement_type === 'time_distance';
@@ -18,7 +19,10 @@ export default function ExerciseLibraryScreen() {
   const exerciseColors = theme.modules.exercise;
   const desktopColumns = useIsDesktopColumns();
   const [exercises, setExercises] = useState<Exercise[]>([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedDetail, setSelectedDetail] = useState<Exercise | null>(null);
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
@@ -31,28 +35,52 @@ export default function ExerciseLibraryScreen() {
   const [measurement, setMeasurement] = useState<Measurement>('reps_only');
   const [formError, setFormError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const loadFirstPage = useCallback(async () => {
     setLoading(true);
     setError(null);
-    try { setExercises(await loadCatalog()); }
-    catch { setError('Could not load the exercise library. Check your connection and try again.'); }
-    finally { setLoading(false); }
-  }, []);
+    try {
+      const page = await loadCatalogPage({ limit: PAGE_SIZE, offset: 0, query, filter });
+      setExercises(page.exercises);
+      setHasMore(page.hasMore);
+    } catch {
+      setError('Could not load the exercise library. Check your connection and try again.');
+    } finally {
+      setLoading(false);
+    }
+  }, [filter, query]);
 
-  // Fetch catalog data on screen mount.
+  // Fetch catalog data when filter/query changes.
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { void loadFirstPage(); }, [loadFirstPage]);
 
-  const matching = useMemo(() => {
-    const term = query.trim().toLowerCase();
-    return exercises.filter((exercise) => {
-      if (filter === 'timed' && !isTimed(exercise)) return false;
-      if (filter === 'reps' && isTimed(exercise)) return false;
-      return !term || [exercise.name, exercise.description ?? '', exercise.muscle_group ?? '', ...(exercise.muscle_groups ?? [])]
-        .some((value) => value.toLowerCase().includes(term));
-    });
-  }, [exercises, filter, query]);
-  const selectedExercise = matching.find((exercise) => exercise.id === selectedId) ?? null;
+  useEffect(() => {
+    let active = true;
+    if (!selectedId || !desktopColumns) {
+      return () => { active = false; };
+    }
+    void loadExercise(selectedId).then((detail) => {
+      if (active && detail) setSelectedDetail(detail);
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, [desktopColumns, selectedId]);
+
+  async function loadNextPage() {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    try {
+      const page = await loadCatalogPage({ limit: PAGE_SIZE, offset: exercises.length, query, filter });
+      setExercises((current) => [...current, ...page.exercises]);
+      setHasMore(page.hasMore);
+    } catch {
+      setError('Could not load more exercises. Check your connection and try again.');
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
+  const selectedExercise = selectedDetail?.id === selectedId
+    ? selectedDetail
+    : exercises.find((exercise) => exercise.id === selectedId) ?? null;
 
   function openExercise(exercise: Exercise) {
     router.push({ pathname: '/exercise/[id]', params: { id: exercise.id } } as unknown as Href);
@@ -64,7 +92,7 @@ export default function ExerciseLibraryScreen() {
     try {
       await createCustomExercise(name, description, measurement);
       setName(''); setDescription(''); setMeasurement('reps_only'); setCreating(false);
-      await load();
+      await loadFirstPage();
     } catch { setFormError('Could not save the exercise. Check your connection and try again.'); }
     finally { setSaving(false); }
   }
@@ -96,22 +124,41 @@ export default function ExerciseLibraryScreen() {
       })}
     </View>
     {loading && <ActivityIndicator color={exerciseColors.deep} />}
-    {error && <Panel><ErrorText>{error}</ErrorText><Button label="Try again" onPress={() => void load()} /></Panel>}
-    {!loading && !error && matching.length === 0 && <Panel><Label>No exercises found</Label><Body>Try a different search or exercise type.</Body></Panel>}
-    {!loading && !error && matching.map((exercise) => <Pressable key={exercise.id} onPress={() => desktopColumns ? setSelectedId(exercise.id) : openExercise(exercise)} accessibilityRole="button" accessibilityLabel={`${desktopColumns ? 'Select' : 'View'} ${exercise.name}`} accessibilityState={{ selected: selectedId === exercise.id }} onFocus={() => setFocusedId(exercise.id)} onBlur={() => setFocusedId((current) => current === exercise.id ? null : current)} style={[styles.exerciseChoice, { borderColor: focusedId === exercise.id ? theme.colors.focusRing : selectedId === exercise.id && desktopColumns ? exerciseColors.deep : 'transparent' }]}>
-      <Panel>
-        <View style={styles.exerciseRow}>
-          <ExerciseArtwork exercise={exercise} size="small" />
-          <View style={sharedStyles.grow}>
-            <Label>{exercise.name}</Label>
-            <Body>{exercise.bloom_owner_user_id ? 'Custom exercise' : exercise.muscle_groups?.length ? exercise.muscle_groups.join(' · ') : exercise.muscle_group || (isTimed(exercise) ? 'Timed exercise' : 'Repetition exercise')}</Body>
-          </View>
-          <MaterialIcons name="chevron-right" color={theme.colors.inkMuted} size={24} style={I18nManager.isRTL ? styles.directionalIcon : undefined} />
-        </View>
-        {exercise.description && <Body>{exercise.description}</Body>}
-        <Body>{isTimed(exercise) ? 'Time-based targets' : exercise.measurement_type === 'reps_weight' ? 'Repetitions and weight targets' : 'Repetition targets'}</Body>
-      </Panel>
-    </Pressable>)}
+    {error && <Panel><ErrorText>{error}</ErrorText><Button label="Try again" onPress={() => void loadFirstPage()} /></Panel>}
+    {!loading && !error && exercises.length === 0 && <Panel><Label>No exercises found</Label><Body>Try a different search or exercise type.</Body></Panel>}
+    {!loading && !error && exercises.length > 0 && <FlatList
+      data={exercises}
+      keyExtractor={(exercise) => exercise.id}
+      scrollEnabled={false}
+      initialNumToRender={12}
+      maxToRenderPerBatch={12}
+      windowSize={5}
+      renderItem={({ item: exercise }) => (
+        <Pressable
+          onPress={() => desktopColumns ? setSelectedId(exercise.id) : openExercise(exercise)}
+          accessibilityRole="button"
+          accessibilityLabel={`${desktopColumns ? 'Select' : 'View'} ${exercise.name}`}
+          accessibilityState={{ selected: selectedId === exercise.id }}
+          onFocus={() => setFocusedId(exercise.id)}
+          onBlur={() => setFocusedId((current) => current === exercise.id ? null : current)}
+          style={[styles.exerciseChoice, { borderColor: focusedId === exercise.id ? theme.colors.focusRing : selectedId === exercise.id && desktopColumns ? exerciseColors.deep : 'transparent' }]}
+        >
+          <Panel>
+            <View style={styles.exerciseRow}>
+              <ExerciseArtwork exercise={exercise} size="small" />
+              <View style={sharedStyles.grow}>
+                <Label>{exercise.name}</Label>
+                <Body>{exercise.bloom_owner_user_id ? 'Custom exercise' : exercise.muscle_groups?.length ? exercise.muscle_groups.join(' · ') : exercise.muscle_group || (isTimed(exercise) ? 'Timed exercise' : 'Repetition exercise')}</Body>
+              </View>
+              <MaterialIcons name="chevron-right" color={theme.colors.inkMuted} size={24} style={I18nManager.isRTL ? styles.directionalIcon : undefined} />
+            </View>
+            {exercise.description && <Body>{exercise.description}</Body>}
+            <Body>{isTimed(exercise) ? 'Time-based targets' : exercise.measurement_type === 'reps_weight' ? 'Repetitions and weight targets' : 'Repetition targets'}</Body>
+          </Panel>
+        </Pressable>
+      )}
+      ListFooterComponent={hasMore ? <Button label={loadingMore ? 'Loading…' : 'Load more exercises'} secondary busy={loadingMore} onPress={() => void loadNextPage()} /> : undefined}
+    />}
     </View>
     {desktopColumns && <View style={styles.detailColumn}>
       <Panel>

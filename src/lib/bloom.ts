@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { calculateExerciseRecords, type ExerciseAchievement, type ExercisePersonalBest, type ExerciseStreak } from './exercise-records';
+import { calculateExerciseStreak, type ExerciseAchievement, type ExercisePersonalBest, type ExerciseStreak } from './exercise-records';
 
 export type Measurement = 'reps_weight' | 'reps_only' | 'time_only' | 'time_distance';
 export type Exercise = {
@@ -141,11 +141,64 @@ function client() {
 
 export async function loadExercisePersonalBests(userId: string, timeZone = 'UTC'): Promise<{ bests: ExercisePersonalBest[]; achievements: ExerciseAchievement[]; streak: ExerciseStreak }> {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) throw new Error('Invalid profile.');
-  const { data, error } = await client().from('bloom_workout_sessions')
-    .select('completed_at,plan_snapshot,exercise_results')
-    .eq('user_id', userId).eq('status', 'completed').order('completed_at', { ascending: false }).limit(1000);
+  const { data, error } = await client().rpc('bloom_exercise_personal_bests', { p_user_id: userId });
+  if (error || !data || typeof data !== 'object') throw error ?? new Error('Could not load exercise records.');
+  const payload = data as { total_completed?: unknown; bests?: unknown; completed_dates?: unknown };
+  const totalCompleted = Number(payload.total_completed ?? 0);
+  const bests = Array.isArray(payload.bests) ? (payload.bests as ExercisePersonalBest[]) : [];
+  const completedDates = Array.isArray(payload.completed_dates)
+    ? payload.completed_dates.map((d) => ({ completed_at: `${String(d)}T12:00:00Z` }))
+    : [];
+  const streak = calculateExerciseStreak(completedDates, timeZone);
+  const milestones = [1, 5, 10, 25, 50, 100].filter((m) => totalCompleted >= m);
+  const achievements: ExerciseAchievement[] = milestones
+    .reverse()
+    .map((count) => ({
+      id: `workouts:${count}`,
+      title: count === 1 ? 'First completed workout' : `${count} completed workouts`,
+      explanation: 'Based on saved, completed workout records.',
+      achievedAt: new Date().toISOString(),
+    }));
+  return { bests, achievements, streak };
+}
+
+export async function loadCatalogPage(options: {
+  targetUserId?: string;
+  limit?: number;
+  offset?: number;
+  query?: string;
+  filter?: 'all' | 'reps' | 'timed';
+} = {}): Promise<{ exercises: Exercise[]; hasMore: boolean }> {
+  const db = client();
+  const current = options.targetUserId ? null : await db.rpc('bloom_current_profile');
+  if (current?.error) throw current.error;
+  const owner = options.targetUserId ?? current?.data?.profile_id;
+  if (!owner) throw new Error('Sign in to view your exercises.');
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(owner)) throw new Error('Invalid profile.');
+  const limit = Math.max(1, Math.min(100, options.limit ?? 25));
+  const offset = Math.max(0, options.offset ?? 0);
+  let req = db.from('exercises')
+    .select('id,name,description,muscle_group,muscle_groups,measurement_type,media_link,bloom_owner_user_id')
+    .or(`is_system.eq.true,bloom_owner_user_id.eq.${owner}`);
+  if (options.filter === 'timed') {
+    req = req.in('measurement_type', ['time_only', 'time_distance']);
+  } else if (options.filter === 'reps') {
+    req = req.in('measurement_type', ['reps_only', 'reps_weight']);
+  }
+  const term = options.query?.trim();
+  if (term) {
+    const safeTerm = term.replace(/[,%()]/g, ' ').trim();
+    if (safeTerm) {
+      req = req.or(`name.ilike.%${safeTerm}%,description.ilike.%${safeTerm}%,muscle_group.ilike.%${safeTerm}%`);
+    }
+  }
+  const { data, error } = await req.order('name').range(offset, offset + limit);
   if (error) throw error;
-  return calculateExerciseRecords((data ?? []).reverse(), timeZone);
+  const rows = ((data ?? []) as unknown as Exercise[]).map((row) => ({ ...row, instructions: row.instructions ?? null }));
+  return {
+    exercises: rows.slice(0, limit),
+    hasMore: rows.length > limit,
+  };
 }
 
 export async function loadCatalog(targetUserId?: string): Promise<Exercise[]> {
@@ -179,15 +232,36 @@ export async function createCustomExercise(name: string, description: string, me
   return data;
 }
 
-export async function loadBloomData(userId: string) {
+export async function ensureBloomSettingsInitialized(userId: string): Promise<void> {
   const db = client();
+  const existing = await db.from('bloom_settings').select('user_id').eq('user_id', userId).maybeSingle();
+  if (existing.error) throw existing.error;
+  if (existing.data) return;
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-  const { error: settingsError } = await db.from('bloom_settings')
+  const { error } = await db.from('bloom_settings')
     .upsert({ user_id: userId, credit_timezone: timezone }, { onConflict: 'user_id', ignoreDuplicates: true });
-  if (settingsError) throw settingsError;
+  if (error) throw error;
+}
 
-  const [settings, plans, sessions, activeWorkout, subscription, balance, analytics, planProgress] = await Promise.all([
+export async function loadWalletSection(userId: string) {
+  const db = client();
+  const [settings, balance] = await Promise.all([
     db.from('bloom_settings').select('credits_enabled,credit_mode,credit_timezone,earning_strategy,reps_per_award,rep_award_minutes,exercise_minutes_per_award,time_award_minutes,super_daily_cap_minutes,weekly_workout_target,weekly_credit_target_minutes,weekly_earning_cap_minutes').eq('user_id', userId).single(),
+    db.rpc('bloom_credit_balance'),
+  ]);
+  if (settings.error) throw settings.error;
+  if (balance.error) throw balance.error;
+  if (!settings.data) throw new Error('Settings are unavailable.');
+  return {
+    creditsEnabled: settings.data.credits_enabled as boolean,
+    creditSettings: settings.data as CreditSettings,
+    creditBalance: Number(balance.data ?? 0),
+  };
+}
+
+export async function loadWorkoutsSection(userId: string) {
+  const db = client();
+  const [plans, sessions, activeWorkout] = await Promise.all([
     db.from('bloom_workout_plans')
       .select('id,title,created_at,scheduled_days,bloom_plan_exercises(position,sets,target_reps,target_seconds,target_weight_kg,target_distance_km,exercise:exercises(id,name,measurement_type,description,instructions,media_link))')
       .eq('user_id', userId).order('created_at', { ascending: false }),
@@ -195,25 +269,47 @@ export async function loadBloomData(userId: string) {
       .eq('user_id', userId).not('completed_at', 'is', null),
     db.from('bloom_workout_sessions').select('id,plan_id,started_at')
       .eq('user_id', userId).eq('status', 'in_progress').maybeSingle(),
-    db.from('bloom_subscriptions').select('id,status,current_period_end')
-      .order('created_at', { ascending: false }).limit(1).maybeSingle(),
-    db.rpc('bloom_credit_balance'),
-    db.rpc('bloom_workout_analytics'),
-    db.rpc('bloom_weekly_plan_progress'),
   ]);
-  for (const result of [settings, plans, sessions, activeWorkout, subscription, balance, analytics, planProgress]) {
+  for (const result of [plans, sessions, activeWorkout]) {
     if (result.error) throw result.error;
   }
-  if (!settings.data) throw new Error('Settings are unavailable.');
   return {
-    creditsEnabled: settings.data.credits_enabled as boolean,
-    creditSettings: settings.data as CreditSettings,
-    creditBalance: Number(balance.data ?? 0),
     plans: (plans.data ?? []) as unknown as WorkoutPlan[],
     completedSessions: sessions.count ?? 0,
     activeWorkout: activeWorkout.data as ActiveWorkout | null,
-    subscription: subscription.data as Subscription | null,
-    workoutAnalytics: { ...(analytics.data as WorkoutAnalytics), ...(planProgress.data as Pick<WorkoutAnalytics, 'planned_workouts' | 'completed_planned_workouts' | 'scheduled_days' | 'rest_days' | 'missed_planned_workouts'>) },
+  };
+}
+
+export async function loadAnalyticsSection() {
+  const db = client();
+  const [analytics, planProgress] = await Promise.all([
+    db.rpc('bloom_workout_analytics'),
+    db.rpc('bloom_weekly_plan_progress'),
+  ]);
+  if (analytics.error) throw analytics.error;
+  if (planProgress.error) throw planProgress.error;
+  return { ...(analytics.data as WorkoutAnalytics), ...(planProgress.data as Pick<WorkoutAnalytics, 'planned_workouts' | 'completed_planned_workouts' | 'scheduled_days' | 'rest_days' | 'missed_planned_workouts'>) };
+}
+
+export async function loadSubscriptionSection() {
+  const { data, error } = await client().from('bloom_subscriptions').select('id,status,current_period_end')
+    .order('created_at', { ascending: false }).limit(1).maybeSingle();
+  if (error) throw error;
+  return data as Subscription | null;
+}
+
+export async function loadBloomData(userId: string) {
+  const [wallet, workouts, workoutAnalytics, subscription] = await Promise.all([
+    loadWalletSection(userId),
+    loadWorkoutsSection(userId),
+    loadAnalyticsSection(),
+    loadSubscriptionSection(),
+  ]);
+  return {
+    ...wallet,
+    ...workouts,
+    subscription,
+    workoutAnalytics,
   };
 }
 
