@@ -73,11 +73,14 @@ export async function requestStudyTutor(requestId: string, itemId: string, promp
   const { data, error } = await client().functions.invoke('bloom-study-tutor', {
     body: { request_id: requestId, item_id: itemId, prompt },
   });
+  if (!error && data?.status === 'cleared') {
+    return { status: 'cleared' as const };
+  }
   if (error || !data || data.status !== 'answered' || typeof data.answer !== 'string'
     || data.answer_scope !== 'general' || typeof data.uncertainty !== 'string') {
     throw new Error(typeof data?.error === 'string' ? data.error : 'Study tutor is not available or consent is incomplete.');
   }
-  return { answer: data.answer, answerScope: 'general' as const, uncertainty: data.uncertainty };
+  return { status: 'answered' as const, answer: data.answer, answerScope: 'general' as const, uncertainty: data.uncertainty };
 }
 
 export async function requestReadingReflection(requestId: string, itemId: string): Promise<ReadReflectionPrompt> {

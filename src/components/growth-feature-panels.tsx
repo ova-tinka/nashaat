@@ -439,8 +439,11 @@ export function StudyTutorPanel({ profileId, items, initialItemId, readOnly }: {
     if (!canAsk || !prompt.trim()) { setError('Choose a Study item and enter a question.'); return; }
     setBusy(true); setError(null); setNotice(null);
     try {
-      await requestStudyTutor(randomUUID(), itemId, prompt.trim());
-      setPrompt(''); setNotice('Tutor response saved in your private Study history.');
+      const response = await requestStudyTutor(randomUUID(), itemId, prompt.trim());
+      setPrompt('');
+      setNotice(response.status === 'cleared'
+        ? 'Your Study tutor conversation was cleared before this response finished.'
+        : 'Tutor response saved in your private Study history.');
       await refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not prepare a tutor response. Please try again.');
