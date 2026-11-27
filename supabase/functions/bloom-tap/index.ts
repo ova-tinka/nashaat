@@ -1,5 +1,7 @@
 import { admin, userClient } from '../_shared/supabase.ts';
 import { json, providerFetch, record, requiredEnv, secureMatch, str, uuid } from '../_shared/billing.ts';
+import { billingSandbox, claimBillingWebhooks, finishBillingWebhook, queueBillingWebhook, type BillingWebhook } from '../_shared/billing-webhooks.ts';
+import { syncRevenueCat } from '../_shared/revenuecat-sync.ts';
 import { currencyDigits, tapResult, verifyTapWebhook } from '../_shared/tap-billing.ts';
 
 const customerActions = new Set([
@@ -25,9 +27,7 @@ function callback() {
 }
 
 async function verifyAndSave(payload: unknown, expected?: string) {
-  const mode = requiredEnv('BLOOM_BILLING_ENVIRONMENT');
-  if (mode !== 'sandbox' && mode !== 'production') throw new Error('Invalid billing environment');
-  const { action, values } = tapResult(payload, mode === 'production');
+  const { action, values } = tapResult(payload, !billingSandbox());
   if (expected && values.id.toLowerCase() !== expected.toLowerCase()) throw new Error('Unexpected payment reference');
   return db(action, {
     ...values,
@@ -94,8 +94,17 @@ async function processRefund(id: string) {
   return verifyAndSave(payload, id);
 }
 
+async function processWebhook(event: BillingWebhook) {
+  if (event.provider === 'tap') {
+    await retrieve(event.webhook_reference);
+  } else {
+    await syncRevenueCat(event.webhook_reference, event.provider_event_id, event.event_type);
+  }
+  await finishBillingWebhook(event.id);
+}
+
 async function runWorker() {
-  const work = record(await db('due'));
+  const [work, webhooks] = await Promise.all([db('due').then(record), claimBillingWebhooks()]);
   const ids = (value: unknown): string[] => Array.isArray(value) ? value.filter(id => typeof id === 'string' && uuid.test(id)) : [];
   const renewals = await Promise.allSettled(ids(work.subscriptions).map(id => db('claim_renewal', { id })));
   const results = await Promise.allSettled([
@@ -103,6 +112,7 @@ async function runWorker() {
       result.status === 'fulfilled' && typeof result.value === 'string' ? [result.value] : [],
     )])].map(id => processCharge(id)),
     ...ids(work.refunds).map(processRefund),
+    ...webhooks.map(processWebhook),
   ]);
   return {
     handled: results.length,
@@ -134,7 +144,14 @@ Deno.serve(async request => {
       const payload = record(await request.json());
       const trusted = await verifyTapWebhook(payload, signature, requiredEnv('BLOOM_TAP_SECRET_KEY')).catch(() => false);
       if (!trusted) return reply({ error: 'Unauthorized' }, 401);
-      await retrieve(str(payload.id));
+      const expectedLiveMode = !billingSandbox();
+      if (typeof payload.live_mode === 'boolean' && payload.live_mode !== expectedLiveMode) {
+        return reply({ received: true });
+      }
+      const reference = str(payload.id);
+      const state = str(payload.status);
+      pathFor(reference);
+      await queueBillingWebhook('tap', `webhook:${reference}:${state}`, 'payment_callback', reference);
       return reply({ received: true });
     }
     if (!bearer.startsWith('Bearer ')) return reply({ error: 'Unauthorized' }, 401);

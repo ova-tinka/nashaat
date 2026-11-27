@@ -1,27 +1,8 @@
-import { admin, userClient } from '../_shared/supabase.ts';
-import { json, providerFetch, record, requiredEnv, secureMatch, str, uuid } from '../_shared/billing.ts';
-import { revenueCatProfiles, revenueCatSubscriptions } from '../_shared/revenuecat-billing.ts';
-
-function sandboxMode() {
-  const mode = requiredEnv('BLOOM_BILLING_ENVIRONMENT');
-  if (mode !== 'sandbox' && mode !== 'production') throw new Error('Invalid billing environment');
-  return mode === 'sandbox';
-}
-
-async function sync(profile: string, eventId?: string, eventType?: string) {
-  const started = Date.now();
-  const response = await providerFetch(
-    `https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(profile)}`,
-    requiredEnv('BLOOM_REVENUECAT_SECRET_KEY'),
-  );
-  if (!response.ok) throw new Error('RevenueCat customer lookup failed');
-  const rows = revenueCatSubscriptions(await response.json(), profile, sandboxMode(), started);
-  const { error } = await admin.rpc('bloom_apply_revenuecat', {
-    p_profile: profile, p_fetched_at: new Date(started).toISOString(), p_rows: rows,
-    p_event_id: eventId ?? null, p_event_type: eventType ?? null,
-  });
-  if (error) throw error;
-}
+import { userClient } from '../_shared/supabase.ts';
+import { json, record, requiredEnv, secureMatch, str, uuid } from '../_shared/billing.ts';
+import { billingSandbox, queueBillingWebhook } from '../_shared/billing-webhooks.ts';
+import { revenueCatProfiles } from '../_shared/revenuecat-billing.ts';
+import { syncRevenueCat } from '../_shared/revenuecat-sync.ts';
 
 Deno.serve(async request => {
   if (request.method !== 'POST') return json({ error: 'Method unavailable' }, 405);
@@ -34,14 +15,14 @@ Deno.serve(async request => {
       }
       const event = record(record(await request.json()).event);
       if (event.type === 'TEST') return json({ received: true });
-      if (event.environment && event.environment !== (sandboxMode() ? 'SANDBOX' : 'PRODUCTION')) {
+      if (event.environment && event.environment !== (billingSandbox() ? 'SANDBOX' : 'PRODUCTION')) {
         return json({ received: true });
       }
       const id = str(event.id);
       const type = str(event.type);
       if (!id || !type) return json({ error: 'Invalid event' }, 400);
       for (const profile of revenueCatProfiles(event)) {
-        await sync(profile, `${id}:${profile}`, type);
+        await queueBillingWebhook('revenuecat', `${id}:${profile}`, type, profile);
       }
       return json({ received: true });
     }
@@ -53,7 +34,7 @@ Deno.serve(async request => {
     const { data, error } = await client.rpc('bloom_current_profile');
     const profile = str(data?.profile_id);
     if (error || !uuid.test(profile) || data.child_profile) return json({ error: 'Purchases are managed by the payer' }, 403);
-    await sync(profile);
+    await syncRevenueCat(profile);
     return json({ synced: true });
   } catch {
     return json({ error: 'Subscription verification is temporarily unavailable' }, 503);

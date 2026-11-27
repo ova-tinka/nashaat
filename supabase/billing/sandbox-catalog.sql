@@ -17,4 +17,17 @@ select tier,scope,period,provider,
 from unnest(array['basic','premium']) tier cross join unnest(array['individual','household']) scope
 cross join unnest(array['week','month','year']) period cross join unnest(array['app_store','play_store','tap']) provider
 on conflict(provider,provider_product_id) do nothing;
+-- The first run opens the fixture campaign window. Running the seed again
+-- preserves both the dates and existing redemptions.
+insert into bloom_private.billing_offers(code,kind,product_id,amount_minor,play_option_id,starts_at,ends_at,redemption_limit)
+select fixture.code,fixture.kind,p.id,fixture.amount_minor,fixture.play_option_id,now(),now()+interval '30 days',fixture.redemption_limit
+from (values
+  ('SANDBOX_WEB_INTRO','intro','tap','basic_individual_month',499,null,25),
+  ('SANDBOX_WEB_CAMPAIGN','campaign','tap','basic_individual_month',599,null,10),
+  ('SANDBOX_WEB_WINBACK','win_back','tap','basic_individual_month',399,null,15),
+  ('SANDBOX_PLAY_CAMPAIGN','campaign','play_store','bloom_basic_individual:month',null,'month:bloom-sandbox-campaign',10),
+  ('SANDBOX_PLAY_WINBACK','win_back','play_store','bloom_basic_individual:month',null,'month:bloom-sandbox-winback',15)
+) fixture(code,kind,provider,sku,amount_minor,play_option_id,redemption_limit)
+join public.bloom_subscription_products p on p.provider=fixture.provider and p.provider_product_id=fixture.sku
+on conflict (code) do nothing;
 commit;

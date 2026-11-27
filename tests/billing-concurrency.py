@@ -11,6 +11,7 @@ staff = ['bc000000-0000-4000-8000-000000000002', 'bc000000-0000-4000-8000-000000
 charge = 'bc000000-0000-4000-8002-000000000002'
 first_refund = 'bc000000-0000-4000-8002-000000000003'
 next_refund = 'bc000000-0000-4000-8002-000000000004'
+webhook_event = 'webhook:chg_concurrenttest:CAPTURED'
 
 def run(statement, check=True):
     return subprocess.run(psql, input=statement, text=True, capture_output=True, check=check)
@@ -51,6 +52,15 @@ def approve(reviewer):
       commit;
     """, check=False)
 
+def claim_webhook(_):
+    barrier.wait()
+    return run("""
+      begin;
+      select count(*) from public.bloom_claim_billing_webhooks();
+      select pg_sleep(0.4);
+      commit;
+    """).stdout.strip()
+
 try:
     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
         results = list(pool.map(reserve, [1, 2]))
@@ -69,14 +79,20 @@ try:
     """)
     assert total.stdout.strip() == '700|1', total.stdout
     print('Concurrent partial refund approvals respected the remaining refundable amount.')
+
+    run(f"select public.bloom_queue_billing_webhook('tap','{webhook_event}','payment_callback','chg_concurrenttest');")
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+        claims = list(pool.map(claim_webhook, [1, 2]))
+    assert sorted(claims) == ['0', '1'], claims
+    print('Concurrent billing workers did not claim the same webhook.')
 finally:
     run(f"""
+    delete from public.bloom_billing_events where provider='tap' and provider_event_id='{webhook_event}';
     delete from bloom_private.tap_refunds where charge_id='{charge}';
     delete from bloom_private.tap_attempts where id='{charge}';
     delete from bloom_private.billing_refund_staff where profile_id in ('{staff[0]}','{staff[1]}');
     delete from public.bloom_subscriptions where id='{subscription}';
     delete from public.bloom_subscription_products where id='{monthly}';
-    delete from public.bloom_profiles where id='{payer}' and not exists (
-      select 1 from public.bloom_profile_accounts where profile_id='{payer}'
-    );
+    delete from auth.users where id in ('{payer}','{staff[0]}','{staff[1]}');
+    delete from public.bloom_profiles where id in ('{payer}','{staff[0]}','{staff[1]}');
     """)

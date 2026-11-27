@@ -238,12 +238,60 @@ begin
 end
 $$;
 
+do $$
+declare
+  profile uuid := 'ac000000-0000-4000-8000-000000000003';
+  tap_id uuid;
+  mobile_id uuid;
+  retried_id uuid;
+  mobile_event text := 'mobile-callback-fixture:'||profile::text;
+begin
+  perform public.bloom_queue_billing_webhook('tap','webhook:chg_fixture:CAPTURED','payment_callback','chg_fixture');
+  perform public.bloom_queue_billing_webhook('tap','webhook:chg_fixture:CAPTURED','payment_callback','chg_fixture');
+  perform public.bloom_queue_billing_webhook('revenuecat',mobile_event,'RENEWAL',profile::text);
+  perform public.bloom_queue_billing_webhook('revenuecat','unknown-profile','RENEWAL','00000000-0000-4000-8000-000000000000');
+  if (select count(*) from public.bloom_billing_events where processed_at is null) <> 2 then
+    raise exception 'Webhook inbox did not durably deduplicate authenticated callbacks';
+  end if;
+
+  select id into strict tap_id from public.bloom_billing_events where provider_event_id='webhook:chg_fixture:CAPTURED';
+  select id into strict mobile_id from public.bloom_billing_events where provider_event_id=mobile_event;
+  if (select count(*) from public.bloom_claim_billing_webhooks()) <> 2 then
+    raise exception 'Worker did not claim both billing providers';
+  end if;
+  if exists (select 1 from public.bloom_claim_billing_webhooks()) then
+    raise exception 'A second worker claimed leased callbacks';
+  end if;
+  perform public.bloom_apply_revenuecat(profile,clock_timestamp(),'[]',mobile_event,'RENEWAL');
+  perform public.bloom_finish_billing_webhook(mobile_id);
+  if not exists (select 1 from public.bloom_billing_events where id=tap_id and processed_at is null) then
+    raise exception 'A failed provider lookup should leave the callback pending';
+  end if;
+
+  update public.bloom_billing_events set webhook_retry_at=clock_timestamp()-interval '1 second' where id=tap_id;
+  select id into strict retried_id from public.bloom_claim_billing_webhooks();
+  if retried_id is distinct from tap_id
+    or (select webhook_attempts from public.bloom_billing_events where id=tap_id) <> 2 then
+    raise exception 'Worker did not retry the failed lookup';
+  end if;
+  perform public.bloom_finish_billing_webhook(tap_id);
+  perform public.bloom_queue_billing_webhook('tap','webhook:chg_fixture:CAPTURED','payment_callback','chg_fixture');
+  if exists(select 1 from public.bloom_claim_billing_webhooks())
+    or exists(select 1 from public.bloom_billing_events where processed_at is null) then
+    raise exception 'Redelivery reopened a processed callback';
+  end if;
+end
+$$;
+
 set local role authenticated;
 select set_config('request.jwt.claim.sub','ac000000-0000-4000-8000-000000000002',true);
 do $$
 begin
   if has_function_privilege(current_user,'public.bloom_billing_tap(uuid,text,jsonb)','EXECUTE')
-    or has_function_privilege(current_user,'public.bloom_apply_revenuecat(uuid,timestamptz,jsonb,text,text)','EXECUTE') then
+    or has_function_privilege(current_user,'public.bloom_apply_revenuecat(uuid,timestamptz,jsonb,text,text)','EXECUTE')
+    or has_function_privilege(current_user,'public.bloom_queue_billing_webhook(text,text,text,text)','EXECUTE')
+    or has_function_privilege(current_user,'public.bloom_claim_billing_webhooks()','EXECUTE')
+    or has_function_privilege(current_user,'public.bloom_finish_billing_webhook(uuid)','EXECUTE') then
     raise exception 'Authenticated clients can submit provider states';
   end if;
   if exists(select 1 from public.bloom_credit_ledger where entry_type='usage')
