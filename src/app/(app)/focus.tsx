@@ -9,6 +9,13 @@ import type { AppCandidate, BlockingStatus, SafariContentBlockerState, UsageAcce
 import { useBloom } from '../../lib/bloom-context';
 import { useAuth } from '../../lib/auth';
 import { findUsageSession, finishUsageSession, startEnforcedCreditSession, startUsageSession } from '../../lib/bloom';
+import {
+  parseUsageReservationRecord,
+  prepareOrRecoverUsageReservation,
+  reconcileUsageReservation,
+  settleUsageReservation,
+  type ReservationStorage,
+} from '../../lib/credit-session-lifecycle';
 import { isMacDesktop } from '../../lib/macos-blocking';
 import { MacosFocus } from '../../components/macos-focus';
 import { addWebsiteRule, deleteWebsiteRule, loadWebsiteRules, type ChildRule, type WebsiteRule, type WebsiteRuleScope } from '../../lib/family';
@@ -18,6 +25,11 @@ import { AndroidFocusSettings } from '../../components/android-focus-settings';
 import { IosFocusSettings } from '../../components/ios-focus-settings';
 
 const emptyStatus: BlockingStatus = { supported: false, authorized: false, active: false, appCount: 0, websiteCount: 0, categoryCount: 0 };
+const secureStorage: ReservationStorage = {
+  getItem: (k) => SecureStore.getItemAsync(k),
+  setItem: (k, v) => SecureStore.setItemAsync(k, v),
+  removeItem: (k) => SecureStore.deleteItemAsync(k),
+};
 type UsageRequest = { requestId: string; deviceKey: string; requestedMillis: number };
 
 export default function FocusScreen() {
@@ -80,14 +92,22 @@ export default function FocusScreen() {
       }
       setRemaining(BloomBlocking.getCreditAccessRemaining());
       if (Platform.OS === 'android' || Platform.OS === 'ios') {
-        setUsage(BloomBlocking.getUsageAccess());
+        const nativeUsage = BloomBlocking.getUsageAccess();
+        setUsage(nativeUsage);
         const usageStored = await SecureStore.getItemAsync(usageKey);
-        if (usageStored) {
-          const parsed: unknown = JSON.parse(usageStored);
-          if (parsed && typeof parsed === 'object' && 'requestId' in parsed && 'deviceKey' in parsed && 'requestedMillis' in parsed && typeof parsed.requestId === 'string' && typeof parsed.deviceKey === 'string' && typeof parsed.requestedMillis === 'number') {
-            setUsageRequest({ requestId: parsed.requestId, deviceKey: parsed.deviceKey, requestedMillis: parsed.requestedMillis });
-          }
-        } else setUsageRequest(null);
+        const parsedUsage = parseUsageReservationRecord(usageStored, userId ?? undefined);
+        setUsageRequest(parsedUsage ? { requestId: parsedUsage.requestId, deviceKey: parsedUsage.deviceKey, requestedMillis: parsedUsage.requestedMillis } : null);
+        if (userId) {
+          const reconciled = await reconcileUsageReservation({
+            storage: secureStorage,
+            key: usageKey,
+            userId,
+            nativeSession: nativeUsage,
+            findServerSession: findUsageSession,
+          }).catch(() => null);
+          if (reconciled?.status === 'recovery_key_missing' && reconciled.message) loadError = reconciled.message;
+          else if (reconciled?.status === 'settled_cleanup') setUsageRequest(null);
+        }
         if (Platform.OS === 'android') {
           const [installed, saved, savedWebsites, consent] = await Promise.all([BloomBlocking.getInstalledApps(), BloomBlocking.getSelectedApps(), BloomBlocking.getWebsites(), BloomBlocking.getWebsiteConsent()]);
           setApps(installed);
@@ -168,8 +188,15 @@ export default function FocusScreen() {
       const current = await BloomBlocking.getStatus();
       if (!current.active || !current.authorized) throw new Error(Platform.OS === 'ios' ? 'Start blocking and allow Screen Time access first.' : 'Start blocking and allow Accessibility access first.');
       if (Platform.OS === 'android' && BloomBlocking.getFocusAccount() !== userId) throw new Error('Sync this device to your profile before using screen time.');
-      const request = usageRequest ?? { requestId: randomUUID(), deviceKey: randomUUID(), requestedMillis };
-      if (!usageRequest) { await SecureStore.setItemAsync(usageKey, JSON.stringify(request)); setUsageRequest(request); }
+      const existingUsage = BloomBlocking.getUsageAccess();
+      const request = await prepareOrRecoverUsageReservation(
+        secureStorage,
+        usageKey,
+        userId,
+        () => ({ requestId: randomUUID(), deviceKey: randomUUID(), requestedMillis }),
+        Boolean(existingUsage),
+      );
+      setUsageRequest({ requestId: request.requestId, deviceKey: request.deviceKey, requestedMillis: request.requestedMillis });
       const clock = BloomBlocking.getCreditClock();
       if (clock.boot < 0) throw new Error('Could not verify this device’s uptime.');
       const reserved = await startUsageSession(request.requestId, request.deviceKey, request.requestedMillis);
@@ -184,15 +211,26 @@ export default function FocusScreen() {
 
   async function finishActualUsage() {
     const userId = profileId;
-    if (!userId || !usageRequest) { setError('This saved screen-time request is unavailable. Refresh your account and try again.'); return; }
+    if (!userId) { setError('This saved screen-time request is unavailable. Refresh your account and try again.'); return; }
     setBusy(true); setError(null);
     try {
-      const closed = await BloomBlocking.closeUsageAccess(userId);
-      if (!closed) throw new Error('No screen-time session was found on this device.');
-      setUsage(closed);
-      await finishUsageSession(closed.sessionId, usageRequest.deviceKey);
-      await BloomBlocking.clearUsageAccess(userId, closed.sessionId);
-      await SecureStore.deleteItemAsync(usageKey);
+      await settleUsageReservation({
+        storage: secureStorage,
+        key: usageKey,
+        userId,
+        getNativeSession: async () => BloomBlocking.getUsageAccess(),
+        closeNativeSession: async (uid) => {
+          const closed = await BloomBlocking.closeUsageAccess(uid);
+          if (!closed) throw new Error('No screen-time session was found on this device.');
+          setUsage(closed);
+          return closed;
+        },
+        clearNativeSession: async (uid, sid) => {
+          await BloomBlocking.clearUsageAccess(uid, sid);
+        },
+        findServerSession: findUsageSession,
+        finishServerSession: finishUsageSession,
+      });
       setUsage(null); setUsageRequest(null);
       await refresh();
     } catch (cause) {

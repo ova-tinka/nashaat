@@ -11,7 +11,17 @@ import { useAuth } from '../lib/auth';
 import { useBloom } from '../lib/bloom-context';
 import { findUsageSession, finishUsageSession } from '../lib/bloom';
 import type { UsageAccess } from '../../modules/bloom-blocking/src/BloomBlocking.types';
-import { matchesMacUsageReservation, parseMacUsageRequest, recoverOrCreateMacUsageRequest } from '../lib/mac-credit-marker';
+import { parseMacUsageRequest } from '../lib/mac-credit-marker';
+import {
+  parseUsageReservationRecord,
+  prepareOrRecoverUsageReservation,
+  reconcileUsageReservation,
+  resolveEnforcementConfirmation,
+  settleUsageReservation,
+  type ReservationStorage,
+} from '../lib/credit-session-lifecycle';
+
+const usageStorage: ReservationStorage = AsyncStorage;
 import type { FocusSettingsSection } from './focus-section-navigation';
 import { useBloomTheme } from '../lib/theme-context';
 
@@ -127,7 +137,19 @@ export function MacosFocus({ initialSection }: {
       }
       const storedUsage = await AsyncStorage.getItem(usageKey);
       if (version !== loadVersion.current) return;
-      setUsageRequest(parseMacUsageRequest(storedUsage));
+      setUsageRequest(parseUsageReservationRecord(storedUsage, userId ?? undefined) ?? parseMacUsageRequest(storedUsage));
+      if (userId) {
+        const reconciled = await reconcileUsageReservation({
+          storage: usageStorage,
+          key: usageKey,
+          userId,
+          nativeSession: usageResult.status === 'fulfilled' ? usageResult.value.usage ?? null : null,
+          findServerSession: findUsageSession,
+        }).catch(() => null);
+        if (version !== loadVersion.current) return;
+        if (reconciled?.status === 'recovery_key_missing' && reconciled.message) setError(reconciled.message);
+        else if (reconciled?.status === 'settled_cleanup') setUsageRequest(null);
+      }
       const stored = await AsyncStorage.getItem(pendingKey);
       if (version !== loadVersion.current) return;
       if (stored) {
@@ -212,8 +234,13 @@ export function MacosFocus({ initialSection }: {
       if ((!appEnabled && !enabled) || !usageAvailable) throw new Error('Start app or website blocking and the background monitor first.');
       if (enabled && !websiteUsageAvailable) throw new Error('Allow Bloom in macOS Accessibility settings before counting website use.');
       const existingUsage = (await macosFilter('getUsageAccess')).usage;
-      const request = await recoverOrCreateMacUsageRequest(AsyncStorage, usageKey,
-        () => ({ requestId: randomUUID(), deviceKey: randomUUID(), requestedMillis }), !!existingUsage);
+      const request = await prepareOrRecoverUsageReservation(
+        usageStorage,
+        usageKey,
+        userId,
+        () => ({ requestId: randomUUID(), deviceKey: randomUUID(), requestedMillis }),
+        Boolean(existingUsage),
+      );
       setUsageRequest(request);
       await macosFilter('startUsageAccess', undefined, undefined, undefined, undefined, { userId,
         requestId: request.requestId, deviceKey: request.deviceKey, requestedMillis: request.requestedMillis, accessToken });
@@ -228,18 +255,24 @@ export function MacosFocus({ initialSection }: {
     if (!userId) { setError('Sign in to finish this screen-time session.'); return; }
     setBusy(true); setError(null);
     try {
-      const request = parseMacUsageRequest(await AsyncStorage.getItem(usageKey));
-      if (!request) throw new Error('This saved screen-time request is unavailable. Refresh your account and try again.');
-      const local = (await macosFilter('getUsageAccess')).usage;
-      const existing = await findUsageSession(userId, request.requestId);
-      if (!matchesMacUsageReservation(userId, local, existing) || !existing) throw new Error('This screen-time request belongs to a different account or session.');
-      const closed = (await macosFilter('closeUsageAccess', undefined, undefined, undefined, undefined, { userId })).usage;
-      if (!closed) throw new Error('No screen-time session was found on this Mac.');
-      if (closed.sessionId !== existing.id || closed.userId !== userId) throw new Error('The screen-time session changed. Retry sync.');
-      setUsage(closed);
-      await finishUsageSession(closed.sessionId, request.deviceKey);
-      await macosFilter('clearUsageAccess', undefined, undefined, undefined, undefined, { userId, sessionId: closed.sessionId });
-      await AsyncStorage.removeItem(usageKey); setUsage(null); setUsageRequest(null);
+      await settleUsageReservation({
+        storage: usageStorage,
+        key: usageKey,
+        userId,
+        getNativeSession: async () => (await macosFilter('getUsageAccess')).usage ?? null,
+        closeNativeSession: async (uid) => {
+          const closed = (await macosFilter('closeUsageAccess', undefined, undefined, undefined, undefined, { userId: uid })).usage ?? null;
+          if (!closed) throw new Error('No screen-time session was found on this Mac.');
+          setUsage(closed);
+          return closed;
+        },
+        clearNativeSession: async (uid, sid) => {
+          await macosFilter('clearUsageAccess', undefined, undefined, undefined, undefined, { userId: uid, sessionId: sid });
+        },
+        findServerSession: findUsageSession,
+        finishServerSession: finishUsageSession,
+      });
+      setUsage(null); setUsageRequest(null);
       await refresh();
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not sync usage. Retry to return unused credits.'); }
     finally { setBusy(false); }
@@ -432,6 +465,15 @@ export function MacosFocus({ initialSection }: {
         ? websiteProviderHealthy ? 'Website protection is on' : 'Website protection needs attention'
         : sites.length + managedSites.length > 0 ? 'Websites selected · protection off' : 'Optional';
   const configuredTargetCount = new Set([...apps, ...managedApps]).size + new Set([...sites, ...managedSites]).size;
+  const enforcementConfirmation = resolveEnforcementConfirmation({
+    platform: 'macos',
+    configured: configuredTargetCount > 0,
+    authorized: accessibilityTrusted && (appService === 'active' || !appEnabled),
+    active: appEnabled || enabled,
+    providerHealthy: !enabled || websiteProviderHealthy,
+    brokerAcknowledged: !enabled || websitePolicyBrokerStatus === 'ready',
+    hideFailed: appHideFailed || browserHideFailed,
+  });
   const appActionLabel = !accessibilityTrusted
     ? 'Allow Accessibility access'
     : appService !== 'active'
@@ -463,6 +505,7 @@ export function MacosFocus({ initialSection }: {
       <Label>{appCheck === 'checking' && websiteCheck === 'checking' ? 'Checking status…' : appCheck === 'unavailable' && websiteCheck === 'unavailable' ? 'Protection status unavailable' : appEnabled || enabled ? 'Protection is on' : 'Protection is off'}</Label>
       <Body>Apps: {appCheck === 'available' ? appEnabled ? 'On' : 'Off' : 'Unknown'} · Websites: {websiteCheck === 'available' ? enabled ? 'On' : 'Off' : 'Unknown'}</Body>
       {configuredTargetCount > 0 && <Body>{configuredTargetCount} {configuredTargetCount === 1 ? 'app or website' : 'apps and websites'} selected.</Body>}
+      {(appEnabled || enabled) && !enforcementConfirmation.confirmed && enforcementConfirmation.reason && <ErrorText>{enforcementConfirmation.reason}</ErrorText>}
       {(appHideFailed || (enabled && (!websiteUsageAvailable || !websiteProviderHealthy))) && <Body>One protection service needs attention. Open its section below for the next step.</Body>}
       {blockingRulesSyncedAt && !blockingRulesSyncError && <Body>Family rules last synced {new Date(blockingRulesSyncedAt).toLocaleTimeString(getAppLocale())}.</Body>}
       <Button label={appActionLabel} onPress={handleAppAction} disabled={busy || appCheck !== 'available'} busy={busy} />
