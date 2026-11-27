@@ -1,7 +1,7 @@
-import { dateKeyInTimeZone } from './date-utils';
+import { dateKeyInTimeZone } from './date-utils.ts';
 import type { CreditLedgerEntry } from './bloom';
 import type { WeeklyPillarActual, WeeklyPillarGoal } from './growth-modules';
-import { moduleManifest } from './module-manifest';
+import { moduleManifest } from './module-manifest.ts';
 import type { ModuleKey } from '../theme';
 
 export type DailyScreenTimeTotal = { dateKey: string; label: string; minutes: number };

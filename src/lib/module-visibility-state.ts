@@ -1,5 +1,5 @@
 import type { ModuleKey } from '../theme';
-import { moduleManifest } from './module-manifest';
+import { moduleManifest } from './module-manifest.ts';
 
 export const moduleIds: readonly ModuleKey[] = moduleManifest.map((module) => module.id);
 

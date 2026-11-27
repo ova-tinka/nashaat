@@ -1,6 +1,6 @@
 import type { ComponentProps } from 'react';
 import type MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { palette, type ModuleKey } from '../theme';
+import { palette, type ModuleKey } from '../theme.ts';
 
 export type BloomPlatform = 'ios' | 'android' | 'macos' | 'web';
 export type BloomModule = {
