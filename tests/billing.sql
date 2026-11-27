@@ -120,6 +120,121 @@ begin
   perform public.bloom_billing_tap(null,'refund_result',jsonb_build_object('id',due,'provider_ref','re_fixtureB',
     'currency','USD','charge_ref','chg_fixture','amount_minor',400,'state','refunded'));
   if (select status from public.bloom_subscriptions where id=sub) <> 'revoked' then raise exception 'Full current refund left coverage active'; end if;
+
+  insert into bloom_private.tap_attempts(payer,product_id,subscription_id,kind,state,currency,amount_minor,recurring_minor)
+    values(payer,basic,sub,'card_update','captured','USD',100,1000);
+  details := public.bloom_billing_tap(payer,'history');
+  if jsonb_array_length(details->'charges') <> 1 or details->'charges'->0->>'id' <> charge::text
+    or jsonb_array_length(details->'refunds') <> 2
+    or exists (select 1 from jsonb_array_elements(details->'refunds') item
+      where item->>'charge_id' <> charge::text or item->>'state' <> 'refunded') then
+    raise exception 'Payer history did not return the charge and both refunds while hiding the card authorization';
+  end if;
+  details := public.bloom_billing_tap(visitor,'history');
+  if jsonb_array_length(details->'charges') <> 0 or jsonb_array_length(details->'refunds') <> 0 then
+    raise exception 'Payment history leaked to an unrelated member';
+  end if;
+end
+$$;
+
+do $$
+declare
+  payer uuid := 'ac000000-0000-4000-8000-000000000003';
+  basic uuid := (select id from public.bloom_subscription_products where provider='tap' and provider_product_id='basic_individual_month');
+  premium uuid := (select id from public.bloom_subscription_products where provider='tap' and provider_product_id='premium_individual_month');
+  anchor timestamptz := date_trunc('second',now())-interval '1 month 1 day';
+  old_end timestamptz := bloom_private.billing_term_end(anchor,'month',1);
+  new_end timestamptz := bloom_private.billing_term_end(anchor,'month',2);
+  sub uuid;
+  charge uuid;
+  downgrade_at timestamptz;
+  quote jsonb;
+  verified jsonb;
+  agreement jsonb := jsonb_build_object('customer_ref','cus_fixture','card_ref','card_fixture','agreement_ref','agreement_fixture');
+begin
+  insert into public.bloom_subscriptions(payer_user_id,product_id,provider_subscription_id,billing_provider,
+    status,activated_at,current_period_start,current_period_end)
+  values(payer,basic,'tap-renewal-fixture','tap','active',anchor,anchor,old_end)
+    returning id into sub;
+  insert into bloom_private.tap_agreements(subscription_id,customer_ref,card_ref,agreement_ref,
+    accepted_at,recurring_minor,currency,term_anchor)
+  values(sub,'cus_fixture','card_fixture','agreement_fixture',anchor,1000,'USD',anchor);
+
+  charge := (public.bloom_billing_tap(null,'claim_renewal',jsonb_build_object('id',sub))#>>'{}')::uuid;
+  if charge is null or public.bloom_billing_tap(null,'claim_renewal',jsonb_build_object('id',sub)) <> 'null'::jsonb then
+    raise exception 'Tap should enqueue one renewal per term';
+  end if;
+  verified := public.bloom_billing_tap(null,'claim_charge',jsonb_build_object('id',charge));
+  if verified->'agreement'->>'agreement_ref' <> 'agreement_fixture'
+    or public.bloom_billing_tap(null,'claim_charge',jsonb_build_object('id',charge)) <> 'null'::jsonb then
+    raise exception 'A worker should claim the saved agreement and defer duplicate attempts';
+  end if;
+  perform public.bloom_billing_tap(null,'charge_result',jsonb_build_object('id',charge,'provider_ref','chg_declined_fixture',
+    'currency','USD','amount_minor',1000,'state','declined'));
+  if not exists (select 1 from bloom_private.billing_coverage(payer,clock_timestamp())
+    where status='grace_period' and period_end=old_end) then
+    raise exception 'A declined renewal advanced the paid term or removed recovery access';
+  end if;
+
+  quote := public.bloom_billing_tap(payer,'quote',jsonb_build_object('product_id',basic));
+  if quote->>'kind' <> 'recovery' or quote->>'amount_minor' <> '1000' then raise exception 'Recovery quote is wrong'; end if;
+  charge := (public.bloom_billing_tap(payer,'checkout',quote||jsonb_build_object('product_id',basic,'accepted',true))->>'id')::uuid;
+  verified := agreement||jsonb_build_object('id',charge,'provider_ref','chg_recovered_fixture','state','captured',
+    'currency','USD','amount_minor',1000);
+  perform public.bloom_billing_tap(null,'charge_result',verified);
+  perform public.bloom_billing_tap(null,'charge_result',verified);
+  if not exists (select 1 from public.bloom_subscriptions where id=sub and status='active'
+    and activated_at=anchor and current_period_start=old_end and current_period_end=new_end)
+    or (select term_number from bloom_private.tap_agreements where subscription_id=sub) <> 2 then
+    raise exception 'Verified recovery should renew the original term once and preserve its anchor';
+  end if;
+
+  quote := public.bloom_billing_tap(payer,'quote',jsonb_build_object('product_id',premium));
+  if quote->>'kind' <> 'upgrade' or (quote->>'amount_minor')::integer not between 1 and 999
+    or quote->>'recurring_minor' <> '2000' then raise exception 'Upgrade was not prorated'; end if;
+  verified := public.bloom_billing_tap(payer,'checkout',quote||jsonb_build_object('product_id',premium,'accepted',true));
+  charge := (verified->>'id')::uuid;
+  if not exists (select 1 from bloom_private.billing_coverage(payer,clock_timestamp()) where tier='basic') then
+    raise exception 'An unconfirmed upgrade granted Premium';
+  end if;
+  perform public.bloom_billing_tap(null,'charge_result',agreement||jsonb_build_object('id',charge,
+    'provider_ref','chg_upgrade_fixture','state','captured','currency','USD','amount_minor',verified->'amount_minor'));
+  if not exists (select 1 from bloom_private.billing_coverage(payer,clock_timestamp()) where tier='premium' and period_end=new_end)
+    or not (select reauthorize_at_renewal from bloom_private.tap_agreements where subscription_id=sub) then
+    raise exception 'Confirmed upgrade lost the paid term or can raise renewal without consent';
+  end if;
+
+  perform public.bloom_billing_tap(payer,'schedule',jsonb_build_object('subscription_id',sub,'product_id',basic));
+  if (public.bloom_billing_tap(payer,'history')->'scheduled'->>'product_id')::uuid is distinct from basic then
+    raise exception 'Scheduled downgrade missing from payer history';
+  end if;
+  downgrade_at := clock_timestamp()-interval '1 second';
+  update public.bloom_subscriptions set current_period_end=downgrade_at where id=sub;
+  if public.bloom_billing_tap(null,'claim_renewal',jsonb_build_object('id',sub)) is distinct from 'null'::jsonb then
+    raise exception 'Downgrade requiring fresh authorization should not auto-charge';
+  end if;
+  quote := public.bloom_billing_tap(payer,'quote',jsonb_build_object('product_id',basic));
+  if quote->>'kind' <> 'recovery' or quote->>'amount_minor' <> '1000' then
+    raise exception 'Scheduled downgrade should authorize Basic pricing';
+  end if;
+  charge := (public.bloom_billing_tap(payer,'checkout',quote||jsonb_build_object('product_id',basic,'accepted',true))->>'id')::uuid;
+  perform public.bloom_billing_tap(null,'charge_result',agreement||jsonb_build_object('id',charge,
+    'provider_ref','chg_downgrade_fixture','state','captured','currency','USD','amount_minor',1000));
+  if not exists (select 1 from bloom_private.billing_coverage(payer,clock_timestamp())
+    where tier='basic' and period_end=bloom_private.billing_term_end(downgrade_at,'month',1)) then
+    raise exception 'Verified downgrade did not start Basic at the scheduled boundary';
+  end if;
+
+  perform public.bloom_billing_tap(payer,'cancel',jsonb_build_object('subscription_id',sub));
+  if not exists (select 1 from bloom_private.billing_coverage(payer,clock_timestamp()) where tier='basic' and cancel_at_end) then
+    raise exception 'Period-end cancellation removed access early';
+  end if;
+  update public.bloom_subscriptions set current_period_end=clock_timestamp()-interval '1 second' where id=sub;
+  perform public.bloom_billing_tap(null,'due');
+  if exists(select 1 from bloom_private.billing_coverage(payer,clock_timestamp()))
+    or public.bloom_billing_tap(null,'claim_renewal',jsonb_build_object('id',sub)) <> 'null'::jsonb then
+    raise exception 'Cancelled coverage or charge survived the end of the term';
+  end if;
 end
 $$;
 

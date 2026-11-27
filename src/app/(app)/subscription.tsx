@@ -3,7 +3,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Linking, Platform } from 'react-native';
 import { Body, Button, ErrorText, Field, Heading, Label, Panel, Screen } from '../../components/bloom-ui';
 import { useAuth } from '../../lib/auth';
-import { billingAccount, money, syncStoreBilling, tapBilling, type BillingCatalog, type BillingHistory,
+import { billingAccount, money, syncStoreBilling, tapBilling, type BillingCatalog, type BillingFeature, type BillingHistory,
   type BillingProduct, type BillingQuote, type BillingSeatList, type Checkout, type RefundReview } from '../../lib/billing';
 import { useBilling } from '../../lib/billing-context';
 import { useLocale } from '../../lib/locale-context';
@@ -13,6 +13,30 @@ import { purchaseStorePlan, redeemAppleCode, restoreStorePurchases, storeBilling
 
 const periodLabels = { week: 'Weekly', month: 'Monthly', year: 'Yearly' };
 const providers = { app_store: 'App Store', play_store: 'Google Play', tap: 'Bloom website' };
+const paymentStates: Record<string, readonly [string, string]> = {
+  ready: ['Awaiting payment', 'في انتظار الدفع'],
+  pending: ['Processing', 'قيد المعالجة'],
+  captured: ['Paid', 'مدفوعة'],
+  declined: ['Declined', 'مرفوض'],
+  review: ['Under review', 'قيد المراجعة'],
+  requested: ['Requested', 'تم تقديم الطلب'],
+  approved: ['Approved', 'تمت الموافقة'],
+  refunded: ['Refunded', 'تم الاسترداد'],
+  failed: ['Failed', 'تعذّر إتمام العملية'],
+};
+const featureLabels: Record<BillingFeature, readonly [string, string]> = {
+  coach_chat: ['Exercise coaching', 'مدرب التمارين'],
+  coach_weekly: ['Weekly exercise plan', 'خطة التمارين الأسبوعية'],
+  study_tutor: ['Study tutoring', 'مدرّس الدراسة'],
+  document_help: ['Document help', 'المساعدة في المستندات'],
+  mock_exam_assess: ['Exam assessment', 'تقييم الاختبار'],
+  read_reflection: ['Reading reflection', 'تأمل القراءة'],
+  task_breakdown: ['Task breakdown', 'تقسيم المهام'],
+};
+
+function cleanMinorAmount(value: string) {
+  return value.trim().replace(/[٠-٩۰-۹]/g, digit => String(digit.charCodeAt(0) & 0xf));
+}
 
 export default function SubscriptionScreen() {
   const { profileId, childProfile } = useAuth();
@@ -44,6 +68,7 @@ export default function SubscriptionScreen() {
   const plan = summary?.plan;
   const product = selected && store.find(entry => entry.sku === selected.store_product);
   const local = (en: string, ar: string) => language === 'ar' ? ar : en;
+  const stateLabel = (value: string) => local(...(paymentStates[value] ?? ['Unknown status', 'حالة غير معروفة']));
   const date = (value: string) => new Date(value).toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' });
   const number = (value: number) => new Intl.NumberFormat(locale).format(value);
   const label = (item: Pick<BillingProduct, 'tier' | 'scope' | 'period'>) =>
@@ -141,6 +166,9 @@ export default function SubscriptionScreen() {
   const planChoices = (catalog?.products ?? []).filter(entry => entry.provider === provider
     && (!native || store.some(pack => pack.sku === entry.store_product))
     && (entry.scope === 'individual' || Boolean(catalog?.households.length)));
+  const minorRefund = cleanMinorAmount(reviewAmount);
+  const validRefund = /^\d+$/.test(minorRefund) && Number(minorRefund) > 0
+    && Number(minorRefund) <= (review?.refundable_minor ?? 0);
   const mayChoose = catalog?.enabled && !childProfile && (browser || (native && storeBillingAvailable))
     && (!plan || (plan.is_payer && plan.provider === provider));
 
@@ -148,7 +176,7 @@ export default function SubscriptionScreen() {
     <Heading>{local('Subscription and usage credits', 'الاشتراك ورصيد الاستخدام')}</Heading>
     <Panel>
       <Label>{plan ? label(plan) : local('Your Bloom plan', 'خطة بلوم الخاصة بك')}</Label>
-      {plan && <Body>{providers[plan.provider]} · {local(plan.cancel_at_end ? 'Ends' : 'Renews', plan.cancel_at_end ? 'ينتهي' : 'يتجدد')} {date(plan.period_end)}</Body>}
+      {plan && <Body>{plan.provider === 'tap' ? local(providers.tap, 'موقع بلوم') : providers[plan.provider]} · {local(plan.cancel_at_end ? 'Ends' : 'Renews', plan.cancel_at_end ? 'ينتهي' : 'يتجدد')} {date(plan.period_end)}</Body>}
       {plan?.status === 'grace_period' && <Body>{local('Your payment needs attention.', 'تحتاج دفعتك إلى مراجعة.')}</Body>}
       {summary?.metered && <Body>{number(summary.remaining)} / {number(summary.allowance)} {local('weekly usage credits', 'من رصيد الاستخدام الأسبوعي')}</Body>}
       {summary?.next_refill_at && <Body>{local('Next refill', 'التجديد القادم')} · {date(summary.next_refill_at)}</Body>}
@@ -231,6 +259,8 @@ export default function SubscriptionScreen() {
           setWebQuote(await tapBilling<BillingQuote>('quote', { product_id: selected.id, household_id: householdId || null, code }));
         })} />
         {webQuote && <><Body>{local('Due now', 'المستحق الآن')} · {money(webQuote.amount_minor, webQuote.currency, locale)}</Body>
+          {webQuote.kind === 'initial' && webQuote.amount_minor < webQuote.recurring_minor &&
+            <Body>{local('The discounted price applies to the first billing period.', 'يسري السعر المخفّض خلال فترة الفوترة الأولى.')}</Body>}
           <Body>{local('Automatic renewal', 'التجديد التلقائي')} · {money(webQuote.recurring_minor, webQuote.currency, locale)} · {label(selected)}</Body>
           <Button label={local('Accept recurring terms and continue to Tap', 'قبول شروط التجديد والمتابعة إلى تاب')} disabled={busy}
             onPress={() => void run(() => pay())} /></>}
@@ -270,12 +300,13 @@ export default function SubscriptionScreen() {
         plan?.status === 'grace_period' ? local(' · Review the scheduled plan to authorize your next payment.', ' · راجع الخطة المجدولة لتفويض دفعتك التالية.') : ''
       }</Body>}
       {history.charges.map(charge => <Panel key={charge.id}>
-        <Body>{money(charge.amount_minor, charge.currency, locale)} · {date(charge.created_at)} · {charge.state}</Body>
+        <Body>{money(charge.amount_minor, charge.currency, locale)} · {date(charge.created_at)} · {stateLabel(charge.state)}</Body>
         {charge.receipt_url && <Button label={local('Open receipt', 'فتح الإيصال')} secondary onPress={() => void run(async () => { await Linking.openURL(charge.receipt_url!); })} />}
         {charge.state === 'captured' && <Button label={local('Request a refund', 'طلب استرداد')} secondary disabled={busy}
           onPress={() => { setRefundCharge(charge.id); setReason(''); }} />}
         {history.refunds.filter(item => item.charge_id === charge.id).map(item =>
-          <Body key={item.id}>{local('Refund', 'الاسترداد')} · {item.state} {item.review_note}</Body>)}
+          <Body key={item.id}>{local('Refund', 'الاسترداد')} · {stateLabel(item.state)}
+            {item.amount_minor !== null ? ` · ${money(item.amount_minor, charge.currency, locale)}` : ''} {item.review_note}</Body>)}
         {refundCharge === charge.id && <><Field label={local('Refund reason', 'سبب الاسترداد')} value={reason} onChangeText={setReason} maxLength={600} multiline />
           <Button label={local('Send refund request', 'إرسال طلب الاسترداد')} disabled={busy || !reason.trim()} onPress={() => void run(async () => {
             await tapBilling('refund_request', { charge_id: charge.id, reason });
@@ -293,10 +324,10 @@ export default function SubscriptionScreen() {
         <Body>{review.reason}</Body>
         <Field label={local('Amount in minor currency units', 'المبلغ بأصغر وحدة للعملة')} value={reviewAmount} onChangeText={setReviewAmount} keyboardType="number-pad" />
         <Field label={local('Decision reason', 'سبب القرار')} value={reviewNote} onChangeText={setReviewNote} maxLength={600} />
-        {(['approved', 'declined'] as const).map(state => <Button key={state} secondary={state === 'declined'} disabled={busy || !reviewNote.trim()}
+        {(['approved', 'declined'] as const).map(state => <Button key={state} secondary={state === 'declined'} disabled={busy || !reviewNote.trim() || (state === 'approved' && !validRefund)}
           label={state === 'approved' ? local('Approve refund', 'الموافقة على الاسترداد') : local('Decline refund', 'رفض الاسترداد')}
           onPress={() => void run(async () => {
-            await tapBilling('refund_decision', { id: review.id, state, note: reviewNote, amount_minor: Number(reviewAmount) });
+            await tapBilling('refund_decision', { id: review.id, state, note: reviewNote, amount_minor: state === 'approved' ? Number(minorRefund) : null });
             setReview(null); setReviews(await tapBilling<RefundReview[]>('refund_queue'));
           })} />)}
       </>}
@@ -304,7 +335,7 @@ export default function SubscriptionScreen() {
     {Boolean(summary?.recent_usage.length) && <Panel>
       <Label>{local('Recent usage', 'الاستخدام الأخير')}</Label>
       {summary?.recent_usage.map(item => <Body key={`${item.feature}:${item.created_at}`}>
-        {item.feature.replaceAll('_', ' ')} · {number(item.credits)} · {date(item.created_at)}</Body>)}
+        {local(...(featureLabels[item.feature] ?? ['Usage', 'استخدام']))} · {number(item.credits)} · {date(item.created_at)}</Body>)}
     </Panel>}
   </Screen>;
 }

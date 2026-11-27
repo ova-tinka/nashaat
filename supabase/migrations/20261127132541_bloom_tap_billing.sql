@@ -221,7 +221,7 @@ begin
         from public.bloom_subscriptions s where s.payer_user_id=p_profile and s.billing_provider='tap'
           and s.next_product_id is not null and s.status in ('active','grace_period') order by s.current_period_end desc limit 1),
       'refunds', coalesce((select jsonb_agg(to_jsonb(r) order by r.created_at desc) from (
-      select id,charge_id,state,amount_minor,created_at,review_note from bloom_private.tap_refunds where payer = p_profile and kind <> 'card_update'
+      select id,charge_id,state,amount_minor,created_at,review_note from bloom_private.tap_refunds where payer = p_profile
         order by created_at desc limit 30) r),'[]'::jsonb),
       'is_staff',exists(select 1 from bloom_private.billing_refund_staff f where f.profile_id=p_profile));
   elsif p_action = 'checkout_status' then
