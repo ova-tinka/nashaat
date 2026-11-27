@@ -20,6 +20,10 @@ class BloomAccessibilityService : AccessibilityService() {
   private var blockedOverlay: BloomBlockedOverlay? = null
   private var receiverRegistered = false
   private var heartbeatRunning = false
+  private val policyCache = AccessibilityPolicyCache()
+  private var lastAddressCheckPackage: String? = null
+  private var lastAddressCheckAtMs: Long = 0L
+  private var lastAddressValue: String? = null
   private val handler = Handler(Looper.getMainLooper())
   private val checkDeadline = Runnable { checkActiveWindow() }
   private val heartbeat = object : Runnable {
@@ -31,9 +35,12 @@ class BloomAccessibilityService : AccessibilityService() {
   }
   private val preferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
     if (key == BloomBlockingModule.CREDIT_DEADLINE || key == BloomBlockingModule.CREDIT_BOOT || key == BloomBlockingModule.CREDIT_ACCOUNT || key == BloomBlockingModule.BLOCKING_ACTIVE
+      || key == BloomBlockingModule.BLOCKED_APPS || key == BloomBlockingModule.BLOCKED_WEBSITES
       || key == BloomBlockingModule.MANAGED_APPS || key == BloomBlockingModule.MANAGED_WEBSITES
+      || key == BloomBlockingModule.WEBSITE_CONSENT
       || key == "focus_routine_account" || key?.startsWith("focus_routines:") == true
       || key?.startsWith("manual_focus_") == true) {
+      policyCache.invalidate()
       handler.post(checkDeadline)
     }
   }
@@ -50,6 +57,7 @@ class BloomAccessibilityService : AccessibilityService() {
 
   override fun onServiceConnected() {
     super.onServiceConnected()
+    policyCache.invalidate()
     UsageTracker.recoverAfterInterruption(this)
     val preferences = getSharedPreferences(BloomBlockingModule.PREFERENCES, Context.MODE_PRIVATE)
     preferences.registerOnSharedPreferenceChangeListener(preferenceListener)
@@ -80,20 +88,21 @@ class BloomAccessibilityService : AccessibilityService() {
       if (blockedOverlay == null) lastBlockedTarget = null
       return
     }
-    checkWindow(packageName)
+    checkWindow(packageName, event?.eventType)
   }
 
-  private fun checkWindow(packageName: String) {
+  private fun checkWindow(packageName: String, eventType: Int? = null) {
     // The notice is drawn by this service and should not hide itself when its
     // own accessibility window becomes active.
     if (packageName == this.packageName && blockedOverlay != null) return
 
     val preferences = getSharedPreferences(BloomBlockingModule.PREFERENCES, Context.MODE_PRIVATE)
-    val active = preferences.getBoolean(BloomBlockingModule.BLOCKING_ACTIVE, false)
-    val personalApps = preferences.getStringSet(BloomBlockingModule.BLOCKED_APPS, emptySet()).orEmpty()
-    val managedApps = preferences.getStringSet(BloomBlockingModule.MANAGED_APPS, emptySet()).orEmpty()
-    val routines = try { FocusSchedule.active(FocusRoutineStore.read(this)) } catch (_: Exception) { emptyList() }
-    val manual = try { ManualFocusStore.read(this)?.takeIf { it.active } } catch (_: Exception) { null }
+    val policy = policyCache.get(this, preferences)
+    val active = policy.active
+    val personalApps = policy.personalApps
+    val managedApps = policy.managedApps
+    val routines = policy.activeRoutines()
+    val manual = policy.activeManual()
     if (!active && routines.isEmpty() && manual == null) {
       handler.removeCallbacks(checkDeadline)
       UsageTracker.setTracking(this, false)
@@ -101,24 +110,41 @@ class BloomAccessibilityService : AccessibilityService() {
       dismissBlockedOverlay()
       return
     }
-    val remaining = if (CreditDeadline.accountMatches(preferences.getString(BloomBlockingModule.CREDIT_ACCOUNT, null), FocusRoutineStore.account(this))) CreditDeadline.remainingMillis(
+    val remaining = if (CreditDeadline.accountMatches(policy.creditAccount, policy.focusRoutineAccount)) CreditDeadline.remainingMillis(
       preferences.getLong(BloomBlockingModule.CREDIT_DEADLINE, 0),
       preferences.getInt(BloomBlockingModule.CREDIT_BOOT, -1),
       Settings.Global.getInt(contentResolver, Settings.Global.BOOT_COUNT, -1),
       SystemClock.elapsedRealtime(),
     ) else 0L
     handler.removeCallbacks(checkDeadline)
-    val personalWebsites = preferences.getStringSet(BloomBlockingModule.BLOCKED_WEBSITES, emptySet()).orEmpty()
-    val managedWebsites = preferences.getStringSet(BloomBlockingModule.MANAGED_WEBSITES, emptySet()).orEmpty()
+    val personalWebsites = policy.personalWebsites
+    val managedWebsites = policy.managedWebsites
     val scheduledWebsites = routines.flatMap { it.websites }.toSet()
     val blockedWebsites = (if (active) personalWebsites + managedWebsites else emptySet()) + scheduledWebsites + (manual?.selection?.websites ?: emptySet())
-    val websiteChecksEnabled = preferences.getBoolean(BloomBlockingModule.WEBSITE_CONSENT, false)
+    val websiteChecksEnabled = policy.websiteChecksEnabled
     val addressViewId = BrowserAddressIds.viewId(packageName)
-    val root = rootInActiveWindow?.takeIf { it.packageName?.toString() == packageName }
-    val address = if (websiteChecksEnabled && addressViewId != null && blockedWebsites.isNotEmpty()) {
-      root?.findAccessibilityNodeInfosByViewId(addressViewId)?.asSequence()
+    val nowMs = SystemClock.elapsedRealtime()
+    val address = if (AccessibilityPolicyHelper.shouldInspectBrowserAddress(
+        eventType = eventType,
+        packageName = packageName,
+        websiteChecksEnabled = websiteChecksEnabled,
+        hasBlockedWebsites = blockedWebsites.isNotEmpty(),
+        hasAddressViewId = addressViewId != null,
+        lastCheckedPackage = lastAddressCheckPackage,
+        lastCheckedAtMs = lastAddressCheckAtMs,
+        nowMs = nowMs,
+      )
+    ) {
+      val root = rootInActiveWindow?.takeIf { it.packageName?.toString() == packageName }
+      val resolved = root?.findAccessibilityNodeInfosByViewId(addressViewId!!)?.asSequence()
         ?.mapNotNull { it.text?.toString() }
         ?.firstOrNull()
+      lastAddressCheckPackage = packageName
+      lastAddressCheckAtMs = nowMs
+      lastAddressValue = resolved
+      resolved
+    } else if (websiteChecksEnabled && addressViewId != null && lastAddressCheckPackage == packageName) {
+      lastAddressValue
     } else null
     fun target(apps: Set<String>, websites: Set<String>): String? {
       val decision = if (websiteChecksEnabled) BrowserAddressIds.decide(packageName, address, websites)
@@ -246,6 +272,7 @@ class BloomAccessibilityService : AccessibilityService() {
   }
 
   override fun onDestroy() {
+    policyCache.invalidate()
     UsageTracker.setTracking(this, false)
     dismissBlockedOverlay()
     if (receiverRegistered) unregisterReceiver(screenReceiver)

@@ -1,11 +1,10 @@
 import { randomUUID } from 'expo-crypto';
 import * as WebBrowser from 'expo-web-browser';
 import { router, useFocusEffect, useLocalSearchParams, type Href } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
 import { isTauri } from '@tauri-apps/api/core';
 import { Body, Button, ErrorText, Eyebrow, Field, Heading, Label, Panel, Screen, sharedStyles } from '../../../../../../components/bloom-ui';
-import { ReadingDocumentView } from '../../../../../../components/reading-document-view';
 import { useAuth } from '../../../../../../lib/auth';
 import { createGrowthDocumentUrl, deleteGrowthRecord, finishGrowthSession, loadDocumentReaderRecords, loadGrowthDocumentById,
   loadGrowthItemById, loadGrowthModule, saveGrowthRecord, startGrowthSession, cancelGrowthSession, upsertReaderPosition,
@@ -14,6 +13,10 @@ import { getCurrentDeviceIdentity } from '../../../../../../lib/devices';
 import { useBloomTheme } from '../../../../../../lib/theme-context';
 import { isMacTauriWebView, isReaderFormatSupported, resolveBloomPlatform } from '../../../../../../lib/platform-capabilities';
 import { moduleManifest } from '../../../../../../lib/module-manifest';
+
+const LazyReadingDocumentView = lazy(() =>
+  import('../../../../../../components/reading-document-view').then((mod) => ({ default: mod.ReadingDocumentView })),
+);
 
 type Location = { cfi: string | null; page: number; pageCount: number; percent: number };
 function parseLocation(record?: GrowthRecord | null): Location | null {
@@ -225,10 +228,10 @@ export default function IntegratedReaderScreen() {
       </Panel>
       <Panel>
         <Eyebrow>Reading view · {Platform.OS === 'web' || document.format === 'epub' ? 'in app' : 'platform viewer'}</Eyebrow>
-        {(Platform.OS === 'web' || document.format === 'epub') && <ReadingDocumentView key={`${document.id}:${startLocation?.cfi ?? startLocation?.page ?? 1}`} format={document.format} sourceUrl={url}
+        {(Platform.OS === 'web' || document.format === 'epub') && <Suspense fallback={<ActivityIndicator color={theme.colors.action} />}><LazyReadingDocumentView key={`${document.id}:${startLocation?.cfi ?? startLocation?.page ?? 1}`} format={document.format} sourceUrl={url}
           initialCfi={startLocation?.cfi} initialPercent={startLocation?.percent}
           initialPage={startLocation?.page} backgroundColor={theme.colors.surface}
-          textColor={theme.colors.ink} onLocation={onReaderLocation} />}
+          textColor={theme.colors.ink} onLocation={onReaderLocation} /></Suspense>}
         {Platform.OS !== 'web' && document.format === 'pdf' && <>
           <Body>Bloom’s in-app PDF view is enabled on web. Your private PDF can open in the platform browser here.</Body>
           <Button label="Open PDF in browser" variant="secondary" onPress={() => void WebBrowser.openBrowserAsync(url)} />
