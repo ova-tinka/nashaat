@@ -67,3 +67,36 @@ Reviewed on 2026-11-26 at `a543825` with 45 staged files included. The review co
 | Dependency advisories | `npm audit --omit=dev` reported seven entries. `deno audit --lock=deno.lock --level=moderate` reported no known vulnerabilities at that threshold. Rust dependencies, the vendored bundle and Git secret history need separate automated coverage. |
 
 The audit changed this report only. No production database, provider, signed build, or physical device was exercised.
+
+## Remediation status and verification evidence (2026-11-28)
+
+Remediated on branch `audit` (from `main` at `e540bcb`). Billing (`codex/bloom-subscriptions`) and deferred roadmap items (Recurring Tasks, scanned-PDF OCR, packaged browser extension, Windows enforcement, Organization Mode) remain separate feature work.
+
+| Rank | Finding | Status | Commit(s) | Verification evidence |
+|---|---|---|---|---|
+| **1 (P1)** | Exercise seed and clean setup | **Closed** | `ff3a5c5` | `npm run test:bootstrap`: 72 migrations + double `supabase/seed.sql` replay, 62 system exercises, metadata verified, same-name custom exercise preserved. |
+| **2 (P1)** | Study Tutor quota and clear-history race | **Closed** | `d0f51b3` | `tests/study-tutor-quota.sql`, `tests/study-tutor-concurrency.py`, `study-tutor_test.ts`: separate `growth_ai_quota_events`, 24h backfill, advisory-lock serialization across clear vs finish. |
+| **3 (P1)** | EPUB reader and dependency advisories | **Closed** | `7183745` | `npm audit --omit=dev` (0 vulns), `deno audit` (0 vulns), reproducible `npm run build:epub-bundle` with `@xmldom/xmldom@0.8.15`, `tests/reading-reader.test.mjs`, pinned `.supabase-version` (`2.117.0`). |
+| **4 (P1)** | Focus, Screen Time, and credit recovery | **Open — signed build & physical devices required** | `2c5d107` | Shared `src/lib/credit-session-lifecycle.ts`, `src/lib/device-support-matrix.ts`, `tests/credit-session-lifecycle.test.mjs`, `npm run test:macos-native`. Live macOS Brave Private/Calculator/Easy Finish, iOS, and Android physical-device checks remain open. |
+| **5 (P2)** | Shared-device auth and lost-device revocation | **Closed** | `3fc8db5` | Retired PIN unlock (`410` + DB rejection), chunked `SecureStore` / macOS Keychain storage + legacy migration (`tests/auth-storage-migration.test.mjs`), `bloom-revoke-device` + `tests/device-revocation.sql` + `session-revocation_test.ts`. |
+| **6 (P2)** | Account-wide weekly earning cap | **Closed** | `9b15a96` | `20261127000002_bloom_weekly_earning_cap.sql` (new profiles default 120 min/week, DST-safe `credit_week_start`, shared lock across all 4 pillars), `tests/weekly-earning-cap.sql`, `tests/weekly-cap-concurrency.py`. |
+| **7 (P2)** | Reader links, older records, and desktop bridge | **Closed** | `5103801` | `src/lib/auth-return-path.ts` + tests, typed Tauri commands + `open_reader_in_browser` (`cargo test` 3/3), canonical `reader_position` + direct ID lookup (`tests/reader-records.sql` >100 docs/records). |
+| **8 (P2)** | Upload, delete, and file processing | **Closed** | `47b1387` | `pending`/`ready`/`deleting` states (`tests/document-lifecycle.sql`), pre-buffer size check & reconciliation (`tests/document-lifecycle-client.test.mjs`), bounded extraction (`document-extract_test.ts`). |
+| **9 (P2)** | Full offline activity logging | **Closed** | `587ed41` | Profile/device-scoped queue (`tests/offline-activity-queue.test.mjs`), self-reported sync RPCs (`tests/offline-activity-sync.sql`), zero time-based credit, Tasks reward on server acceptance only. |
+| **10 (P2)** | Personal account export and deletion | **Closed** | `df3d18a` | `bloom-account-export` (300s signed URLs) & `bloom-account-delete` (fresh sign-in gate, resumable jobs, Family `needs_family_review` routing), `tests/account-export-deletion.sql`, `account-controls_test.ts`. |
+| **11 (P3)** | Refresh, catalog, and history performance | **Closed** | `d62790e` | Zero settings writes on refresh + deduplication (`tests/bloom-refresh-performance.test.mjs`), paginated/virtualized catalog (`library.tsx`), server lifetime bests (`tests/exercise-bests.sql`, 1,050 sessions). |
+| **12 (P3)** | Android event cost and web payload | **Partial — web closed; Android physical-device profiling open** | `3808b5b` | Web: lazy reader & deferred EPUB bundle (`scripts/check-web-payload.mjs`: 581.6 KiB gzip initial JS, EPUB excluded). Android: `AccessibilityPolicyCache.kt` + `AccessibilityPolicyCacheTest.kt`; Gradle execution & live Android profiling blocked by missing Android toolchain/device. |
+| **13 (P3)** | Code structure, backend types, and CI | **Closed** | `04fad98`, `ba138bc` | Node 24 LTS (`.nvmrc`), ESM unit imports fixed, extracted workflow modules, generated `src/lib/database.types.ts`, unified `AiJsonProvider`, `.github/workflows/ci.yml`, QA docs updated. |
+
+### Final verification run (on `audit`)
+
+- `npm run typecheck` and `npm run lint`: passed (0 errors, 0 warnings).
+- `npm run test:unit`: 98 passed, 0 failed.
+- `deno test --cached-only --allow-env supabase/functions/_shared/*_test.ts`: 34 passed, 0 failed.
+- `deno audit --lock=deno.lock --level=moderate` and `npm audit --omit=dev`: 0 vulnerabilities.
+- `bash tests/run-schema-local.sh`: 54 Bloom migrations, 37 SQL fixtures (including `tests/e2e-acceptance.sql` disposable-account acceptance), and all concurrency checks passed.
+- `npm run test:bootstrap`: 72 migrations + double idempotent seed passed.
+- `npm run build:web && node scripts/check-web-payload.mjs`: passed (`raw=2354.1 KiB, gzip=581.6 KiB`, EPUB renderer excluded from initial route).
+- `cargo test --manifest-path src-tauri/Cargo.toml` (3/3) and `npm run test:macos-native`: passed.
+- `python3 tests/validate-qa-docs.py`: passed (13 QA documents, 31 unique cases).
+- **Open hardware/toolchain blockers**: No authorized Android device or Gradle/Kotlin toolchain is present on this host, and signed/notarized live macOS/iOS/Android enforcement runs cannot execute from CLI.
