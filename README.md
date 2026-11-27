@@ -13,9 +13,10 @@ The repository root is the Bloom app root. The earlier Flutter Nashaat app is ar
 
 ## Setup
 
-1. Install Node.js and run `npm ci` from the repository root.
-2. Set `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in the ignored root `.env` file. Set `EXPO_PUBLIC_BLOOM_WEB_URL` to the public root URL of the web deployment to enable Mac reading-document handoff. Use `.env.example` as the template. Never put a service-role key in a client app or commit an environment file.
-3. Apply the required Bloom migrations from `supabase/migrations/` to a development project.
+1. Install Node.js (see `.nvmrc` for Node 24 LTS) and run `npm ci` from the repository root.
+2. Install the standalone Supabase CLI (pinned in `.supabase-version`, e.g. `brew install supabase/tap/supabase`; do not install `supabase` via npm).
+3. Set `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in the ignored root `.env` file. Set `EXPO_PUBLIC_BLOOM_WEB_URL` to the public root URL of the web deployment to enable Mac reading-document handoff. Use `.env.example` as the template. Never put a service-role key in a client app or commit an environment file.
+4. Apply the required Bloom migrations from `supabase/migrations/` to a development project.
 
 ## Run and verify
 
