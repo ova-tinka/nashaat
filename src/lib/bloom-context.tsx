@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type PropsWithChildren } from 'react';
 import { AppState, Platform } from 'react-native';
-import { loadBloomData, updateCreditRules, updateCredits, type ActiveWorkout, type CreditSettings, type Subscription, type WorkoutAnalytics, type WorkoutPlan } from './bloom';
+import { loadBloomData, updateCreditRules, updateCredits, type ActiveWorkout, type CreditSettings, type WorkoutAnalytics, type WorkoutPlan } from './bloom';
 import { isMacDesktop } from './macos-blocking';
 import { cancelBlockingRulesSync, syncBlockingRules, type BlockingRulesPlatform } from './blocking-rules-sync';
 import type { ChildRule } from './family';
@@ -13,7 +13,6 @@ type BloomState = {
   creditSettings: CreditSettings | null;
   creditBalance: number;
   workoutAnalytics: WorkoutAnalytics | null;
-  subscription: Subscription | null;
   blockingRules: ChildRule[];
   blockingRulesSyncError: string | null;
   blockingRulesSyncedAt: number | null;
@@ -35,7 +34,6 @@ export function BloomProvider({ userId, children }: PropsWithChildren<{ userId: 
   const [creditSettings, setCreditSettings] = useState<CreditSettings | null>(null);
   const [creditBalance, setCreditBalance] = useState(0);
   const [workoutAnalytics, setWorkoutAnalytics] = useState<WorkoutAnalytics | null>(null);
-  const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [blockingRules, setBlockingRules] = useState<{ userId: string; rules: ChildRule[] } | null>(null);
   const [blockingRulesSync, setBlockingRulesSync] = useState<{ userId: string; error: string | null; syncedAt: number | null; status: string | null }>({ userId, error: null, syncedAt: null, status: null });
   const [loading, setLoading] = useState(true);
@@ -56,7 +54,6 @@ export function BloomProvider({ userId, children }: PropsWithChildren<{ userId: 
       setCreditSettings(data.creditSettings);
       setCreditBalance(data.creditBalance);
       setWorkoutAnalytics(data.workoutAnalytics);
-      setSubscription(data.subscription);
       setLastConfirmedAt({ userId, at: Date.now() });
     } catch {
       if (version === refreshVersion.current) setError('Could not load your Bloom data. Check your connection and try again.');
@@ -131,7 +128,7 @@ export function BloomProvider({ userId, children }: PropsWithChildren<{ userId: 
     setCreditSettings((current) => current ? { ...current, ...settings } : current);
   }
 
-  return <BloomContext.Provider value={{ plans, completedSessions, activeWorkout, creditsEnabled, creditSettings, creditBalance, workoutAnalytics, subscription,
+  return <BloomContext.Provider value={{ plans, completedSessions, activeWorkout, creditsEnabled, creditSettings, creditBalance, workoutAnalytics,
     blockingRules: blockingRules?.userId === userId ? blockingRules.rules : [],
     blockingRulesSyncError: blockingRulesSync.userId === userId ? blockingRulesSync.error : null,
     blockingRulesSyncedAt: blockingRulesSync.userId === userId ? blockingRulesSync.syncedAt : null,

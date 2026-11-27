@@ -1,3 +1,5 @@
+import { usageRequestFailed } from '../lib/usage-request';
+import { UsageButton } from './usage-action';
 import { getAppLocale } from '../lib/locale-context';
 import { randomUUID } from 'expo-crypto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -284,6 +286,7 @@ export function MockExamPanel({ profileId, items, records, readOnly, onSaved }: 
       setNotice(`Attempt saved · ${result.score}% suggested result. ${hasShortAnswer ? 'Short-answer results are AI suggestions; review the explanations and uncertainty.' : 'Objective answers were checked against this exam’s saved key.'}`);
       pendingRequest.current = null; onSaved();
     } catch (cause) {
+      if (hasShortAnswer && pendingRequest.current && await usageRequestFailed(pendingRequest.current.requestId)) pendingRequest.current = null;
       setError(cause instanceof Error ? cause.message : 'Could not submit this exam. Your answers remain available to retry.');
     } finally { setBusy(false); }
   }
@@ -343,7 +346,9 @@ export function MockExamPanel({ profileId, items, records, readOnly, onSaved }: 
         <Button label="Previous" variant="secondary" disabled={busy || readOnly || activeQuestion === 0} onPress={() => setActiveQuestion((index) => Math.max(0, index - 1))} />
         {!timeExpired && activeQuestion < active.definition.questions.length - 1
           ? <Button label="Next question" onPress={() => setActiveQuestion((index) => index + 1)} disabled={busy || readOnly} />
-          : <Button label="Submit attempt" onPress={() => void submit()} busy={busy} disabled={busy || readOnly} />}
+          : (hasShortAnswer
+            ? <UsageButton feature="mock_exam_assess" replay={Boolean(error)} label="Submit attempt" onPress={submit} busy={busy} disabled={busy || readOnly} />
+            : <Button label="Submit attempt" onPress={() => void submit()} busy={busy} disabled={busy || readOnly} />)}
       </View>
       <Button label="Leave this attempt" variant="tertiary" disabled={busy} onPress={() => { setActiveExamId(null); setStartTime(null); setActiveQuestion(0); setAnswers({}); pendingRequest.current = null; }} />
     </View>}

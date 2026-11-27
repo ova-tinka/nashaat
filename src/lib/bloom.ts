@@ -30,7 +30,6 @@ export type WorkoutPlan = {
   bloom_plan_exercises: PlanExercise[];
 };
 export type DraftExercise = { exercise_id: string; sets: number; target: number; weight_kg?: number; distance_km?: number };
-export type Subscription = { id: string; status: string; current_period_end: string | null };
 export type CreditSettings = {
   credits_enabled: boolean;
   credit_mode: 'easy' | 'hard' | 'super_hard';
@@ -185,7 +184,7 @@ export async function loadBloomData(userId: string) {
     .upsert({ user_id: userId, credit_timezone: timezone }, { onConflict: 'user_id', ignoreDuplicates: true });
   if (settingsError) throw settingsError;
 
-  const [settings, plans, sessions, activeWorkout, subscription, balance, analytics, planProgress] = await Promise.all([
+  const [settings, plans, sessions, activeWorkout, balance, analytics, planProgress] = await Promise.all([
     db.from('bloom_settings').select('credits_enabled,credit_mode,credit_timezone,earning_strategy,reps_per_award,rep_award_minutes,exercise_minutes_per_award,time_award_minutes,super_daily_cap_minutes,weekly_workout_target,weekly_credit_target_minutes').eq('user_id', userId).single(),
     db.from('bloom_workout_plans')
       .select('id,title,created_at,scheduled_days,bloom_plan_exercises(position,sets,target_reps,target_seconds,target_weight_kg,target_distance_km,exercise:exercises(id,name,measurement_type,description,instructions,media_link))')
@@ -194,13 +193,11 @@ export async function loadBloomData(userId: string) {
       .eq('user_id', userId).not('completed_at', 'is', null),
     db.from('bloom_workout_sessions').select('id,plan_id,started_at')
       .eq('user_id', userId).eq('status', 'in_progress').maybeSingle(),
-    db.from('bloom_subscriptions').select('id,status,current_period_end')
-      .order('created_at', { ascending: false }).limit(1).maybeSingle(),
     db.rpc('bloom_credit_balance'),
     db.rpc('bloom_workout_analytics'),
     db.rpc('bloom_weekly_plan_progress'),
   ]);
-  for (const result of [settings, plans, sessions, activeWorkout, subscription, balance, analytics, planProgress]) {
+  for (const result of [settings, plans, sessions, activeWorkout, balance, analytics, planProgress]) {
     if (result.error) throw result.error;
   }
   if (!settings.data) throw new Error('Settings are unavailable.');
@@ -211,14 +208,13 @@ export async function loadBloomData(userId: string) {
     plans: (plans.data ?? []) as unknown as WorkoutPlan[],
     completedSessions: sessions.count ?? 0,
     activeWorkout: activeWorkout.data as ActiveWorkout | null,
-    subscription: subscription.data as Subscription | null,
     workoutAnalytics: { ...(analytics.data as WorkoutAnalytics), ...(planProgress.data as Pick<WorkoutAnalytics, 'planned_workouts' | 'completed_planned_workouts' | 'scheduled_days' | 'rest_days' | 'missed_planned_workouts'>) },
   };
 }
 
 export async function loadCreditLedger(): Promise<CreditLedgerEntry[]> {
   const { data, error } = await client().from('bloom_credit_ledger')
-    .select('id,amount_minutes,entry_type,expires_at,created_at,workout_session_id,growth_module_id,growth_source_type')
+    .select('id,amount_minutes,entry_type,expires_at,created_at,workout_session_id,growth_module_id,growth_source_type').neq('entry_type', 'usage')
     .order('created_at', { ascending: false }).limit(100);
   if (error) throw error;
   return (data ?? []).map((row) => ({ ...row, amount_minutes: Number(row.amount_minutes) })) as CreditLedgerEntry[];

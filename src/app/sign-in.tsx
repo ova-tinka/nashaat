@@ -1,4 +1,4 @@
-import { Redirect } from 'expo-router';
+import { Redirect, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Body, BloomWordmark, Button, ErrorText, Eyebrow, Field, Heading, Panel, Screen, sharedStyles, useIsDesktopLayout } from '../components/bloom-ui';
@@ -9,6 +9,7 @@ import { useBloomTheme } from '../lib/theme-context';
 
 export default function SignInScreen() {
   const { theme } = useBloomTheme();
+  const { checkout, tap_id: tapId } = useLocalSearchParams<{ checkout?: string; tap_id?: string }>();
   const { session, loading, configured } = useAuth();
   const desktop = useIsDesktopLayout();
   const { width } = useWindowDimensions();
@@ -33,7 +34,8 @@ export default function SignInScreen() {
   }, []);
 
   if (loading) return <Screen><ActivityIndicator color={theme.colors.action} /></Screen>;
-  if (session) return <Redirect href="/" />;
+  if (session) return <Redirect href={checkout && /^[a-f0-9-]{36}$/i.test(checkout)
+    ? { pathname: '/subscription', params: { attempt: checkout, tap_id: tapId } } : '/'} />;
 
   async function submit() {
     if (!supabase) return;

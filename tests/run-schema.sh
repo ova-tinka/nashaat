@@ -116,7 +116,10 @@ docker exec -i "$bloom_test_container" psql -q -v ON_ERROR_STOP=1 -U postgres -d
   < "$bloom_dir/tests/read-reflection-memory.sql" >/dev/null
 docker exec -i "$bloom_test_container" psql -q -v ON_ERROR_STOP=1 -U postgres -d postgres \
   < "$bloom_dir/tests/default-personal-memory.sql" >/dev/null
+docker exec -i "$bloom_test_container" psql -q -v ON_ERROR_STOP=1 -U postgres -d postgres \
+  < "$bloom_dir/tests/billing.sql" >/dev/null
 python3 "$bloom_dir/tests/credit-concurrency.py" "$bloom_test_container"
 python3 "$bloom_dir/tests/profile-concurrency.py" "$bloom_test_container"
 python3 "$bloom_dir/tests/competition-concurrency.py" "$bloom_test_container"
+python3 "$bloom_dir/tests/billing-concurrency.py" "$bloom_test_container"
 echo 'Bloom schema and access checks passed.'

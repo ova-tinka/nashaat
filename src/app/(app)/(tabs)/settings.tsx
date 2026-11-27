@@ -33,7 +33,7 @@ type RewardPillar = (typeof rewardPillars)[number]['id'];
 
 export default function SettingsScreen() {
   const { profileId, managedChild, childProfile, assignedModules } = useAuth();
-  const { creditsEnabled, creditSettings, creditBalance, subscription, loading, error, refresh, setCreditsEnabled, saveCreditRules } = useBloom();
+  const { creditsEnabled, creditSettings, creditBalance, loading, error, refresh, setCreditsEnabled, saveCreditRules } = useBloom();
   const { mode, setMode, theme, displayScale, setDisplayScale } = useBloomTheme();
   const { language, setLanguage, restartRequired } = useLocale();
   const { visibleModules, loaded: visibilityLoaded, setModuleVisibility } = useModuleVisibility();
@@ -264,8 +264,7 @@ export default function SettingsScreen() {
       {profileId && growthPillars.filter((pillar) => visitedRewards.includes(pillar)).map((pillar) => <View key={`growth-rewards:${profileId}:${pillar}`} style={rewardSection === pillar ? undefined : { display: 'none' }}><GrowthRewardControls profileId={profileId} editable={!managedChild} approvalByDefault={childProfile} allowedModules={rewardModules[pillar]} heading={`${rewardPillars.find((entry) => entry.id === pillar)?.title} rewards`} /></View>)}
       <Panel>
         <Eyebrow>Bloom plan</Eyebrow>
-        <Label>{subscription ? `Status: ${subscription.status.replaceAll('_', ' ')}` : 'No subscription found'}</Label>
-        <Body>Purchase and plan management are not connected yet.</Body>
+        <Button label="Subscription and usage credits" secondary onPress={() => router.push('/subscription')} />
       </Panel>
 
       {profileId && <SettingsAccordion title="Personal Memory" icon="psychology" status={memoryEnabled === null ? 'Status unavailable' : memoryEnabled ? 'Enabled' : 'Disabled'}><GrowthMemoryControls key={`growth-memory:${profileId}`} profileId={profileId} onStatusChange={setMemoryEnabled} /></SettingsAccordion>}

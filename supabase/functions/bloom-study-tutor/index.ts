@@ -64,7 +64,11 @@ Deno.serve(async (request) => {
     const { data: identity, error: identityError } = await userClient().auth.getUser(token);
     if (identityError || !identity.user || !access.permits(identity.user.id)) return reply(401, { error: 'Sign in required' });
     authorized = true;
-    const { data: context, error: beginError } = await userClient(token).rpc('bloom_begin_study_tutor_request', {
+    const buyer = userClient(token);
+    const saved = await buyer.rpc('bloom_load_tutor_answer', { p_request: requestId, p_item: itemId });
+    if (saved.error) throw saved.error;
+    if (saved.data) return reply(200, { status: 'answered', ...saved.data });
+    const { data: context, error: beginError } = await buyer.rpc('bloom_begin_study_tutor_request', {
       p_request_id: requestId, p_item_id: itemId, p_prompt: prompt,
     });
     if (beginError || !context || typeof context !== 'object') return reply(403, { error: 'Study tutor consent and module access are required.' });

@@ -1,3 +1,4 @@
+import { UsageButton } from '../../components/usage-action';
 import { randomUUID } from 'expo-crypto';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
@@ -108,10 +109,10 @@ export default function CoachScreen() {
           <Button label="Keep conversation" secondary onPress={() => setConfirmClear(false)} disabled={busy} />
         </> : <Button label="Clear conversation" secondary onPress={() => setConfirmClear(true)} disabled={busy} />)}
         {settings?.sharing_consent && <><Field label="Message the coach" value={prompt} onChangeText={setPrompt} maxLength={2000} multiline editable={!busy && (!pending || pending.kind === 'chat')} />
-        <Button label={pending?.kind === 'chat' ? 'Retry message' : 'Send message'} onPress={() => void send('chat', prompt)} busy={busy} disabled={!prompt.trim() || Boolean(pending && pending.kind !== 'chat')} />
-        <Button label={pending?.kind === 'weekly' ? 'Retry weekly review' : 'Review my recent workouts'} secondary onPress={() => void send('weekly', 'Please review my recent workouts and suggest a balanced next step.')} disabled={busy || Boolean(pending && pending.kind !== 'weekly')} />
-        <Button label="Rearrange a missed session" secondary onPress={() => void send('chat', 'I missed a planned session. Help me consider a smaller or rearranged next step. Ask about obstacles without blame, include room for recovery, and prioritize comfortable, safe movement.')} disabled={busy || Boolean(pending)} />
-        <Button label="Plan a smaller week with recovery" secondary onPress={() => void send('chat', 'Suggest a flexible, smaller workout week from my current plans and recent completed sessions. Explain the changes and leave planned recovery days. Do not change any plan unless I approve a proposal.')} disabled={busy || Boolean(pending)} />
+        <UsageButton feature="coach_chat" replay={pending?.kind === 'chat'} label={pending?.kind === 'chat' ? 'Retry message' : 'Send message'} onPress={() => send('chat', prompt)} busy={busy} disabled={!prompt.trim() || Boolean(pending && pending.kind !== 'chat')} />
+        <UsageButton feature="coach_weekly" replay={pending?.kind === 'weekly'} label={pending?.kind === 'weekly' ? 'Retry weekly review' : 'Review my recent workouts'} secondary onPress={() => send('weekly', 'Please review my recent workouts and suggest a balanced next step.')} disabled={busy || Boolean(pending && pending.kind !== 'weekly')} />
+        <UsageButton feature="coach_chat" label="Rearrange a missed session" secondary onPress={() => send('chat', 'I missed a planned session. Help me consider a smaller or rearranged next step. Ask about obstacles without blame, include room for recovery, and prioritize comfortable, safe movement.')} disabled={busy || Boolean(pending)} />
+        <UsageButton feature="coach_chat" label="Plan a smaller week with recovery" secondary onPress={() => send('chat', 'Suggest a flexible, smaller workout week from my current plans and recent completed sessions. Explain the changes and leave planned recovery days. Do not change any plan unless I approve a proposal.')} disabled={busy || Boolean(pending)} />
         {pending && <Button label="Start a new request" secondary onPress={() => setPending(null)} disabled={busy} />}</>}
       </Panel></View>}
       </View>

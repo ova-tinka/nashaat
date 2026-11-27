@@ -1,3 +1,5 @@
+import { useUsageRequest } from '../lib/usage-request';
+import { UsageButton } from './usage-action';
 import { getAppLocale } from '../lib/locale-context';
 import { randomUUID } from 'expo-crypto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -435,11 +437,13 @@ export function StudyTutorPanel({ profileId, items, initialItemId, readOnly }: {
     } finally { setBusy(false); }
   }
 
+  const { run: runTutor, retrying: retryTutor } = useUsageRequest();
+
   async function askTutor() {
     if (!canAsk || !prompt.trim()) { setError('Choose a Study item and enter a question.'); return; }
     setBusy(true); setError(null); setNotice(null);
     try {
-      await requestStudyTutor(randomUUID(), itemId, prompt.trim());
+      await runTutor([itemId, prompt.trim()], id => requestStudyTutor(id, itemId, prompt.trim()));
       setPrompt(''); setNotice('Tutor response saved in your private Study history.');
       await refresh();
     } catch (cause) {
@@ -473,7 +477,7 @@ export function StudyTutorPanel({ profileId, items, initialItemId, readOnly }: {
     {activeItems.length === 0 && <Body>Add a Study item before asking a tutor question.</Body>}
     <Field label="Question" value={readOnly ? '' : prompt} onChangeText={setPrompt} multiline maxLength={2000} editable={!busy && !readOnly && canAsk}
       placeholder="Ask for an explanation or an example" />
-    <Button label="Ask the Study tutor" onPress={() => void askTutor()} busy={busy} disabled={busy || readOnly || !canAsk || !prompt.trim()} />
+    <UsageButton feature="study_tutor" replay={retryTutor} label="Ask the Study tutor" onPress={() => askTutor()} busy={busy} disabled={busy || readOnly || !canAsk || !prompt.trim()} />
     {loading && <Body>Loading private tutor history…</Body>}
     {messages.map((message) => <View key={message.id} style={styles.record}>
       <Label>{message.role === 'assistant' ? 'Bloom tutor · General explanation' : 'You'}{itemNames.has(message.item_id) ? ` · ${itemNames.get(message.item_id)}` : ''}</Label>
@@ -717,11 +721,13 @@ export function GrowthRecordPanel({ profileId, moduleId, items, records, documen
     finally { setReflectionSettingsBusy(false); }
   }
 
+  const { run: runReflection, retrying: retryReflection } = useUsageRequest();
+
   async function generateReflectionPrompt() {
     if (!itemId || !canRequestReflection) return;
     setReflectionPromptBusy(true); setReflectionAiError(null); setReflectionAiNotice(null);
     try {
-      const result = await requestReadingReflection(randomUUID(), itemId);
+      const result = await runReflection([itemId], id => requestReadingReflection(id, itemId!));
       setGeneratedReflectionPromptText(result.prompt);
       setReflectionAiNotice(result.uncertainty);
     } catch (cause) {
@@ -799,8 +805,8 @@ export function GrowthRecordPanel({ profileId, moduleId, items, records, documen
           <Switch accessibilityLabel="Consent to AI reading reflection prompts" value={Boolean(currentReflectionPreferences?.sharing_consent)}
             disabled={readOnly || reflectionSettingsBusy || !profileId} onValueChange={(enabled) => void updateReflectionConsent(enabled)} />
         </View>}
-        <Button label={reflectionPromptBusy ? 'Preparing prompt…' : 'Generate a reflection prompt'} variant="secondary"
-          onPress={() => void generateReflectionPrompt()} busy={reflectionPromptBusy}
+        <UsageButton feature="read_reflection" replay={retryReflection} label={reflectionPromptBusy ? 'Preparing prompt…' : 'Generate a reflection prompt'} variant="secondary"
+          onPress={() => generateReflectionPrompt()} busy={reflectionPromptBusy}
           disabled={readOnly || reflectionPromptBusy || reflectionSettingsBusy || reflectionSettingsLoading || !canRequestReflection} />
         {generatedReflectionPromptText && <View style={sharedStyles.column}>
           <Label>Suggested question</Label><Body>{generatedReflectionPromptText}</Body>
@@ -1103,11 +1109,13 @@ export function TaskBreakdownPanel({ profileId, items, readOnly, onSaved }: {
     finally { setBusy(false); }
   }
 
+  const { run: runBreakdown, retrying: retryBreakdown } = useUsageRequest();
+
   async function generate() {
     if (!selected || !canGenerate || !prompt.trim()) return;
     setBusy(true); setError(null); setNotice(null); setDraft(null);
     try {
-      const result = await requestTaskBreakdown(randomUUID(), selected.id, prompt.trim());
+      const result = await runBreakdown([selected.id, prompt.trim()], id => requestTaskBreakdown(id, selected.id, prompt.trim()));
       setDraft(result); setStepsText(result.steps.join('\n'));
     } catch { setError('Could not prepare a task breakdown. Check consent, provider availability, and your connection.'); }
     finally { setBusy(false); }
@@ -1139,7 +1147,7 @@ export function TaskBreakdownPanel({ profileId, items, readOnly, onSaved }: {
     {tasks.length === 0 ? <Body>Add an active task before creating a draft.</Body> : <View style={styles.choiceRow}>{tasks.map((task) => <Button key={task.id} label={`${itemId === task.id ? '✓ ' : ''}${task.title}`} variant="tertiary"
       disabled={busy || readOnly || Boolean(draft)} onPress={() => setItemId(task.id)} />)}</View>}
     <Field label="What kind of help would you like?" value={prompt} onChangeText={setPrompt} maxLength={2000} multiline editable={!busy && !readOnly && !draft} />
-    <Button label="Generate an editable draft" onPress={() => void generate()} busy={busy} disabled={busy || readOnly || !canGenerate || !selected || !prompt.trim() || Boolean(draft)} />
+    <UsageButton feature="task_breakdown" replay={retryBreakdown} label="Generate an editable draft" onPress={() => generate()} busy={busy} disabled={busy || readOnly || !canGenerate || !selected || !prompt.trim() || Boolean(draft)} />
     {draft && <View style={sharedStyles.column}>
       <Label>Draft · not saved</Label><Body>{draft.reply}</Body>
       <Field label="Edit steps · one per line" value={stepsText} onChangeText={setStepsText} multiline maxLength={1600} editable={!busy && !readOnly} />

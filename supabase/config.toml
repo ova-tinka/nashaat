@@ -468,3 +468,9 @@ enabled = true
 verify_jwt = true
 import_map = "./functions/bloom-study-document-help/deno.json"
 entrypoint = "./functions/bloom-study-document-help/index.ts"
+
+[functions.bloom-revenuecat]
+verify_jwt = false
+
+[functions.bloom-tap]
+verify_jwt = false

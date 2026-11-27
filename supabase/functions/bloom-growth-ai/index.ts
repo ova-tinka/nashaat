@@ -64,7 +64,11 @@ Deno.serve(async (request) => {
     const { data, error } = await userClient().auth.getUser(token);
     if (error || !data.user || !access.permits(data.user.id)) return reply(401, { error: 'Sign in required' });
     authorized = true;
-    const { data: context, error: beginError } = await userClient(token).rpc('bloom_begin_growth_ai_request', {
+    const buyer = userClient(token);
+    const saved = await buyer.rpc('bloom_load_task_ai_draft', { p_request: requestId, p_item: itemId });
+    if (saved.error) throw saved.error;
+    if (saved.data) return reply(200, { status: 'draft', ...validateOutput(saved.data) });
+    const { data: context, error: beginError } = await buyer.rpc('bloom_begin_growth_ai_request', {
       p_request_id: requestId, p_module_id: 'tasks', p_kind: 'task_breakdown', p_item_id: itemId, p_prompt: prompt,
     });
     if (beginError || !context || typeof context !== 'object') return reply(403, { error: 'Task AI consent and module access are required.' });
@@ -96,7 +100,7 @@ Deno.serve(async (request) => {
     const choice = payload.choices?.[0];
     if (!choice || choice.finish_reason === 'length' || typeof choice.message?.content !== 'string') throw new Error('Invalid provider response');
     const result = validateOutput(JSON.parse(choice.message.content));
-    const { error: finishError } = await admin.rpc('bloom_finish_growth_ai_request', { p_request_id: requestId });
+    const { error: finishError } = await admin.rpc('bloom_finish_task_ai_draft', { p_request: requestId, p_result: result });
     if (finishError) throw new Error('Could not finish the AI request');
     started = false;
     return reply(200, { status: 'draft', ...result });
