@@ -19,8 +19,13 @@ import { studySubjectArtworks } from '../lib/study-subject-artworks';
 import { useBloom } from '../lib/bloom-context';
 import { dateKeyInTimeZone, formatDateOnly } from '../lib/date-utils';
 import { getCurrentDeviceIdentity } from '../lib/devices';
+import { flushOfflineActivitiesForProfile, getPendingOfflineCount, queueOfflineActivityForProfile } from '../lib/offline-sync-service';
 import { bloomPillarCollectionImages } from '../assets/bloom-images';
 import { SubjectArtwork, suggestStudySubjectArtwork } from './study-subject-artwork';
+
+function currentEpochMs() {
+  return Date.now();
+}
 
 const moduleContent: Record<GrowthModuleId, { title: string; description: string; icon: 'school' | 'menu-book' | 'check-box' }> = {
   study: {
@@ -109,6 +114,7 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
   const [snapshotTargetKey, setSnapshotTargetKey] = useState<string | null>(null);
   const [hasStaleSnapshot, setHasStaleSnapshot] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [pendingOfflineCount, setPendingOfflineCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [title, setTitle] = useState('');
@@ -280,6 +286,8 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
     }
     setLoading(true); setError(null); setHasStaleSnapshot(false);
     try {
+      await flushOfflineActivitiesForProfile(profileId).catch(() => undefined);
+      setPendingOfflineCount(await getPendingOfflineCount(profileId).catch(() => 0));
       const planOnly = moduleId === 'study' && effectiveSectionId === 'plan';
       const [result, nextDocuments] = await Promise.all([
         planOnly ? loadStudyPlanModule(profileId) : loadGrowthModule(profileId, moduleId),
@@ -454,6 +462,26 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
       await refresh();
       if (cancel && moduleId === 'study') router.replace(sectionHref('study', 'today'));
     } catch (cause) {
+      if (!cancel && profileId) {
+        try {
+          const sourceDevice = await getCurrentDeviceIdentity(profileId);
+          const durationSeconds = Math.max(1, Math.min(43200, Math.floor((currentEpochMs() - Date.parse(session.started_at)) / 1000)));
+          await queueOfflineActivityForProfile(profileId, {
+            kind: moduleId === 'read' ? 'read_session' : 'study_session',
+            moduleId: moduleId === 'read' ? 'read' : 'study',
+            itemId: session.item_id,
+            itemTitle: sessionItem?.title ?? 'Session',
+            sourceDeviceId: sourceDevice.deviceId,
+            sourceDeviceName: sourceDevice.displayName,
+            startedAt: session.started_at,
+            completedAt: new Date().toISOString(),
+            durationSeconds,
+          });
+          setPendingOfflineCount(await getPendingOfflineCount(profileId));
+          setNotice('Session saved offline as Pending. It will sync as self-reported history when connected without automatic time-based credit.');
+          return;
+        } catch { /* Fall through to standard retry error. */ }
+      }
       setError(cause instanceof Error && cause.message.toLowerCase().includes('session has expired')
         ? 'This session expired after 12 hours. Cancel it, then start a new one.'
         : 'Could not save the session. Reconnect and try again.');
@@ -463,7 +491,22 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
   async function changeItem(item: GrowthItem, update: Parameters<typeof updateGrowthItem>[1], success: string) {
     setSaving(true); setError(null); setNotice(null);
     try { await updateGrowthItem(item, update); setNotice(success); await refresh(); }
-    catch { setError('Could not update this item. Check your connection and retry.'); }
+    catch {
+      if (moduleId === 'tasks' && update.state === 'completed' && profileId) {
+        try {
+          await queueOfflineActivityForProfile(profileId, {
+            kind: 'task_completion',
+            itemId: item.id,
+            itemTitle: item.title,
+            completedAt: new Date().toISOString(),
+          });
+          setPendingOfflineCount(await getPendingOfflineCount(profileId));
+          setNotice('Task saved offline as Pending. Normal rewards apply only after the server accepts it.');
+          return;
+        } catch { /* Fall through to standard retry error. */ }
+      }
+      setError('Could not update this item. Check your connection and retry.');
+    }
     finally { setSaving(false); }
   }
 
@@ -607,6 +650,11 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
       <Button label="Retry" variant="tertiary" onPress={() => void refresh()} />
     </View>}
     {notice && <Panel><Body>{notice}</Body></Panel>}
+    {pendingOfflineCount > 0 && <Panel>
+      <Label>Pending offline activity · {pendingOfflineCount}</Label>
+      <Body>Saved on this device and waiting for connection. Pending records never unlock Screen Time.</Body>
+      {profileId && <Button label="Sync pending activity" variant="secondary" onPress={() => void flushOfflineActivitiesForProfile(profileId).then(async () => { setPendingOfflineCount(await getPendingOfflineCount(profileId)); await refresh(); }).catch(() => undefined)} />}
+    </Panel>}
 
     {moduleId !== 'study' && !sectionId && !loading && <>
       <DashboardSummary moduleId={moduleId} hasSnapshot={hasSnapshot}

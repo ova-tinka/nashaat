@@ -4,8 +4,10 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { Body, Button, ErrorText, Eyebrow, Heading, Label, LocalizedText as Text, LocalizedTextInput as TextInput, Panel, Screen, sharedStyles } from '../../components/bloom-ui';
+import { useAuth } from '../../lib/auth';
 import { cancelWorkout, completeWorkout, loadWorkout, setWorkoutTimer, type ExerciseResult, type SessionExercise, type WorkoutSession } from '../../lib/bloom';
 import { useBloom } from '../../lib/bloom-context';
+import { flushOfflineActivitiesForProfile, queueOfflineActivityForProfile } from '../../lib/offline-sync-service';
 import { useBloomTheme } from '../../lib/theme-context';
 
 type Entry = { sets: string; value: string; extra: string; timerStartedAt: number | null; timerElapsed: number };
@@ -30,6 +32,7 @@ function readDraft(raw: string | null, exercises: SessionExercise[]): Draft {
 
 export default function WorkoutSessionScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
+  const { profileId } = useAuth();
   const { refresh } = useBloom();
   const { theme } = useBloomTheme();
   const [session, setSession] = useState<WorkoutSession | null>(null);
@@ -37,6 +40,7 @@ export default function WorkoutSessionScreen() {
   const [draftReady, setDraftReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [queuedOffline, setQueuedOffline] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [draftError, setDraftError] = useState<string | null>(null);
   const [confirmCancel, setConfirmCancel] = useState(false);
@@ -63,6 +67,9 @@ export default function WorkoutSessionScreen() {
     finally { setLoading(false); }
   }, [id]);
 
+  useEffect(() => {
+    if (profileId) void flushOfflineActivitiesForProfile(profileId).catch(() => undefined);
+  }, [profileId]);
   // Loading a session synchronizes the screen with the server and local draft.
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void load(); }, [load]);
@@ -147,7 +154,29 @@ export default function WorkoutSessionScreen() {
       await clearDraft();
       setSession(completed);
       await refresh();
-    } catch { setError('Could not save the workout. Your entries are still on this screen; try again.'); }
+    } catch {
+      if (profileId) {
+        try {
+          const activeSeconds = Number(session.active_duration_seconds ?? 0)
+            + (session.timer_started_at ? Math.max(0, Math.floor((Date.now() - Date.parse(session.timer_started_at)) / 1000)) : 0);
+          const fallbackDuration = Math.max(1, activeSeconds || Math.floor((Date.now() - Date.parse(session.started_at)) / 1000));
+          await queueOfflineActivityForProfile(profileId, {
+            kind: 'exercise_session',
+            planId: session.plan_id,
+            title: 'Workout session',
+            startedAt: session.started_at,
+            completedAt: new Date().toISOString(),
+            durationSeconds: Math.min(43200, fallbackDuration),
+            results,
+          });
+          setDraftReady(false);
+          await clearDraft();
+          setQueuedOffline(true);
+          return;
+        } catch { /* Fall through to retry message if local persistence failed. */ }
+      }
+      setError('Could not save the workout. Your entries are still on this screen; try again.');
+    }
     finally { setSaving(false); }
   }
 
@@ -163,9 +192,10 @@ export default function WorkoutSessionScreen() {
     <View style={sharedStyles.column}><Eyebrow>Workout session</Eyebrow><Heading>{session?.status === 'completed' ? 'Workout saved' : 'Your workout'}</Heading></View>
     {loading && <ActivityIndicator color={theme.colors.action} />}
     {!loading && !session && <Panel><ErrorText>{error ?? 'Workout session not found.'}</ErrorText><Button label="Try again" onPress={() => void load()} /><Button label="Back to workouts" secondary onPress={() => router.replace('/workouts')} /></Panel>}
-    {session?.status === 'completed' && <Panel><Label>Your workout is recorded.</Label><Body>{!session.credits_enabled_at_completion ? 'Screen-time credits were turned off for this workout.' : Number(session.credits_earned_minutes) > 0 ? `You earned ${Number(session.credits_earned_minutes).toLocaleString(getAppLocale(), { maximumFractionDigits: 4 })} minutes of screen time.` : 'No screen-time credits were earned. Review your earning strategy in Profile.'}</Body><Button label="Back to workouts" onPress={() => router.replace('/workouts')} /></Panel>}
+    {queuedOffline && <Panel><Label>Pending offline sync</Label><Body>Your workout was saved on this device and will sync as self-reported history when connected. Offline timed sessions do not award automatic time-based credit or unlock Screen Time while pending.</Body><Button label="Back to workouts" onPress={() => router.replace('/workouts')} /></Panel>}
+    {!queuedOffline && session?.status === 'completed' && <Panel><Label>Your workout is recorded.</Label><Body>{!session.credits_enabled_at_completion ? 'Screen-time credits were turned off for this workout.' : Number(session.credits_earned_minutes) > 0 ? `You earned ${Number(session.credits_earned_minutes).toLocaleString(getAppLocale(), { maximumFractionDigits: 4 })} minutes of screen time.` : 'No screen-time credits were earned. Review your earning strategy in Profile.'}</Body><Button label="Back to workouts" onPress={() => router.replace('/workouts')} /></Panel>}
     {session?.status === 'cancelled' && <Panel><Label>This workout was cancelled.</Label><Button label="Back to workouts" onPress={() => router.replace('/workouts')} /></Panel>}
-    {session?.status === 'in_progress' && <>
+    {!queuedOffline && session?.status === 'in_progress' && <>
       <Body>Log the exercises you completed. Your entries stay on this device until you finish or cancel.</Body>
       <Panel>
         <Label>Workout timer</Label>

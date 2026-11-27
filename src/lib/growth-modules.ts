@@ -712,3 +712,36 @@ export function formatElapsed(seconds: number) {
   return hours ? `${hours}:${String(minutes).padStart(2, '0')}:${String(remainder).padStart(2, '0')}`
     : `${String(minutes).padStart(2, '0')}:${String(remainder).padStart(2, '0')}`;
 }
+
+export async function syncOfflineGrowthSession(args: {
+  activityId: string;
+  moduleId: 'study' | 'read';
+  itemId: string;
+  sourceDeviceId: string;
+  sourceDeviceName: string;
+  startedAt: string;
+  completedAt: string;
+  durationSeconds: number;
+}) {
+  const { data, error } = await client().rpc('bloom_sync_offline_growth_session', {
+    p_activity_id: args.activityId,
+    p_module_id: args.moduleId,
+    p_item_id: args.itemId,
+    p_source_device_id: args.sourceDeviceId,
+    p_source_device_name: args.sourceDeviceName,
+    p_started_at: args.startedAt,
+    p_completed_at: args.completedAt,
+    p_duration_seconds: args.durationSeconds,
+  });
+  if (error) throw error;
+  return data as { session_id: string; status: string; duplicate: boolean; credits_earned_minutes: number; duration_seconds: number };
+}
+
+export async function syncOfflineTaskCompletion(activityId: string, itemId: string) {
+  const { data, error } = await client().rpc('bloom_sync_offline_task_completion', {
+    p_activity_id: activityId,
+    p_item_id: itemId,
+  });
+  if (error) throw error;
+  return data as { item_id: string; status: 'accepted' | 'archived'; duplicate: boolean };
+}

@@ -367,3 +367,23 @@ export async function loadWorkoutAnalytics(userId?: string): Promise<WorkoutAnal
   if (!analytics.data || typeof analytics.data !== 'object' || !planProgress.data || typeof planProgress.data !== 'object') throw new Error('Workout analytics are unavailable.');
   return { ...(analytics.data as WorkoutAnalytics), ...(planProgress.data as Pick<WorkoutAnalytics, 'planned_workouts' | 'completed_planned_workouts' | 'scheduled_days' | 'rest_days' | 'missed_planned_workouts'>) };
 }
+
+export async function syncOfflineWorkout(args: {
+  activityId: string;
+  planId: string | null;
+  startedAt: string;
+  completedAt: string;
+  durationSeconds: number;
+  results: ExerciseResult[];
+}) {
+  const { data, error } = await client().rpc('bloom_sync_offline_workout', {
+    p_activity_id: args.activityId,
+    p_plan_id: args.planId,
+    p_started_at: args.startedAt,
+    p_completed_at: args.completedAt,
+    p_duration_seconds: args.durationSeconds,
+    p_results: args.results,
+  });
+  if (error) throw error;
+  return data as { session_id: string; status: string; duplicate: boolean; credits_earned_minutes: number; duration_seconds: number };
+}

@@ -18,6 +18,7 @@ import {
   type GrowthRewardRule, type GrowthSession, type ReadingKind, type ReadingStatus, type WeeklyPillarGoal,
 } from '../lib/growth-modules';
 import { getCurrentDeviceIdentity } from '../lib/devices';
+import { flushOfflineActivitiesForProfile, getPendingOfflineCount, queueOfflineActivityForProfile } from '../lib/offline-sync-service';
 import { useAuth } from '../lib/auth';
 import { useBloom } from '../lib/bloom-context';
 import { useBloomTheme } from '../lib/theme-context';
@@ -116,6 +117,7 @@ export function ReadModuleScreen({ sectionId }: { sectionId?: string }) {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [pendingOfflineCount, setPendingOfflineCount] = useState(0);
   const [tick, setTick] = useState(0);
   const [libraryFilter, setLibraryFilter] = useState<LibraryFilter>('currently_reading');
   const [libraryMode, setLibraryMode] = useState<'list' | 'documents'>(sectionId === 'reader' ? 'documents' : 'list');
@@ -136,6 +138,8 @@ export function ReadModuleScreen({ sectionId }: { sectionId?: string }) {
     setLoading(true);
     setError(null);
     try {
+      await flushOfflineActivitiesForProfile(profileId).catch(() => undefined);
+      setPendingOfflineCount(await getPendingOfflineCount(profileId).catch(() => 0));
       const rangeStart = new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString();
       const [moduleData, nextDocuments, rewards, nextGoals, nextReportSessions] = await Promise.all([
         loadGrowthModule(profileId, 'read'),
@@ -276,7 +280,26 @@ export function ReadModuleScreen({ sectionId }: { sectionId?: string }) {
             } });
             return;
           }
-        } catch { /* The recovery read can also be offline; keep the session outcome unconfirmed. */ }
+        } catch {
+          try {
+            const device = await getCurrentDeviceIdentity(profileId);
+            const durationSeconds = Math.max(1, Math.min(43200, Math.floor((Date.now() - Date.parse(activeSession.started_at)) / 1000)));
+            await queueOfflineActivityForProfile(profileId, {
+              kind: 'read_session',
+              moduleId: 'read',
+              itemId: activeSession.item_id,
+              itemTitle: activeSessionItem?.title ?? 'Reading session',
+              sourceDeviceId: device.deviceId,
+              sourceDeviceName: device.displayName,
+              startedAt: activeSession.started_at,
+              completedAt: new Date().toISOString(),
+              durationSeconds,
+            });
+            setPendingOfflineCount(await getPendingOfflineCount(profileId));
+            setNotice('Reading session saved offline as Pending. It will sync as self-reported history when connected without automatic time-based credit.');
+            return;
+          } catch { /* Fall through if local persistence also failed. */ }
+        }
       }
       setError('Bloom could not save the session yet. Reconnect and retry. It will count as complete after it is saved.');
     } finally { setSaving(false); }
@@ -386,6 +409,11 @@ export function ReadModuleScreen({ sectionId }: { sectionId?: string }) {
     {loading && <View style={styles.loading}><ActivityIndicator color={accent.deep} /></View>}
     {!loading && error && section !== 'session' && <Panel><ErrorText>{error}</ErrorText><Body>Your saved reading records remain private and available when the connection returns.</Body><Button label="Try again" variant="secondary" onPress={() => void refresh()} /></Panel>}
     {!loading && notice && section !== 'session-complete' && <View style={[styles.notice, { backgroundColor: accent.surface }]}><MaterialIcons name="check-circle-outline" size={19} color={accent.deep} /><Text style={[styles.noticeText, { color: accent.deep }]}>{notice}</Text></View>}
+    {!loading && pendingOfflineCount > 0 && <Panel>
+      <Label>Pending offline activity · {pendingOfflineCount}</Label>
+      <Body>Saved on this device and waiting for connection. Pending records never unlock Screen Time.</Body>
+      {profileId && <Button label="Sync pending activity" variant="secondary" onPress={() => void flushOfflineActivitiesForProfile(profileId).then(async () => { setPendingOfflineCount(await getPendingOfflineCount(profileId)); await refresh(); }).catch(() => undefined)} />}
+    </Panel>}
 
     {!loading && !error && section === 'today' && <>
       <ImageBackground source={bloomPillarCollectionImages.read} resizeMode="cover" imageStyle={styles.heroImage} style={[styles.hero, desktop && styles.heroDesktop]}>
