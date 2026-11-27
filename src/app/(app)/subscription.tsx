@@ -54,7 +54,7 @@ export default function SubscriptionScreen() {
   const [householdId, setHouseholdId] = useState('');
   const [selected, setSelected] = useState<BillingProduct | null>(null);
   const [webQuote, setWebQuote] = useState<BillingQuote | null>(null);
-  const [customOffer, setCustomOffer] = useState<StoreOffer | null>(null);
+  const [customOffer, setCustomOffer] = useState<(StoreOffer & { configuredId: string }) | null>(null);
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -131,7 +131,12 @@ export default function SubscriptionScreen() {
   async function pay(offer?: StoreOffer, winBack?: boolean) {
     if (!selected || !profileId) return;
     if (native) {
-      await billingAccount('prepare_mobile', { product_id: selected.id, household_id: householdId || null });
+      const campaign = provider === 'play_store' && customOffer;
+      await billingAccount('prepare_mobile', {
+        product_id: selected.id,
+        household_id: householdId || null,
+        ...(campaign ? { offer_code: code, offer_option_id: campaign.configuredId } : {}),
+      });
       await purchaseStorePlan(profileId, selected.store_product, offer?.id, winBack);
       setStatus('pending');
       await syncStoreBilling();
@@ -253,7 +258,7 @@ export default function SubscriptionScreen() {
         <Button key={household.id} label={household.name} variant={householdId === household.id ? 'primary' : 'secondary'}
           disabled={busy} onPress={() => { setHouseholdId(household.id); setWebQuote(null); }} />)}
       {(browser || provider === 'play_store') && <Field label={local('Offer code', 'رمز العرض')} value={code}
-        maxLength={40} autoCapitalize="characters" onChangeText={value => { setCode(value); setWebQuote(null); setCustomOffer(null); }} />}
+        maxLength={40} autoCapitalize="characters" editable={!busy} onChangeText={value => { setCode(value); setWebQuote(null); setCustomOffer(null); }} />}
       {browser ? <>
         <Button label={local('Review payment', 'مراجعة الدفع')} disabled={busy} onPress={() => void run(async () => {
           setWebQuote(await tapBilling<BillingQuote>('quote', { product_id: selected.id, household_id: householdId || null, code }));
@@ -274,13 +279,15 @@ export default function SubscriptionScreen() {
         {provider === 'play_store' && code.trim() && <Button label={local('Check offer', 'التحقق من العرض')} secondary disabled={busy}
           onPress={() => void run(async () => {
             if (!profileId) return;
+            setCustomOffer(null);
             const offer = await tapBilling<{ option_id: string }>('play_offer', { product_id: selected.id, code });
             const verified = await storeOffer(profileId, selected.store_product, offer.option_id);
             if (!verified) throw new Error('The selected store offer is unavailable.');
-            setCustomOffer(verified);
+            setCustomOffer({ ...verified, configuredId: offer.option_id });
           })} />}
         {customOffer && <Body>{local('Offer', 'العرض')} · {customOffer.price} · {customOffer.duration}</Body>}
-        <Button label={local('Continue to store', 'المتابعة إلى المتجر')} disabled={busy} onPress={() => void run(() => pay(customOffer ?? product?.intro))} />
+        <Button label={local('Continue to store', 'المتابعة إلى المتجر')}
+          disabled={busy || Boolean(provider === 'play_store' && code.trim() && !customOffer)} onPress={() => void run(() => pay(customOffer ?? product?.intro))} />
         {product?.winBack && <Button secondary disabled={busy}
           label={local('Use returning member offer', 'استخدام عرض العودة') + ` · ${product.winBack.price} · ${product.winBack.duration}`}
           onPress={() => void run(() => pay(product.winBack, true))} />}

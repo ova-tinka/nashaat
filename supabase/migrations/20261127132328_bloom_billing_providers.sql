@@ -90,6 +90,16 @@ begin
       where bloom_private.billing_checkout_holds.expires_at<=clock_timestamp()
         or bloom_private.billing_checkout_holds.provider=excluded.provider;
     if not found then raise exception 'An existing checkout must finish first'; end if;
+    if nullif(trim(p_input->>'offer_code'),'') is not null then
+      if v_product.provider <> 'play_store' or v_coverage.subscription_id is not null then
+        raise exception 'Offer is unavailable';
+      end if;
+      perform bloom_private.reserve_play_offer(v_profile,v_product.id,p_input->>'offer_code',p_input->>'offer_option_id');
+    elsif v_product.provider = 'play_store' and exists (
+      select 1 from bloom_private.billing_offer_uses u where u.profile_id=v_profile and u.play_hold_until>clock_timestamp()
+    ) then
+      raise exception 'An existing Play offer checkout must finish first';
+    end if;
     return jsonb_build_object('allowed', true);
   elsif p_action = 'link_household' then
     v_household := bloom_private.billing_select_household(v_profile,(p_input->>'household_id')::uuid);
@@ -204,6 +214,12 @@ begin
         where public.bloom_subscriptions.payer_user_id = p_profile
       returning id into v_subscription;
       if v_subscription is null then raise exception 'Conflicting store subscription ownership'; end if;
+      if v_row.provider = 'play_store' then
+        update bloom_private.billing_offer_uses u set play_hold_until=null
+        from bloom_private.billing_offers o
+        where o.code=u.offer_code and o.product_id=v_product.id and u.profile_id=p_profile
+          and coalesce(v_row.period_start,v_row.start_at) between u.reserved_at-interval '1 second' and u.play_hold_until;
+      end if;
       v_seen := array_append(v_seen, v_subscription);
       if v_source is not null and v_source <> v_subscription then
         insert into bloom_private.billing_seats(subscription_id, profile_id, assigned_at)

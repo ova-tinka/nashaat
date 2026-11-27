@@ -55,7 +55,9 @@ create table bloom_private.billing_offer_uses (
   profile_id uuid not null references public.bloom_profiles(id) on delete restrict,
   attempt_id uuid references bloom_private.tap_attempts(id) on delete restrict,
   reserved_at timestamptz not null default clock_timestamp(),
-  primary key (offer_code, profile_id)
+  play_hold_until timestamptz,
+  primary key (offer_code, profile_id),
+  check (play_hold_until is null or (attempt_id is null and play_hold_until > reserved_at))
 );
 create table bloom_private.billing_refund_staff (
   profile_id uuid primary key references public.bloom_profiles(id) on delete cascade
@@ -86,20 +88,54 @@ $$;
 
 create function bloom_private.find_billing_offer(p_profile uuid, p_product uuid, p_code text)
 returns bloom_private.billing_offers language plpgsql security definer set search_path = pg_catalog, pg_temp as $$
-declare v_offer bloom_private.billing_offers;
+declare
+  v_offer bloom_private.billing_offers;
+  v_use bloom_private.billing_offer_uses;
+  v_now timestamptz;
+  v_existing_hold boolean;
 begin
   select * into v_offer from bloom_private.billing_offers o where o.code = upper(trim(p_code))
-    and o.product_id = p_product and o.starts_at <= now() and o.ends_at > now() for update;
-  if not found
-    or exists (select 1 from bloom_private.billing_offer_uses u where u.offer_code = v_offer.code and u.profile_id = p_profile)
-    or v_offer.redemption_limit <= (select count(*) from bloom_private.billing_offer_uses u where u.offer_code = v_offer.code)
+    and o.product_id = p_product for update;
+  v_now := clock_timestamp();
+  if not found or v_offer.starts_at > v_now or v_offer.ends_at <= v_now then
+    raise exception 'Offer is unavailable';
+  end if;
+  select * into v_use from bloom_private.billing_offer_uses u
+    where u.offer_code=v_offer.code and u.profile_id=p_profile;
+  v_existing_hold := coalesce(v_use.play_hold_until>v_now,false);
+  if (v_use.profile_id is not null and v_use.play_hold_until is null)
+    or (not v_existing_hold and v_offer.redemption_limit <= (select count(*) from bloom_private.billing_offer_uses u
+      where u.offer_code=v_offer.code and (u.play_hold_until is null or u.play_hold_until>v_now)))
     or (v_offer.kind = 'intro' and exists (select 1 from public.bloom_subscriptions s
       where s.payer_user_id = p_profile and s.billing_provider is not null))
     or (v_offer.kind = 'win_back' and (not exists (select 1 from public.bloom_subscriptions s
       where s.payer_user_id = p_profile and s.billing_provider is not null)
-      or exists (select 1 from bloom_private.billing_coverage(p_profile, now()))))
+      or exists (select 1 from bloom_private.billing_coverage(p_profile,v_now))))
   then raise exception 'Offer is unavailable'; end if;
   return v_offer;
+end
+$$;
+
+create function bloom_private.reserve_play_offer(p_profile uuid,p_product uuid,p_code text,p_expected_option text)
+returns void language plpgsql security definer set search_path = pg_catalog, pg_temp as $$
+declare
+  v_offer bloom_private.billing_offers;
+  v_now timestamptz;
+begin
+  v_offer := bloom_private.find_billing_offer(p_profile,p_product,p_code);
+  v_now := clock_timestamp();
+  if v_offer.play_option_id is null or v_offer.play_option_id is distinct from p_expected_option then
+    raise exception 'Review the current store offer';
+  end if;
+  if exists (select 1 from bloom_private.billing_offer_uses u
+    where u.profile_id=p_profile and u.offer_code<>v_offer.code and u.play_hold_until>v_now) then
+    raise exception 'An existing Play offer checkout must finish first';
+  end if;
+  insert into bloom_private.billing_offer_uses(offer_code,profile_id,reserved_at,play_hold_until)
+  values(v_offer.code,p_profile,v_now,v_now+interval '30 minutes')
+  on conflict (offer_code,profile_id) do update
+    set reserved_at=excluded.reserved_at,play_hold_until=excluded.play_hold_until
+    where bloom_private.billing_offer_uses.play_hold_until<=v_now;
 end
 $$;
 
@@ -143,7 +179,6 @@ begin
       if v_coverage.subscription_id is not null then raise exception 'Offer is unavailable'; end if;
       v_offer := bloom_private.find_billing_offer(p_profile,v_product.id,p_input->>'code');
       if v_offer.play_option_id is null then raise exception 'Offer is unavailable'; end if;
-      insert into bloom_private.billing_offer_uses(offer_code,profile_id) values (v_offer.code,p_profile);
       return jsonb_build_object('option_id',v_offer.play_option_id);
     end if;
     if v_product.price_minor is null or v_product.currency is null then raise exception 'The plan is unavailable'; end if;
@@ -210,7 +245,8 @@ begin
       case when v_state = 'upgrade' then v_sub.current_period_end end)
     returning * into v_attempt;
     if v_offer.code is not null then
-      insert into bloom_private.billing_offer_uses values (v_offer.code,p_profile,v_attempt.id,v_now);
+      insert into bloom_private.billing_offer_uses(offer_code,profile_id,attempt_id,reserved_at)
+      values(v_offer.code,p_profile,v_attempt.id,v_now);
     end if;
     return to_jsonb(v_attempt);
   elsif p_action = 'history' then
@@ -480,6 +516,6 @@ $$;
 revoke all on bloom_private.tap_agreements,bloom_private.billing_offers,bloom_private.tap_attempts,
   bloom_private.billing_offer_uses,bloom_private.billing_refund_staff,bloom_private.tap_refunds from public,anon,authenticated;
 revoke all on function bloom_private.billing_term_end(timestamptz,text,integer),
-  bloom_private.find_billing_offer(uuid,uuid,text),public.bloom_billing_tap(uuid,text,jsonb) from public,anon,authenticated;
+  bloom_private.find_billing_offer(uuid,uuid,text),bloom_private.reserve_play_offer(uuid,uuid,text,text),public.bloom_billing_tap(uuid,text,jsonb) from public,anon,authenticated;
 grant execute on function public.bloom_billing_tap(uuid,text,jsonb) to service_role;
 commit;
