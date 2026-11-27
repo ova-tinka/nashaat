@@ -162,11 +162,8 @@ export default function SubscriptionScreen() {
     if (plan) setSeats(await billingAccount<BillingSeatList>('seats', { subscription_id: plan.subscription_id }));
   }
 
-  function manageStore() {
-    if (plan?.provider === 'tap') return;
-    return Linking.openURL(plan?.provider === 'app_store'
-      ? 'https://apps.apple.com/account/subscriptions' : 'https://play.google.com/store/account/subscriptions');
-  }
+  const storeProviders = summary?.store_providers
+    ?? (plan?.is_payer && plan.provider !== 'tap' ? [plan.provider] : []);
 
   const planChoices = (catalog?.products ?? []).filter(entry => entry.provider === provider
     && (!native || store.some(pack => pack.sku === entry.store_product))
@@ -199,16 +196,21 @@ export default function SubscriptionScreen() {
       : local('Payment verification in progress.', 'جارٍ التحقق من الدفعة.')}</Body></Panel>}
     {error && <ErrorText>{error}</ErrorText>}
 
-    {plan?.is_payer && !childProfile && <Panel>
-      {plan.provider !== 'tap' && <>
-        <Button label={local('Manage store subscription', 'إدارة الاشتراك في المتجر')} onPress={() => void run(async () => { await manageStore(); })} />
-        <Button label={local('View store purchases', 'عرض مشتريات المتجر')} secondary onPress={() => void run(async () => {
-          await Linking.openURL(plan.provider === 'app_store' ? 'https://reportaproblem.apple.com/' : 'https://play.google.com/store/account/orderhistory');
-        })} />
-        <Button label={local('Request a store refund', 'طلب استرداد من المتجر')} secondary onPress={() => void run(async () => {
-          await Linking.openURL(plan.provider === 'app_store' ? 'https://reportaproblem.apple.com/' : 'https://support.google.com/googleplay/answer/15574897');
-        })} />
-      </>}
+    {!childProfile && storeProviders.map(storeProvider => <Panel key={storeProvider}>
+      <Label>{providers[storeProvider]}</Label>
+      <Button label={local('Manage store subscription', 'إدارة الاشتراك في المتجر')} onPress={() => void run(async () => {
+        await Linking.openURL(storeProvider === 'app_store'
+          ? 'https://apps.apple.com/account/subscriptions' : 'https://play.google.com/store/account/subscriptions');
+      })} />
+      <Button label={local('View store purchases', 'عرض مشتريات المتجر')} secondary onPress={() => void run(async () => {
+        await Linking.openURL(storeProvider === 'app_store' ? 'https://reportaproblem.apple.com/' : 'https://play.google.com/store/account/orderhistory');
+      })} />
+      <Button label={local('Request a store refund', 'طلب استرداد من المتجر')} secondary onPress={() => void run(async () => {
+        await Linking.openURL(storeProvider === 'app_store' ? 'https://reportaproblem.apple.com/' : 'https://support.google.com/googleplay/answer/15574897');
+      })} />
+    </Panel>)}
+
+    {plan?.is_payer && !childProfile && (plan.provider === 'tap' || plan.scope === 'household') && <Panel>
       {plan.provider === 'tap' && browser && <>
         <Button label={plan.cancel_at_end ? local('Resume renewal', 'استئناف التجديد') : local('Cancel at period end', 'الإلغاء عند نهاية الفترة')} secondary disabled={busy}
           onPress={() => void run(async () => { await tapBilling(plan.cancel_at_end ? 'resume' : 'cancel', { subscription_id: plan.subscription_id }); await refresh(); })} />

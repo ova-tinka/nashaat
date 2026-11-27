@@ -283,6 +283,39 @@ begin
 end
 $$;
 
+do $$
+declare
+  payer uuid := 'ac000000-0000-4000-8000-000000000004';
+  refunded_at timestamptz := clock_timestamp()-interval '1 hour';
+  snapshot jsonb;
+  summary jsonb;
+begin
+  snapshot := jsonb_build_array(
+    jsonb_build_object('provider','app_store','sku','basic_individual_month','subscription_ref','expired-apple-fixture',
+      'status','expired','start_at',now()-interval '60 days','end_at',now()-interval '30 days','cancel_at_end',true),
+    jsonb_build_object('provider','play_store','sku','basic_individual_month','subscription_ref','refunded-play-fixture',
+      'status','active','start_at',now()-interval '1 day','end_at',now()+interval '29 days',
+      'refunded_at',refunded_at,'cancel_at_end',false));
+  perform public.bloom_apply_revenuecat(payer,clock_timestamp(),snapshot);
+  perform set_config('request.jwt.claim.sub',payer::text,true);
+  summary := public.bloom_billing_summary();
+  if summary->'plan'->>'provider' is distinct from 'play_store'
+    or (select mobile_refunded_at from public.bloom_subscriptions where provider_subscription_id='refunded-play-fixture')
+      is distinct from refunded_at then
+    raise exception 'A refund with active coverage did not preserve access and the provider refund date';
+  end if;
+
+  snapshot := jsonb_set(snapshot,'{1,status}','"revoked"');
+  snapshot := jsonb_set(snapshot,'{1,end_at}',to_jsonb(refunded_at));
+  perform public.bloom_apply_revenuecat(payer,clock_timestamp(),snapshot);
+  summary := public.bloom_billing_summary();
+  if (summary->'plan') is distinct from 'null'::jsonb or summary->>'remaining' is distinct from '0'
+    or (summary->'store_providers') is distinct from '["app_store","play_store"]'::jsonb then
+    raise exception 'Revoked coverage remained active or the original store links disappeared';
+  end if;
+end
+$$;
+
 set local role authenticated;
 select set_config('request.jwt.claim.sub','ac000000-0000-4000-8000-000000000002',true);
 do $$
@@ -296,7 +329,9 @@ begin
   end if;
   if exists(select 1 from public.bloom_credit_ledger where entry_type='usage')
     or exists(select 1 from public.bloom_subscriptions)
-    or jsonb_array_length(public.bloom_billing_summary()->'recent_usage') <> 0 then
+    or jsonb_array_length(public.bloom_billing_summary()->'recent_usage') <> 0
+    or jsonb_array_length(public.bloom_billing_summary()->'store_providers') <> 0
+    or has_column_privilege(current_user,'public.bloom_subscriptions','mobile_refunded_at','SELECT') then
     raise exception 'Household recipient read another payer’s billing or usage';
   end if;
 end

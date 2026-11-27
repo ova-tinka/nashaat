@@ -26,14 +26,19 @@ export function revenueCatSubscriptions(snapshot: unknown, profile: string, sand
     const start = iso(entry.original_purchase_date) ?? iso(entry.purchase_date);
     const end = iso(entry.expires_date);
     if (!start || !end) throw new Error('Invalid subscription period');
+    const currentStart = iso(entry.purchase_date) ?? start;
     const grace = iso(entry.grace_period_expires_date);
+    const refundedAt = iso(entry.refunded_at);
     const plan = str(entry.product_plan_identifier);
     const sku = plan && !product.includes(':') ? `${product}:${plan}` : product;
-    const status = iso(entry.refunded_at) ? 'revoked'
-      : Date.parse(end) > at ? 'active' : grace && Date.parse(grace) > at ? 'grace_period' : 'expired';
+    const refundedCurrentPeriod = refundedAt !== null && Date.parse(refundedAt) >= Date.parse(currentStart);
+    const status = Date.parse(end) > at ? 'active'
+      : grace && Date.parse(grace) > at ? 'grace_period'
+      : refundedCurrentPeriod ? 'revoked' : 'expired';
     return [{
       provider: entry.store, sku, subscription_ref: `${profile}:${sku}:${start}`, status,
-      start_at: start, period_start: iso(entry.purchase_date) ?? start, end_at: end, grace_until: grace,
+      start_at: start, period_start: currentStart, end_at: end, grace_until: grace,
+      refunded_at: refundedAt,
       cancel_at_end: Boolean(entry.unsubscribe_detected_at),
     }];
   });

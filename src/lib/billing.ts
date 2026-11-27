@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 
 export type BillingProviderName = 'app_store' | 'play_store' | 'tap';
+export type MobileBillingProvider = Exclude<BillingProviderName, 'tap'>;
 export type BillingPeriod = 'week' | 'month' | 'year';
 export type BillingFeature = 'coach_chat' | 'coach_weekly' | 'study_tutor' | 'document_help' | 'mock_exam_assess' | 'read_reflection' | 'task_breakdown';
 export type BillingProduct = {
@@ -19,6 +20,7 @@ export type BillingSummary = {
   plan: (Pick<BillingProduct, 'tier' | 'scope' | 'period' | 'provider'> & {
     subscription_id: string; has_household: boolean; period_end: string; cancel_at_end: boolean; is_payer: boolean; status: string; overlapping: boolean;
   }) | null;
+  store_providers?: MobileBillingProvider[];
   allowance: number;
   remaining: number;
   metered: boolean;

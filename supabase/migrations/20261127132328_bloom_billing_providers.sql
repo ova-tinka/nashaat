@@ -180,7 +180,7 @@ begin
   if found then
     for v_row in select * from jsonb_to_recordset(p_rows) as r(
       provider text, sku text, subscription_ref text, status text, start_at timestamptz, period_start timestamptz,
-      end_at timestamptz, grace_until timestamptz, cancel_at_end boolean
+      end_at timestamptz, grace_until timestamptz, refunded_at timestamptz, cancel_at_end boolean
     ) loop
       select p.* into v_product from public.bloom_subscription_products p
         where p.provider = v_row.provider and p.provider_product_id = v_row.sku and p.weekly_credits is not null;
@@ -203,14 +203,15 @@ begin
         end if;
       end if;
       insert into public.bloom_subscriptions(payer_user_id, household_id, product_id, provider_subscription_id,
-        billing_provider, status, activated_at, current_period_start, current_period_end, grace_until, cancel_at_period_end)
+        billing_provider, status, activated_at, current_period_start, current_period_end, grace_until, mobile_refunded_at, cancel_at_period_end)
       values(p_profile, v_household, v_product.id, v_row.subscription_ref, v_row.provider, v_row.status,
-        v_row.start_at, coalesce(v_row.period_start,v_row.start_at), v_row.end_at, v_row.grace_until, v_row.cancel_at_end)
+        v_row.start_at, coalesce(v_row.period_start,v_row.start_at), v_row.end_at, v_row.grace_until, v_row.refunded_at, v_row.cancel_at_end)
       on conflict (billing_provider, provider_subscription_id) do update
         set household_id = coalesce(public.bloom_subscriptions.household_id, excluded.household_id),
           product_id = excluded.product_id, status = excluded.status,
           current_period_start = excluded.current_period_start, current_period_end = excluded.current_period_end,
-          grace_until = excluded.grace_until, cancel_at_period_end = excluded.cancel_at_period_end
+          grace_until = excluded.grace_until, mobile_refunded_at = excluded.mobile_refunded_at,
+          cancel_at_period_end = excluded.cancel_at_period_end
         where public.bloom_subscriptions.payer_user_id = p_profile
       returning id into v_subscription;
       if v_subscription is null then raise exception 'Conflicting store subscription ownership'; end if;

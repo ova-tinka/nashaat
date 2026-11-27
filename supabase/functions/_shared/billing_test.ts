@@ -27,8 +27,19 @@ Deno.test('RevenueCat canonical customer ownership, environments, Play base-plan
     ...entry, expires_date: '2026-06-01T11:00:00Z', grace_period_expires_date: '2026-06-04T12:00:00Z',
   }), profile, true, now);
   assert(grace[0].status === 'grace_period', 'provider grace not recognized');
-  assert(revenueCatSubscriptions(only({ ...entry, refunded_at: '2026-06-01T10:00:00Z' }), profile, true, now)[0].status === 'revoked',
-    'refund with revocation was not applied');
+  const refund = '2026-06-01T10:00:00Z';
+  const current = revenueCatSubscriptions(only({ ...entry, refunded_at: refund }), profile, true, now)[0];
+  assert(current.status === 'active' && current.refunded_at === new Date(refund).toISOString(),
+    'a refund record should retain independently verified active coverage');
+  const revoked = revenueCatSubscriptions(only({
+    ...entry, expires_date: refund, refunded_at: refund,
+  }), profile, true, now)[0];
+  assert(revoked.status === 'revoked' && revoked.refunded_at === current.refunded_at,
+    'a shortened paid period should revoke coverage while preserving the refund');
+  const renewed = revenueCatSubscriptions(only({
+    ...entry, purchase_date: '2026-06-01T11:00:00Z', refunded_at: refund,
+  }), profile, true, now)[0];
+  assert(renewed.status === 'active', 'a historical refund stopped a verified renewal');
   try { revenueCatSubscriptions(payload, other, true, now); }
   catch { return; }
   throw new Error('RevenueCat alias acquired another profile’s subscription');

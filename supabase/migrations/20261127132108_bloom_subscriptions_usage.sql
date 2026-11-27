@@ -22,6 +22,7 @@ alter table public.bloom_subscription_products
 
 alter table public.bloom_subscriptions
   add column billing_provider text,
+  add column mobile_refunded_at timestamptz,
   add column activated_at timestamptz,
   add column grace_until timestamptz,
   add column next_product_id uuid references public.bloom_subscription_products(id),
@@ -212,6 +213,9 @@ begin
     'plan', case when v_coverage.subscription_id is not null then
       (to_jsonb(v_coverage) - 'payer' - 'coverage_start') ||
       jsonb_build_object('is_payer', v_coverage.payer = v_profile) end,
+    'store_providers', coalesce((select jsonb_agg(distinct s.billing_provider order by s.billing_provider)
+      from public.bloom_subscriptions s where s.payer_user_id=v_profile
+        and s.billing_provider in ('app_store','play_store')), '[]'::jsonb),
     'allowance', v_usage.allowance, 'remaining', v_usage.remaining, 'metered', v_usage.meter,
     'next_refill_at', v_usage.next_refill_at, 'can_access', v_usage.can_access,
     'notice_at', (select c.notice_at from bloom_private.billing_config c),
