@@ -88,6 +88,7 @@ bloom_fixtures+=(mock-exams-documents.sql)
 bloom_fixtures+=(read-reflection-memory.sql)
 bloom_fixtures+=(default-personal-memory.sql)
 bloom_fixtures+=(study-tutor-quota.sql)
+bloom_fixtures+=(weekly-earning-cap.sql)
 if [[ "${BLOOM_SKIP_PUBLIC_COMPETITIONS:-0}" != "1" ]]; then
   bloom_fixtures+=(competitions.sql)
 fi
@@ -108,5 +109,8 @@ BLOOM_TEST_PG_HOST="$bloom_socket_dir" BLOOM_TEST_PG_PORT="$bloom_port" \
 BLOOM_TEST_PG_HOST="$bloom_socket_dir" BLOOM_TEST_PG_PORT="$bloom_port" \
   BLOOM_TEST_PG_USER="$(id -un)" BLOOM_TEST_PG_DATABASE=postgres \
   python3 "$bloom_dir/tests/study-tutor-concurrency.py"
+BLOOM_TEST_PG_HOST="$bloom_socket_dir" BLOOM_TEST_PG_PORT="$bloom_port" \
+  BLOOM_TEST_PG_USER="$(id -un)" BLOOM_TEST_PG_DATABASE=postgres \
+  python3 "$bloom_dir/tests/weekly-cap-concurrency.py"
 printf 'Bloom local schema checks passed: %s migrations, %s SQL fixtures, concurrency checks.\n' \
   "$bloom_migration_count" "$bloom_fixture_count"

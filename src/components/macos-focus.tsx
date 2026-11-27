@@ -21,9 +21,10 @@ import {
   type ReservationStorage,
 } from '../lib/credit-session-lifecycle';
 
-const usageStorage: ReservationStorage = AsyncStorage;
 import type { FocusSettingsSection } from './focus-section-navigation';
 import { useBloomTheme } from '../lib/theme-context';
+
+const usageStorage: ReservationStorage = AsyncStorage;
 
 export function MacosFocus({ initialSection }: {
   initialSection: FocusSettingsSection;

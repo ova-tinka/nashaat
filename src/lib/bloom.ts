@@ -43,6 +43,7 @@ export type CreditSettings = {
   super_daily_cap_minutes: number | null;
   weekly_workout_target: number | null;
   weekly_credit_target_minutes: number | null;
+  weekly_earning_cap_minutes?: number | null;
 };
 export type WorkoutHistoryItem = {
   id: string;
@@ -186,7 +187,7 @@ export async function loadBloomData(userId: string) {
   if (settingsError) throw settingsError;
 
   const [settings, plans, sessions, activeWorkout, subscription, balance, analytics, planProgress] = await Promise.all([
-    db.from('bloom_settings').select('credits_enabled,credit_mode,credit_timezone,earning_strategy,reps_per_award,rep_award_minutes,exercise_minutes_per_award,time_award_minutes,super_daily_cap_minutes,weekly_workout_target,weekly_credit_target_minutes').eq('user_id', userId).single(),
+    db.from('bloom_settings').select('credits_enabled,credit_mode,credit_timezone,earning_strategy,reps_per_award,rep_award_minutes,exercise_minutes_per_award,time_award_minutes,super_daily_cap_minutes,weekly_workout_target,weekly_credit_target_minutes,weekly_earning_cap_minutes').eq('user_id', userId).single(),
     db.from('bloom_workout_plans')
       .select('id,title,created_at,scheduled_days,bloom_plan_exercises(position,sets,target_reps,target_seconds,target_weight_kg,target_distance_km,exercise:exercises(id,name,measurement_type,description,instructions,media_link))')
       .eq('user_id', userId).order('created_at', { ascending: false }),
@@ -344,6 +345,14 @@ export async function updateCreditRules(userId: string, settings: Omit<CreditSet
   const { error } = await client().from('bloom_settings')
     .update({ ...settings, updated_at: new Date().toISOString() })
     .eq('user_id', userId).select('user_id').single();
+  if (error) throw error;
+}
+
+export async function saveWeeklyEarningCap(profileId: string, weeklyCapMinutes: number | null) {
+  const { error } = await client().rpc('bloom_save_weekly_earning_cap', {
+    p_profile_id: profileId,
+    p_weekly_cap_minutes: weeklyCapMinutes,
+  });
   if (error) throw error;
 }
 
