@@ -97,6 +97,7 @@ bloom_fixtures+=(reader-records.sql)
 bloom_fixtures+=(device-revocation.sql)
 bloom_fixtures+=(document-lifecycle.sql)
 bloom_fixtures+=(offline-activity-sync.sql)
+bloom_fixtures+=(account-export-deletion.sql)
 if [[ "${BLOOM_SKIP_PUBLIC_COMPETITIONS:-0}" != "1" ]]; then
   bloom_fixtures+=(competitions.sql)
 fi

@@ -474,3 +474,15 @@ enabled = true
 verify_jwt = true
 import_map = "./functions/bloom-revoke-device/deno.json"
 entrypoint = "./functions/bloom-revoke-device/index.ts"
+
+[functions.bloom-account-export]
+enabled = true
+verify_jwt = true
+import_map = "./functions/bloom-account-export/deno.json"
+entrypoint = "./functions/bloom-account-export/index.ts"
+
+[functions.bloom-account-delete]
+enabled = true
+verify_jwt = true
+import_map = "./functions/bloom-account-delete/deno.json"
+entrypoint = "./functions/bloom-account-delete/index.ts"
