@@ -1,14 +1,16 @@
-import { useCallback, useEffect, useState } from 'react';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { invoke } from '@tauri-apps/api/core';
 import { Linking, Platform } from 'react-native';
 import { Body, Button, ErrorText, Field, Heading, Label, Panel, Screen } from '../../components/bloom-ui';
+import { trackEvent } from '../../lib/analytics';
 import { useAuth } from '../../lib/auth';
 import { billingAccount, money, syncStoreBilling, tapBilling, type BillingCatalog, type BillingFeature, type BillingHistory,
   type BillingProduct, type BillingQuote, type BillingSeatList, type Checkout, type RefundReview } from '../../lib/billing';
 import { useBilling } from '../../lib/billing-context';
 import { useLocale } from '../../lib/locale-context';
 import { isMacDesktop } from '../../lib/macos-blocking';
+import { captureException } from '../../lib/sentry';
 import { purchaseStorePlan, redeemAppleCode, restoreStorePurchases, storeBillingAvailable, storeOffer,
   storePlans, type StoreOffer, type StorePlan } from '../../lib/store-billing';
 
@@ -42,11 +44,13 @@ function cleanMinorAmount(value: string) {
 export default function SubscriptionScreen() {
   const { profileId, childProfile } = useAuth();
   const { locale, language } = useLocale();
-  const { summary, error: summaryError, refresh } = useBilling();
+  const { summary, error: summaryError, stale: summaryStale, refresh } = useBilling();
   const { attempt, tap_id: tapId } = useLocalSearchParams<{ attempt?: string; tap_id?: string }>();
   const provider = Platform.OS === 'ios' ? 'app_store' : Platform.OS === 'android' ? 'play_store' : 'tap';
   const native = provider !== 'tap';
   const browser = provider === 'tap' && !isMacDesktop();
+  const operationInFlightRef = useRef(false);
+  const [cancelledNotice, setCancelledNotice] = useState(false);
   const [catalog, setCatalog] = useState<BillingCatalog | null>(null);
   const [store, setStore] = useState<StorePlan[]>([]);
   const [history, setHistory] = useState<BillingHistory | null>(null);
@@ -87,8 +91,12 @@ export default function SubscriptionScreen() {
   }, [browser, childProfile, native, profileId]);
 
   useEffect(() => {
-    void Promise.resolve().then(load).catch(() => setError('Billing is temporarily unavailable.'));
-  }, [load]);
+    void trackEvent('paywall_viewed', { source: native ? provider : 'web' }, { onceKey: `paywall:${profileId ?? 'anon'}` });
+    void Promise.resolve().then(load).catch((caught) => {
+      captureException(caught, { flow: 'subscription_load' });
+      setError('Billing is temporarily unavailable.');
+    });
+  }, [load, native, profileId, provider]);
 
   useEffect(() => {
     if (!browser || !attempt || childProfile) return;
@@ -112,14 +120,25 @@ export default function SubscriptionScreen() {
   }, [attempt, browser, childProfile, load, refresh, tapId]);
 
   async function run(operation: () => Promise<void>) {
+    if (operationInFlightRef.current) return;
+    operationInFlightRef.current = true;
     setBusy(true);
     setError('');
+    setCancelledNotice(false);
     try { await operation(); }
     catch (failure) {
-      if (!failure || typeof failure !== 'object' || !('userCancelled' in failure) || !failure.userCancelled) {
+      if (failure && typeof failure === 'object' && 'userCancelled' in failure && failure.userCancelled) {
+        setCancelledNotice(true);
+        void trackEvent('purchase_cancelled', { product_id: selected?.store_product });
+      } else {
+        captureException(failure, { flow: 'subscription_action', product_id: selected?.store_product });
+        void trackEvent('purchase_failed', { product_id: selected?.store_product, error_category: 'billing' });
         setError(failure instanceof Error ? failure.message : 'Billing is temporarily unavailable.');
       }
-    } finally { setBusy(false); }
+    } finally {
+      operationInFlightRef.current = false;
+      setBusy(false);
+    }
   }
 
   function choose(value: BillingProduct) {
@@ -127,10 +146,13 @@ export default function SubscriptionScreen() {
     setWebQuote(null);
     setCustomOffer(null);
     setStatus('');
+    setCancelledNotice(false);
+    void trackEvent('subscription_option_selected', { product_id: value.store_product });
   }
 
   async function pay(offer?: StoreOffer, winBack?: boolean) {
     if (!selected || !profileId) return;
+    void trackEvent('purchase_started', { product_id: selected.store_product });
     if (native) {
       const campaign = provider === 'play_store' && customOffer;
       await billingAccount('prepare_mobile', {
@@ -143,6 +165,8 @@ export default function SubscriptionScreen() {
       await syncStoreBilling();
       await refresh();
       setStatus('');
+      void trackEvent('purchase_completed', { product_id: selected.store_product });
+      void trackEvent('entitlement_activated', { product_id: selected.store_product });
     } else if (webQuote) {
       const result = await tapBilling<Checkout>('checkout', {
         product_id: selected.id, household_id: householdId || null, code, accepted: true, ...webQuote,
@@ -204,13 +228,15 @@ export default function SubscriptionScreen() {
           onPress={() => void run(() => openExternalBilling('web_subscription'))} />
       </>}
       {childProfile && <Body>{local('Your household payer manages billing.', 'يتولى وليّ الأمر إدارة الفوترة.')}</Body>}
-      {summaryError && <ErrorText>{local('Your balance is temporarily unavailable.', 'رصيدك غير متاح مؤقتًا.')}</ErrorText>}
+      {summaryError && !summaryStale && <ErrorText>{local('Your balance is temporarily unavailable.', 'رصيدك غير متاح مؤقتًا.')}</ErrorText>}
+      {summaryStale && <Body>{local('Showing your last verified subscription status while offline.', 'يتم عرض آخر حالة اشتراك موثّقة أثناء عدم الاتصال.')}</Body>}
       <Button label={local('Refresh subscription', 'تحديث الاشتراك')} secondary disabled={busy} onPress={() => void run(async () => {
         setStatus('');
         if (native && storeBillingAvailable && !childProfile) await syncStoreBilling();
         await refresh(); await load();
       })} />
     </Panel>
+    {cancelledNotice && <Panel><Body>{local('Purchase cancelled. No charge was made.', 'تم إلغاء الشراء. لم يتم خصم أي مبلغ.')}</Body></Panel>}
     {status && <Panel><Body>{status === 'captured' ? local('Payment confirmed.', 'تم تأكيد الدفعة.')
       : status === 'declined' ? local('The payment was not completed.', 'لم تكتمل عملية الدفع.')
       : local('Payment verification in progress.', 'جارٍ التحقق من الدفعة.')}</Body></Panel>}
@@ -273,6 +299,9 @@ export default function SubscriptionScreen() {
     {mayChoose && <Panel>
       <Label>{local('Choose a plan', 'اختر خطة')}</Label>
       <Body>{local('Every plan includes Exercise, Education, Reading, and Tasks.', 'تشمل كل خطة التمارين والتعليم والقراءة والمهام.')}</Body>
+      {planChoices.length === 0 && (
+        <Body>{local('Subscription offerings are temporarily unavailable on this store. Refresh shortly or check your store account.', 'عروض الاشتراك غير متاحة مؤقتًا في هذا المتجر. حدّث الصفحة بعد قليل.')}</Body>
+      )}
       {planChoices.map(item => {
         const price = store.find(entry => entry.sku === item.store_product)?.price
           ?? (item.price_minor && item.currency ? money(item.price_minor, item.currency, locale) : '');
@@ -324,7 +353,9 @@ export default function SubscriptionScreen() {
     </Panel>}
     {native && !childProfile && profileId && storeBillingAvailable && <Panel>
       <Button label={local('Restore purchases', 'استعادة المشتريات')} secondary disabled={busy} onPress={() => void run(async () => {
+        void trackEvent('restore_purchase_started');
         await restoreStorePurchases(profileId); await syncStoreBilling(); await refresh();
+        void trackEvent('restore_purchase_completed');
       })} />
       {provider === 'app_store' && catalog?.enabled && (!plan || (plan.is_payer && plan.provider === 'app_store')) &&
         <Button label={local('Redeem an App Store offer code', 'استرداد رمز عرض من متجر التطبيقات')} secondary disabled={busy}
@@ -373,5 +404,8 @@ export default function SubscriptionScreen() {
       {summary?.recent_usage.map(item => <Body key={`${item.feature}:${item.created_at}`}>
         {local(...(featureLabels[item.feature] ?? ['Usage', 'استخدام']))} · {number(item.credits)} · {date(item.created_at)}</Body>)}
     </Panel>}
+    <Panel>
+      <Button label={local('Privacy Policy, Terms & Support', 'سياسة الخصوصية والشروط والدعم')} variant="tertiary" onPress={() => router.push('/legal' as Href)} />
+    </Panel>
   </Screen>;
 }

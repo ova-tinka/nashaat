@@ -8,6 +8,7 @@ import { GrowthRewardControls } from '../../../components/growth-reward-controls
 import { GrowthMemoryControls } from '../../../components/growth-memory-controls';
 import { DatabaseDiagnostics } from '../../../components/database-diagnostics';
 import { useBloom } from '../../../lib/bloom-context';
+import { resetAnalytics, trackEvent } from '../../../lib/analytics';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../lib/auth';
 import { closeDeviceAccess } from '../../../lib/close-device-access';
@@ -117,6 +118,8 @@ export default function SettingsScreen() {
   async function signOut() {
     try { if (profileId) await closeDeviceAccess(profileId); }
     catch { setActionError('Could not close screen-time access. Please try again.'); return; }
+    void trackEvent('logout_completed');
+    resetAnalytics();
     const { error: signOutError } = await supabase!.auth.signOut();
     if (signOutError) setActionError('Could not sign out. Please try again.');
   }
@@ -279,6 +282,12 @@ export default function SettingsScreen() {
         <Body>Bloom works without supervision. If you want family features, create or join a Family Space here. Each member keeps a separate account and credit balance.</Body>
         <Button label="Explore Family Space" variant="secondary" onPress={() => router.push('/family' as Href)} />
       </Panel>}
+
+      <Panel>
+        <Eyebrow>Setup & Legal</Eyebrow>
+        {!childProfile && <Button label="Revisit setup & permissions" variant="secondary" onPress={() => router.push('/onboarding' as Href)} />}
+        <Button label="Privacy Policy, Terms & Support" variant="secondary" onPress={() => router.push('/legal' as Href)} />
+      </Panel>
 
       <Button label="Sign out" variant="secondary" onPress={() => void signOut()} />
       <SettingsAccordion title="Show Pillars" icon="dashboard">

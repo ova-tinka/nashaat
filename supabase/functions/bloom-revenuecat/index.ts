@@ -2,6 +2,7 @@ import { authenticateActiveUser, userClient } from '../_shared/supabase.ts';
 import { json, record, requiredEnv, secureMatch, str, uuid } from '../_shared/billing.ts';
 import { billingSandbox, queueBillingWebhook } from '../_shared/billing-webhooks.ts';
 import { revenueCatProfiles } from '../_shared/revenuecat-billing.ts';
+import { reportEdgeException } from '../_shared/sentry.ts';
 import { syncRevenueCat } from '../_shared/revenuecat-sync.ts';
 
 Deno.serve(async request => {
@@ -36,7 +37,8 @@ Deno.serve(async request => {
     if (error || !uuid.test(profile) || data.child_profile) return json({ error: 'Purchases are managed by the payer' }, 403);
     await syncRevenueCat(profile);
     return json({ synced: true });
-  } catch {
+  } catch (error) {
+    await reportEdgeException('bloom-revenuecat', error, { action });
     return json({ error: 'Subscription verification is temporarily unavailable' }, 503);
   }
 });

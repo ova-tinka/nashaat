@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Linking, Platform, Share, View } from 'react-native';
 import { Body, Button, DesktopContent, ErrorText, Eyebrow, Heading, Label, Panel, Screen, sharedStyles } from '../../components/bloom-ui';
 import { requestAccountDeletion, requestAccountExport, type AccountExportResult } from '../../lib/account-controls';
+import { resetAnalytics, trackEvent } from '../../lib/analytics';
 import { useAuth } from '../../lib/auth';
 import { clearStoreBilling } from '../../lib/store-billing';
 
@@ -34,12 +35,14 @@ export default function AccountScreen() {
     setError(null);
     setNotice(null);
     try {
+      void trackEvent('account_deletion_requested');
       const result = await requestAccountDeletion();
       setConfirmDelete(false);
       if (result.status === 'needs_family_review') {
         setNotice(result.message);
       } else {
         await clearStoreBilling().catch(() => undefined);
+        resetAnalytics();
         router.replace('/sign-in');
       }
     } catch (caught) {
@@ -103,9 +106,12 @@ export default function AccountScreen() {
         </View>}
         {confirmDelete && <View style={sharedStyles.column}>
           <Body>Deleting a personal account revokes all sessions, removes private files, and clears your owned records. This cannot be undone.</Body>
+          <Body>Important: Deleting your Bloom account does not automatically cancel an active Apple App Store or Google Play subscription. Cancel any active store subscription separately so you are not billed again.</Body>
+          <Button label="Manage subscriptions first" variant="tertiary" disabled={busy} onPress={() => router.push('/subscription' as Href)} />
           <Button label="Confirm account deletion" variant="destructive" busy={busy} onPress={() => void handleDelete()} />
           <Button label="Keep account" variant="secondary" disabled={busy} onPress={() => setConfirmDelete(false)} />
         </View>}
+        <Button label="Privacy Policy, Terms & Support" variant="tertiary" onPress={() => router.push('/legal' as Href)} />
         {error && <ErrorText>{error}</ErrorText>}
         {notice && <Body>{notice}</Body>}
       </Panel>}

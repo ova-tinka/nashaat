@@ -1,14 +1,16 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Redirect, Stack, router, useGlobalSearchParams, usePathname, type Href } from 'expo-router';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { ActivityIndicator, Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Body, Button, ErrorText, Panel, Screen } from '../../components/bloom-ui';
 import { BloomAppHeader, BloomDesktopNavigation, BloomDesktopSectionNavigation } from '../../components/app-shell';
+import { trackEvent } from '../../lib/analytics';
 import { useAuth } from '../../lib/auth';
 import { buildSignInHref } from '../../lib/auth-return-path';
 import { BillingProvider, useBilling } from '../../lib/billing-context';
 import { useBloom, BloomProvider } from '../../lib/bloom-context';
+import { loadOnboardingState, shouldShowOnboarding } from '../../lib/onboarding';
 import { MacCreditRecovery } from '../../components/mac-credit-recovery';
 import { supabase } from '../../lib/supabase';
 import { isChildRestrictedRoute } from '../../lib/route-access';
@@ -20,18 +22,43 @@ import { isMacDesktop, macosFilter } from '../../lib/macos-blocking';
 
 export default function AppLayout() {
   const { theme } = useBloomTheme();
-  const { session, loading, profileId, profileLoading, profileError, childProfile, assignedModules, refreshProfile } = useAuth();
+  const { session, loading, passwordRecovery, profileId, profileLoading, profileError, childProfile, assignedModules, refreshProfile } = useAuth();
   const pathname = usePathname();
   const { attempt, tap_id: tapId } = useGlobalSearchParams<{ attempt?: string; tap_id?: string }>();
   const { width } = useWindowDimensions();
+  const [onboardingCheck, setOnboardingCheck] = useState<{ profileId: string; needsOnboarding: boolean } | null>(null);
   const desktop = isMacDesktop() || (Platform.OS === 'web' && width >= 1024);
-  const immersive = pathname === '/session' || ['/apps/read/session', '/apps/read/session-complete', '/apps/study/active-session', '/apps/study/session-complete', '/apps/study/learning-check'].includes(pathname) || pathname.startsWith('/apps/read/reader/');
+  const immersive = pathname === '/session' || pathname === '/onboarding' || ['/apps/read/session', '/apps/read/session-complete', '/apps/study/active-session', '/apps/study/session-complete', '/apps/study/learning-check'].includes(pathname) || pathname.startsWith('/apps/read/reader/');
+
+  useEffect(() => {
+    void trackEvent('app_opened', undefined, { onceKey: 'session:app_opened' });
+  }, []);
+
+  useEffect(() => {
+    if (!profileId || childProfile) return;
+    let active = true;
+    void loadOnboardingState(profileId).then((state) => {
+      if (active) {
+        setOnboardingCheck({
+          profileId,
+          needsOnboarding: shouldShowOnboarding(state, { childProfile }),
+        });
+      }
+    });
+    return () => { active = false; };
+  }, [childProfile, pathname, profileId]);
+
   if (loading || (session && profileLoading)) return <Screen><ActivityIndicator color={theme.colors.action} /></Screen>;
+  if (passwordRecovery) return <Redirect href={'/reset-password' as Href} />;
   if (!session) return <Redirect href={pathname === '/subscription' && attempt
     ? { pathname: '/sign-in', params: { checkout: attempt, tap_id: tapId } }
     : buildSignInHref(pathname) as Href} />;
   if (profileError || !profileId) return <Screen><Panel><ErrorText>{profileError ?? 'Profile unavailable.'}</ErrorText><Button label="Try again" onPress={() => void refreshProfile()} /><Button label="Sign out" secondary onPress={() => { void supabase?.auth.signOut({ scope: 'local' }); }} /></Panel></Screen>;
   if (isChildRestrictedRoute(pathname, childProfile, assignedModules)) return <Redirect href="/" />;
+  const onboardingAllowedRoute = ['/onboarding', '/subscription', '/legal', '/focus', '/reset-password'].includes(pathname);
+  if (!childProfile && onboardingCheck?.profileId === profileId && onboardingCheck.needsOnboarding && !onboardingAllowedRoute) {
+    return <Redirect href={'/onboarding' as Href} />;
+  }
   return <BloomProvider key={`${session.user.id}:${profileId}`} userId={profileId}>
     <BillingProvider>
       <StoreBillingIdentity profileId={profileId} childProfile={childProfile} />
