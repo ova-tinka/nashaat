@@ -15,7 +15,7 @@ function supabase() {
 }
 
 export function AccountDeletion() {
-  const [configured, setConfigured] = useState(false);
+  const configured = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY);
   const [signedInEmail, setSignedInEmail] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -23,11 +23,13 @@ export function AccountDeletion() {
   const [status, setStatus] = useState<DeletionStatus | null>(null);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
-    try {
-      const auth = supabase(); setConfigured(true);
-      void auth.auth.getSession().then(({ data }) => setSignedInEmail(data.session?.user.email ?? ""));
-    } catch { setConfigured(false); }
-  }, []);
+    if (!configured) return;
+    let active = true;
+    void supabase().auth.getSession().then(({ data }) => {
+      if (active) setSignedInEmail(data.session?.user.email ?? "");
+    });
+    return () => { active = false; };
+  }, [configured]);
   async function signIn(event: FormEvent) {
     event.preventDefault(); setBusy(true); setStatus(null);
     try {
