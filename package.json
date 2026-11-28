@@ -1,7 +1,7 @@
 {
   "name": "bloom",
   "version": "0.1.1",
-  "bloomFilterVersion": "1.1.21",
+  "bloomFilterVersion": "1.1.23",
   "main": "expo-router/entry",
   "dependencies": {
     "@expo/env": "~2.6.0",
@@ -55,6 +55,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "build:web": "expo export --platform web",
+    "package:extension": "node scripts/package-browser-extension.cjs",
     "build:macos-filter": "node scripts/build-macos-filter.cjs",
     "test:macos-native": "bash scripts/test-macos-native.sh",
     "test:macos-state": "node --experimental-strip-types --test tests/macos-state.test.mjs",

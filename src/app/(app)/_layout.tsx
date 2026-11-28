@@ -1,15 +1,18 @@
-import { Redirect, Stack, usePathname } from 'expo-router';
+import { useEffect } from 'react';
+import { Redirect, Stack, router, usePathname, type Href } from 'expo-router';
+import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { ActivityIndicator, Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Button, ErrorText, Panel, Screen } from '../../components/bloom-ui';
 import { BloomAppHeader, BloomDesktopNavigation, BloomDesktopSectionNavigation } from '../../components/app-shell';
 import { useAuth } from '../../lib/auth';
-import { BloomProvider } from '../../lib/bloom-context';
+import { useBloom, BloomProvider } from '../../lib/bloom-context';
 import { MacCreditRecovery } from '../../components/mac-credit-recovery';
 import { supabase } from '../../lib/supabase';
 import { isChildRestrictedRoute } from '../../lib/route-access';
 import { useBloomTheme } from '../../lib/theme-context';
 import { ModuleVisibilityProvider } from '../../lib/module-visibility';
-import { isMacDesktop } from '../../lib/macos-blocking';
+import { isMacDesktop, macosFilter } from '../../lib/macos-blocking';
 
 export default function AppLayout() {
   const { theme } = useBloomTheme();
@@ -23,6 +26,8 @@ export default function AppLayout() {
   if (profileError || !profileId) return <Screen><Panel><ErrorText>{profileError ?? 'Profile unavailable.'}</ErrorText><Button label="Try again" onPress={() => void refreshProfile()} /><Button label="Sign out" secondary onPress={() => { void supabase?.auth.signOut({ scope: 'local' }); }} /></Panel></Screen>;
   if (isChildRestrictedRoute(pathname, childProfile, assignedModules)) return <Redirect href="/" />;
   return <BloomProvider key={`${session.user.id}:${profileId}`} userId={profileId}>
+    <MacDeepLinkListener />
+    <MacBalanceSync />
     <MacCreditRecovery key={`${session.user.id}:${profileId}`} />
     <ModuleVisibilityProvider key={`pillars:${profileId}`} profileId={profileId}>
       <View style={[styles.app, { backgroundColor: theme.colors.canvas }]}>
@@ -45,3 +50,47 @@ const styles = StyleSheet.create({
   routes: { flex: 1, minWidth: 0 },
   routeStack: { flex: 1, minWidth: 0 },
 });
+
+function MacDeepLinkListener() {
+  useEffect(() => {
+    if (!isMacDesktop()) return;
+    let active = true;
+    const navigate = (route: string | null) => {
+      if (!active || !route || !route.startsWith('/focus')) return;
+      router.push(route as Href);
+    };
+    void invoke<string | null>('take_pending_deep_link').then(navigate).catch(() => undefined);
+    let unlisten: (() => void) | undefined;
+    void listen<string>('bloom-deep-link', (event) => navigate(event.payload))
+      .then((fn) => {
+        if (active) unlisten = fn;
+        else fn();
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+      unlisten?.();
+    };
+  }, []);
+  return null;
+}
+
+function MacBalanceSync() {
+  const { creditsEnabled, creditBalance, loading } = useBloom();
+  const roundedBalance = Math.max(0, Math.floor(creditBalance * 100) / 100);
+  useEffect(() => {
+    if (!isMacDesktop() || loading) return;
+    void macosFilter(
+      'syncDisplayBalance',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { creditsEnabled, balanceMinutes: roundedBalance },
+    ).catch(() => undefined);
+  }, [creditsEnabled, loading, roundedBalance]);
+  return null;
+}

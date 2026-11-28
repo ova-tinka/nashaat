@@ -10,19 +10,24 @@ final class BloomFilterDataProvider: NEFilterDataProvider {
 
   // Debug diagnostics contain only flow class and decision, never addresses,
   // app identities, audit tokens, or packet contents.
-  private func trace(_ flow: NEFilterFlow, _ decision: String) {
+  private func trace(_ flow: NEFilterFlow, _ decision: String, persist: Bool = false) {
     let kind: String
     if let socket = flow as? NEFilterSocketFlow {
       kind = socket.socketType == SOCK_STREAM ? "tcp" : socket.socketType == SOCK_DGRAM ? "udp" : "socket-other"
     } else { kind = "non-socket" }
     let source = flow.sourceAppAuditToken == nil ? "missing" : "present"
-    logger.debug("flow=\(kind, privacy: .public) source-token=\(source, privacy: .public) decision=\(decision, privacy: .public)")
+    if persist {
+      logger.notice("flow=\(kind, privacy: .public) source-token=\(source, privacy: .public) decision=\(decision, privacy: .public)")
+    } else {
+      logger.debug("flow=\(kind, privacy: .public) source-token=\(source, privacy: .public) decision=\(decision, privacy: .public)")
+    }
   }
   private enum FlowTarget {
     case website(String)
     case unreadableBrowser(String)
   }
 
+  private let outboundInspector = OutboundFlowInspector()
   private let selectedLock = NSLock()
   private var selectedFlows: [UUID: FlowTarget] = [:]
   private var completedDirections: [UUID: UInt8] = [:]
@@ -38,6 +43,7 @@ final class BloomFilterDataProvider: NEFilterDataProvider {
   }
 
   private func forget(_ flow: NEFilterFlow) {
+    outboundInspector.forget(flowID: flow.identifier)
     selectedLock.lock(); defer { selectedLock.unlock() }
     selectedFlows.removeValue(forKey: flow.identifier)
     completedDirections.removeValue(forKey: flow.identifier)
@@ -79,13 +85,13 @@ final class BloomFilterDataProvider: NEFilterDataProvider {
     let rules = WebsiteRules(configuration: configuration)
     guard !rules.isEmpty else { return .allow() }
     let userID = MacFlowSource.userID(for: flow.sourceAppAuditToken)
-    let hostname = flow.url?.host ?? (flow as? NEFilterSocketFlow)?.remoteHostname
+    let hostname = remoteHostname(for: flow)
     if let browser = unreadableBrowserBundleIdentifier(configuration: configuration, userID: userID) {
       let sourceBundleIdentifier = MacFlowSource.bundleIdentifier(for: flow.sourceAppAuditToken)
       switch MacFlowSource.unreadableBrowserDecision(sourceBundleIdentifier: sourceBundleIdentifier, browserBundleIdentifier: browser) {
       case .inspectBrowser:
         let target = FlowTarget.unreadableBrowser(browser)
-        guard targetAllowed(target, flow: flow, configuration: configuration) else { trace(flow, "unreadable-browser-drop"); return .drop() }
+        guard targetAllowed(target, flow: flow, configuration: configuration) else { trace(flow, "unreadable-browser-drop", persist: true); return .drop() }
         trace(flow, "unreadable-browser-inspect")
         select(flow, target: target)
         return .filterDataVerdict(withFilterInbound: true, peekInboundBytes: 1, filterOutbound: true, peekOutboundBytes: 1)
@@ -102,7 +108,7 @@ final class BloomFilterDataProvider: NEFilterDataProvider {
     // only provide the hostname; neither is guaranteed for every connection.
     guard let hostname else {
       if shouldDropHostlessBrowserFlow(flow, configuration: configuration, userID: userID) {
-        trace(flow, "hostless-active-blocked-browser-drop")
+        trace(flow, "hostless-active-blocked-browser-drop", persist: true)
         return .drop()
       }
       // Some browsers use raw TCP sockets, for which macOS supplies no host.
@@ -110,16 +116,37 @@ final class BloomFilterDataProvider: NEFilterDataProvider {
       // name locally. A recent monitor decision covers hostless flows from a
       // browser whose readable foreground address currently matches a rule.
       guard let socket = flow as? NEFilterSocketFlow else { trace(flow, "hostless-allow"); return .allow() }
-      let port = (socket.remoteEndpoint as? NWHostEndpoint)?.port
-      guard TLSHostname.shouldInspect(isStream: socket.socketType == SOCK_STREAM, remotePort: port) else {
-        trace(flow, "hostless-not-tls-candidate-allow"); return .allow()
+      let port = remotePort(for: socket)
+      let sourceBundleIdentifier = MacFlowSource.bundleIdentifier(for: flow.sourceAppAuditToken)
+      if socket.socketType == SOCK_DGRAM && !FilterCreditClock.isAllowed(configuration: configuration) {
+        if MacFlowSource.shouldDropBrowserQUIC(
+          isDatagram: true,
+          remotePort: port,
+          sourceBundleIdentifier: sourceBundleIdentifier) {
+          trace(flow, "hostless-browser-quic-drop", persist: true)
+          return .drop()
+        }
+        if port == nil && MacFlowSource.isKnownBrowserProcess(sourceBundleIdentifier) {
+          trace(flow, "hostless-browser-udp-port-pending-inspect")
+          return .filterDataVerdict(withFilterInbound: false, peekInboundBytes: 0, filterOutbound: true, peekOutboundBytes: 1)
+        }
       }
-      trace(flow, "hostless-tls-inspect")
-      return .filterDataVerdict(withFilterInbound: true, peekInboundBytes: 1, filterOutbound: true, peekOutboundBytes: 1)
+      if TLSHostname.shouldInspect(isStream: socket.socketType == SOCK_STREAM, remotePort: port) {
+        let peek = outboundInspector.begin(flowID: flow.identifier, kind: .tls)
+        trace(flow, "hostless-tls-inspect")
+        return .filterDataVerdict(withFilterInbound: true, peekInboundBytes: 1, filterOutbound: true, peekOutboundBytes: peek)
+      }
+      if HTTPHostname.shouldInspect(isStream: socket.socketType == SOCK_STREAM, remotePort: port) {
+        let peek = outboundInspector.begin(flowID: flow.identifier, kind: .http)
+        trace(flow, "hostless-http-inspect")
+        return .filterDataVerdict(withFilterInbound: true, peekInboundBytes: 1, filterOutbound: true, peekOutboundBytes: peek)
+      }
+      trace(flow, "hostless-not-tls-candidate-allow")
+      return .allow()
     }
     guard rules.blocks(hostname) else { trace(flow, "hostname-unmatched-allow"); return .allow() }
     let target = FlowTarget.website(hostname)
-    guard targetAllowed(target, flow: flow, configuration: configuration) else { trace(flow, "hostname-matched-drop"); return .drop() }
+    guard targetAllowed(target, flow: flow, configuration: configuration) else { trace(flow, "hostname-matched-drop", persist: true); return .drop() }
     trace(flow, "hostname-matched-inspect")
     select(flow, target: target)
     // Keep inspecting selected flows during an allowance so they can be
@@ -134,20 +161,55 @@ final class BloomFilterDataProvider: NEFilterDataProvider {
 
   override func handleOutboundData(from flow: NEFilterFlow, readBytesStartOffset offset: Int, readBytes: Data) -> NEFilterDataVerdict {
     if let target = selectedTarget(flow) { return dataVerdict(flow: flow, target: target, bytes: readBytes.count) }
-    guard let socket = flow as? NEFilterSocketFlow,
-          TLSHostname.shouldInspect(isStream: socket.socketType == SOCK_STREAM,
-                                    remotePort: (socket.remoteEndpoint as? NWHostEndpoint)?.port) else { return .allow() }
-    guard offset == 0 else { return .allow() }
-    switch TLSHostname.parse(readBytes) {
-    case .need(let bytes): return NEFilterDataVerdict(passBytes: 0, peekBytes: bytes)
-    case .unknown: trace(flow, "tls-host-unavailable-allow"); return .allow()
-    case .host(let hostname):
-      guard WebsiteRules(configuration: filterConfiguration.vendorConfiguration).blocks(hostname) else { trace(flow, "tls-host-unmatched-allow"); return .allow() }
+    guard let socket = flow as? NEFilterSocketFlow else {
+      outboundInspector.forget(flowID: flow.identifier)
+      trace(flow, "outbound-non-socket-allow")
+      return .allow()
+    }
+    let port = remotePort(for: socket)
+    if socket.socketType == SOCK_DGRAM {
+      let configuration = filterConfiguration.vendorConfiguration
+      if !FilterCreditClock.isAllowed(configuration: configuration),
+         MacFlowSource.shouldDropBrowserQUIC(
+           isDatagram: true,
+           remotePort: port,
+           sourceBundleIdentifier: MacFlowSource.bundleIdentifier(for: flow.sourceAppAuditToken)) {
+        trace(flow, "outbound-browser-quic-drop", persist: true)
+        return .drop()
+      }
+      trace(flow, "outbound-udp-non-quic-allow")
+      return .allow()
+    }
+    let isStream = socket.socketType == SOCK_STREAM
+    let kind: OutboundInspectionKind? = TLSHostname.shouldInspect(isStream: isStream, remotePort: port)
+      ? .tls
+      : HTTPHostname.shouldInspect(isStream: isStream, remotePort: port) ? .http : nil
+    guard let kind else {
+      outboundInspector.forget(flowID: flow.identifier)
+      trace(flow, "outbound-not-inspectable-allow")
+      return .allow()
+    }
+    switch outboundInspector.feed(flowID: flow.identifier, kind: kind, offset: offset, chunk: readBytes) {
+    case .need(let peekBytes):
+      trace(flow, kind == .tls ? "tls-host-need-more" : "http-host-need-more")
+      return NEFilterDataVerdict(passBytes: 0, peekBytes: peekBytes)
+    case .unknown:
+      trace(flow, kind == .tls ? "tls-host-unavailable-allow" : "http-host-unavailable-allow")
+      return .allow()
+    case .host(let hostname, let bufferedBytes):
+      let config = filterConfiguration.vendorConfiguration
+      guard WebsiteRules(configuration: config).blocks(hostname) else {
+        trace(flow, kind == .tls ? "tls-host-unmatched-allow" : "http-host-unmatched-allow")
+        return .allow()
+      }
       let target = FlowTarget.website(hostname)
-      guard targetAllowed(target, flow: flow, configuration: filterConfiguration.vendorConfiguration) else { trace(flow, "tls-host-matched-drop"); return .drop() }
-      trace(flow, "tls-host-matched-inspect")
+      guard targetAllowed(target, flow: flow, configuration: config) else {
+        trace(flow, kind == .tls ? "tls-host-matched-drop" : "http-host-matched-drop", persist: true)
+        return .drop()
+      }
+      trace(flow, kind == .tls ? "tls-host-matched-inspect" : "http-host-matched-inspect")
       select(flow, target: target)
-      return dataVerdict(flow: flow, target: target, bytes: readBytes.count)
+      return dataVerdict(flow: flow, target: target, bytes: max(bufferedBytes, readBytes.count))
     }
   }
 
@@ -157,8 +219,26 @@ final class BloomFilterDataProvider: NEFilterDataProvider {
   }
 
   override func handleOutboundDataComplete(for flow: NEFilterFlow) -> NEFilterDataVerdict {
+    outboundInspector.forget(flowID: flow.identifier)
     complete(flow, direction: 2)
     return .allow()
+  }
+
+  private func remotePort(for socket: NEFilterSocketFlow) -> String? {
+    if #available(macOS 15.0, *), case let .hostPort(_, port) = socket.remoteFlowEndpoint {
+      return String(port.rawValue)
+    }
+    return (socket.remoteEndpoint as? NWHostEndpoint)?.port
+  }
+
+  private func remoteHostname(for flow: NEFilterFlow) -> String? {
+    if let host = flow.url?.host { return host }
+    guard let socket = flow as? NEFilterSocketFlow else { return nil }
+    if let host = socket.remoteHostname { return host }
+    if #available(macOS 15.0, *), case let .hostPort(.name(name, _), _) = socket.remoteFlowEndpoint {
+      return name
+    }
+    return nil
   }
 
   private func targetAllowed(_ target: FlowTarget, flow: NEFilterFlow, configuration: [String: Any]?) -> Bool {

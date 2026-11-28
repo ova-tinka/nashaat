@@ -24,6 +24,14 @@ import Foundation
       identifier: "omnibox", label: "Address bar", value: "https://example.com") == nil)
     precondition(MacBrowserURL.host(bundleIdentifier: "org.mozilla.firefox", role: "AXTextField",
       identifier: "urlbar-input", label: nil, value: "Search phrase") == nil)
+    for internalAddress in ["", "   ", "about:blank", "brave://newtab", "chrome://settings",
+                            "chrome-extension://abcdefghijklmnopabcdefghijklmnop/blocked.html",
+                            "moz-extension://1234/blocked.html", "safari-web-extension://1234/blocked.html"] {
+      precondition(MacBrowserURL.isInternalPage(internalAddress))
+    }
+    for webAddress in ["https://youtube.com", "http://example.com/path", "example.com"] {
+      precondition(!MacBrowserURL.isInternalPage(webAddress))
+    }
     print("macOS browser URL checks passed")
   }
 }

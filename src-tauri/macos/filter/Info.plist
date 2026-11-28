@@ -6,8 +6,8 @@
   <key>CFBundleName</key><string>Bloom Website Filter</string>
   <key>CFBundleExecutable</key><string>BloomFilter</string>
   <key>CFBundlePackageType</key><string>SYSX</string>
-  <key>CFBundleShortVersionString</key><string>1.1.21</string>
-  <key>CFBundleVersion</key><string>1.1.21</string>
+  <key>CFBundleShortVersionString</key><string>1.1.23</string>
+  <key>CFBundleVersion</key><string>1.1.23</string>
   <key>NetworkExtension</key>
   <dict><key>NEProviderClasses</key><dict>
     <key>com.apple.networkextension.filter-data</key><string>BloomFilter.BloomFilterDataProvider</string>

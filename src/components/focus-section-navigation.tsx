@@ -2,7 +2,7 @@ import { LocalizedText as Text } from './bloom-ui';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useBloomTheme } from '../lib/theme-context';
 
-export type FocusSettingsSection = 'focus' | 'apps' | 'websites' | 'rules';
+export type FocusSettingsSection = 'focus' | 'apps' | 'websites' | 'rules' | 'earned';
 
 const sections: { key: FocusSettingsSection; label: string }[] = [
   { key: 'focus', label: 'Focus' },

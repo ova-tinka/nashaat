@@ -22,6 +22,10 @@ const output = path.join(root, 'build', `${extensionId}.systemextension`, 'Conte
 const architecture = process.arch === 'arm64' ? 'arm64' : process.arch === 'x64' ? 'x86_64' : null;
 if (!architecture) throw new Error('Unsupported macOS architecture.');
 const target = `${architecture}-apple-macos13.0`;
+const chromeExtensionId = (process.env.BLOOM_CHROME_EXTENSION_ID || '').trim();
+if (chromeExtensionId && !/^[a-p]{32}$/.test(chromeExtensionId)) {
+  throw new Error('BLOOM_CHROME_EXTENSION_ID must be a 32-character Chrome Web Store extension ID.');
+}
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const supabasePublishableKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 const escapePlistString = (value) => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
@@ -54,22 +58,27 @@ if (supabaseUrl && supabasePublishableKey) {
 }
 fs.mkdirSync(path.join(output, 'MacOS'), { recursive: true });
 const command = spawnSync('xcrun', ['swiftc', '-O', '-target', target, '-module-name', 'BloomFilter',
-  path.join(root, 'BloomAppGroup.swift'), path.join(source, 'WebsiteRules.swift'), path.join(source, 'TLSHostname.swift'), path.join(source, 'FilterCreditClock.swift'), path.join(root, 'MacPolicyBroker.swift'), path.join(root, 'MacPolicyBrokerClient.swift'), path.join(root, 'MacUsageStore.swift'), path.join(root, 'MacWebsiteUsageAccess.swift'), path.join(source, 'BloomFilterDataProvider.swift'),
+  path.join(root, 'BloomAppGroup.swift'), path.join(source, 'WebsiteRules.swift'), path.join(source, 'TLSHostname.swift'), path.join(source, 'HTTPHostname.swift'), path.join(source, 'OutboundFlowInspector.swift'), path.join(source, 'FilterCreditClock.swift'), path.join(root, 'MacPolicyBroker.swift'), path.join(root, 'MacPolicyBrokerClient.swift'), path.join(root, 'MacUsageStore.swift'), path.join(root, 'MacWebsiteUsageAccess.swift'), path.join(source, 'BloomFilterDataProvider.swift'),
   path.join(source, 'MacFlowSource.swift'),
   path.join(source, 'main.swift'), '-lbsm', '-o', path.join(output, 'MacOS', 'BloomFilter')], { stdio: 'inherit' });
 if (command.error) throw command.error;
 if (command.status !== 0) process.exit(command.status || 1);
 const host = spawnSync('xcrun', ['swiftc', '-O', '-target', target, '-parse-as-library', '-emit-library', '-module-name', 'BloomFilterHost',
   path.join(root, 'BloomAppGroup.swift'), path.join(source, 'WebsiteRules.swift'), path.join(source, 'FilterCreditClock.swift'), path.join(source, 'MacFlowSource.swift'), path.join(root, 'MacPolicyBroker.swift'), path.join(root, 'MacPolicyBrokerClient.swift'), path.join(root, 'MacHostsAuthorization.swift'), path.join(root, 'MacAppRules.swift'), path.join(root, 'MacInstalledApps.swift'), path.join(root, 'MacBrowserURL.swift'), path.join(root, 'MacBrowserAddress.swift'), path.join(root, 'MacServiceRegistrationPolicy.swift'), path.join(root, 'MacUsageStore.swift'), path.join(root, 'BloomAppController.swift'), path.join(root, 'BloomFilterController.swift'),
-  path.join(root, 'BloomPolicyBrokerController.swift'), path.join(root, 'BloomPolicyBrokerReadiness.swift'), path.join(root, 'MacSharedPreferences.swift'), path.join(root, 'SupabaseCreditGrant.swift'), path.join(root, 'SupabaseUsageGrant.swift'), path.join(root, 'BloomFilterActivationPolicy.swift'),
+  path.join(root, 'BloomPolicyBrokerController.swift'), path.join(root, 'BloomPolicyBrokerReadiness.swift'), path.join(root, 'MacSharedPreferences.swift'), path.join(root, 'MacDisplayBalance.swift'), path.join(root, 'MacBrowserPolicyProfile.swift'), path.join(root, 'MacBrowserBridgeInstaller.swift'), path.join(root, 'SupabaseCreditGrant.swift'), path.join(root, 'SupabaseUsageGrant.swift'), path.join(root, 'BloomFilterActivationPolicy.swift'),
   path.join(root, 'BloomWebsiteCleanupPolicy.swift'), path.join(root, 'MacHostsLifecycle.swift'), path.join(root, 'BloomFilterHost.swift'), '-lbsm', '-o', path.join(root, 'build', 'libBloomFilterHost.dylib')], { stdio: 'inherit' });
 if (host.error) throw host.error;
 if (host.status !== 0) process.exit(host.status || 1);
 const agent = spawnSync('xcrun', ['swiftc', '-O', '-target', target, '-parse-as-library', '-module-name', 'BloomAppMonitor',
-  path.join(root, 'BloomAppGroup.swift'), path.join(source, 'WebsiteRules.swift'), path.join(source, 'FilterCreditClock.swift'), path.join(source, 'MacFlowSource.swift'), path.join(root, 'MacPolicyBroker.swift'), path.join(root, 'MacPolicyBrokerClient.swift'), path.join(root, 'MacAppRules.swift'), path.join(root, 'MacAppEnforcement.swift'), path.join(root, 'MacMonitorRules.swift'), path.join(root, 'MacBrowserURL.swift'), path.join(root, 'MacBrowserAddress.swift'), path.join(root, 'MacUsageStore.swift'), path.join(root, 'MacSharedPreferences.swift'), path.join(root, 'BloomAppMonitor.swift'),
+  path.join(root, 'BloomAppGroup.swift'), path.join(source, 'WebsiteRules.swift'), path.join(source, 'FilterCreditClock.swift'), path.join(source, 'MacFlowSource.swift'), path.join(root, 'MacPolicyBroker.swift'), path.join(root, 'MacPolicyBrokerClient.swift'), path.join(root, 'MacAppRules.swift'), path.join(root, 'MacAppEnforcement.swift'), path.join(root, 'MacAppShieldOverlay.swift'), path.join(root, 'MacMonitorRules.swift'), path.join(root, 'MacBrowserURL.swift'), path.join(root, 'MacBrowserAddress.swift'), path.join(root, 'MacUsageStore.swift'), path.join(root, 'MacSharedPreferences.swift'), path.join(root, 'MacDisplayBalance.swift'), path.join(root, 'BloomAppMonitor.swift'),
   '-lbsm', '-o', path.join(root, 'build', 'BloomAppMonitor')], { stdio: 'inherit' });
 if (agent.error) throw agent.error;
 if (agent.status !== 0) process.exit(agent.status || 1);
+const bridge = spawnSync('xcrun', ['swiftc', '-O', '-target', target, '-parse-as-library', '-DBLOOM_BROWSER_BRIDGE', '-module-name', 'BloomBrowserBridge',
+  path.join(root, 'BloomAppGroup.swift'), path.join(source, 'WebsiteRules.swift'), path.join(source, 'FilterCreditClock.swift'), path.join(root, 'MacUsageStore.swift'), path.join(root, 'MacDisplayBalance.swift'), path.join(root, 'BloomBrowserBridge.swift'),
+  '-lbsm', '-o', path.join(root, 'build', 'BloomBrowserBridge')], { stdio: 'inherit' });
+if (bridge.error) throw bridge.error;
+if (bridge.status !== 0) process.exit(bridge.status || 1);
 const brokerIdentity = path.join(root, 'build', 'BloomPolicyBrokerBuildIdentity.swift');
 fs.writeFileSync(brokerIdentity, `enum BloomPolicyBrokerBuildIdentity { static let teamIdentifier = "${team}" }\n`);
 const broker = spawnSync('xcrun', ['swiftc', '-O', '-target', target, '-parse-as-library', '-module-name', 'BloomPolicyBroker',
@@ -98,7 +107,74 @@ for (const [input, name] of [[path.join(root, 'Host.entitlements'), 'Host.entitl
   const template = fs.readFileSync(input, 'utf8');
   fs.writeFileSync(path.join(root, 'build', name), template.replaceAll('$(TeamIdentifierPrefix)', `${team}.`).replaceAll('$(TeamTeamIdentifier)', team));
 }
-fs.writeFileSync(path.join(root, 'build', 'BloomInfo.plist'), `<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict><key>BloomAppGroup</key><string>${team}.com.nashaat.bloomexercise</string>${supabaseInfo}<key>NSSystemExtensionUsageDescription</key><string>Bloom uses a system extension to block the websites you choose during focus time.</string><key>NSAppleEventsUsageDescription</key><string>Bloom reads the active tab address in supported browsers on this Mac to enforce your website rules and measure screen time. Addresses stay on this Mac.</string></dict></plist>`);
+const chromeExtensionInfo = chromeExtensionId
+  ? `<key>BloomChromeExtensionId</key><string>${escapePlistString(chromeExtensionId)}</string>`
+  : '';
+const urlTypesInfo = '<key>CFBundleURLTypes</key><array><dict><key>CFBundleURLName</key><string>com.focusflow.focusFlowFlutter</string><key>CFBundleURLSchemes</key><array><string>bloomexercise</string></array></dict></array>';
+fs.writeFileSync(path.join(root, 'build', 'BloomInfo.plist'), `<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict><key>BloomAppGroup</key><string>${team}.com.nashaat.bloomexercise</string>${supabaseInfo}${chromeExtensionInfo}${urlTypesInfo}<key>NSSystemExtensionUsageDescription</key><string>Bloom uses a system extension to block the websites you choose during focus time.</string><key>NSAppleEventsUsageDescription</key><string>Bloom reads the active tab address in supported browsers on this Mac to enforce your website rules and measure screen time. Addresses stay on this Mac.</string></dict></plist>`);
+
+function buildMobileConfigXml(extensionId, strict) {
+  const targets = [
+    { id: 'brave', name: 'Brave', bundleId: 'com.brave.Browser' },
+    { id: 'chrome', name: 'Google Chrome', bundleId: 'com.google.Chrome' },
+    { id: 'edge', name: 'Microsoft Edge', bundleId: 'com.microsoft.edgemac' },
+  ];
+  const suffix = strict ? 'strict' : 'standard';
+  const payloadUuid = strict ? 'C3D7A5E1-7C38-4F6D-9B2A-11E4F9A00202' : 'B2C694D0-6B27-4E5C-8A19-00D3E89F0101';
+  const forceEntry = `${extensionId};https://clients2.google.com/service/update2/crx`;
+  const entries = targets.map((item, idx) => {
+    const strictKey = strict
+      ? `<key>MandatoryExtensionsForIncognitoNavigation</key><array><string>${extensionId}</string></array>`
+      : '';
+    return `<dict><key>PayloadDisplayName</key><string>${item.name} — Bloom Focus Extension</string><key>PayloadIdentifier</key><string>${bundleId}.browser-policy.${suffix}.${item.id}</string><key>PayloadType</key><string>${item.bundleId}</string><key>PayloadUUID</key><string>D4E8B6F2-8D49-407E-AC3B-22F50A1B0${strict ? 2 : 1}0${idx + 1}</string><key>PayloadVersion</key><integer>1</integer><key>ExtensionInstallForcelist</key><array><string>${forceEntry}</string></array>${strictKey}</dict>`;
+  }).join('');
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict><key>PayloadContent</key><array>${entries}</array><key>PayloadDescription</key><string>${strict ? 'Installs Bloom Focus across all Brave, Chrome, and Edge profiles and requires it for Private/Incognito navigation.' : 'Installs Bloom Focus across all Brave, Chrome, and Edge profiles on this Mac.'}</string><key>PayloadDisplayName</key><string>${strict ? 'Bloom All-Profile Browser Protection (Strict)' : 'Bloom All-Profile Browser Protection'}</string><key>PayloadIdentifier</key><string>${bundleId}.browser-policy.${suffix}</string><key>PayloadOrganization</key><string>Bloom</string><key>PayloadScope</key><string>System</string><key>PayloadType</key><string>Configuration</string><key>PayloadUUID</key><string>${payloadUuid}</string><key>PayloadVersion</key><integer>1</integer></dict></plist>\n`;
+}
+
+for (const fileName of ['BloomBrowserProtection.mobileconfig', 'BloomBrowserProtectionStrict.mobileconfig']) {
+  const filePath = path.join(root, 'build', fileName);
+  if (fs.existsSync(filePath)) fs.rmSync(filePath, { force: true });
+}
+if (chromeExtensionId) {
+  fs.writeFileSync(path.join(root, 'build', 'BloomBrowserProtection.mobileconfig'), buildMobileConfigXml(chromeExtensionId, false));
+  fs.writeFileSync(path.join(root, 'build', 'BloomBrowserProtectionStrict.mobileconfig'), buildMobileConfigXml(chromeExtensionId, true));
+}
+
+const safariDir = path.join(root, 'safari-extension');
+const safariAppexOut = path.join(root, 'build', 'BloomSafariExtension.appex');
+const safariProfileEnv = process.env.BLOOM_SAFARI_PROFILE || path.join(require('node:os').homedir(), 'Downloads', 'Bloom_macOS_Safari.provisionprofile');
+if (fs.existsSync(path.join(safariDir, 'SafariWebExtensionHandler.swift')) && fs.existsSync(safariProfileEnv)) {
+  const appexContents = path.join(safariAppexOut, 'Contents');
+  const appexMacos = path.join(appexContents, 'MacOS');
+  const appexResources = path.join(appexContents, 'Resources');
+  fs.mkdirSync(appexMacos, { recursive: true });
+  fs.mkdirSync(appexResources, { recursive: true });
+  const safariBuild = spawnSync('xcrun', ['swiftc', '-O', '-target', target, '-parse-as-library', '-application-extension', '-module-name', 'BloomSafariExtension',
+    path.join(root, 'BloomAppGroup.swift'), path.join(source, 'WebsiteRules.swift'), path.join(source, 'FilterCreditClock.swift'),
+    path.join(root, 'MacUsageStore.swift'), path.join(root, 'MacDisplayBalance.swift'), path.join(safariDir, 'SafariWebExtensionHandler.swift'),
+    '-framework', 'Foundation', '-framework', 'SafariServices', '-o', path.join(appexMacos, 'BloomSafariExtension')], { stdio: 'inherit' });
+  if (safariBuild.error) throw safariBuild.error;
+  if (safariBuild.status !== 0) process.exit(safariBuild.status || 1);
+  const safariEntitlements = fs.readFileSync(path.join(safariDir, 'SafariExtension.entitlements'), 'utf8')
+    .replaceAll('$(TeamIdentifierPrefix)', `${team}.`).replaceAll('$(TeamTeamIdentifier)', team);
+  fs.writeFileSync(path.join(root, 'build', 'SafariExtension.entitlements'), safariEntitlements);
+  const safariPlist = fs.readFileSync(path.join(safariDir, 'Info.plist'), 'utf8')
+    .replaceAll('$(TeamIdentifierPrefix)', `${team}.`).replaceAll('$(BLOOM_VERSION)', filterVersion);
+  fs.writeFileSync(path.join(appexContents, 'Info.plist'), safariPlist);
+  const sharedExtensionDir = path.resolve(__dirname, '..', 'browser-extension');
+  for (const file of ['blocked.html', 'blocked.css', 'blocked.js', 'popup.html', 'popup.js']) {
+    fs.copyFileSync(path.join(sharedExtensionDir, file), path.join(appexResources, file));
+  }
+  fs.mkdirSync(path.join(appexResources, 'lib'), { recursive: true });
+  for (const libFile of ['domain-policy.mjs', 'extension-rules.mjs']) {
+    fs.copyFileSync(path.join(sharedExtensionDir, 'lib', libFile), path.join(appexResources, 'lib', libFile));
+  }
+  for (const safariAsset of ['manifest.json', 'background.js']) {
+    fs.copyFileSync(path.join(safariDir, safariAsset), path.join(appexResources, safariAsset));
+  }
+} else if (fs.existsSync(safariAppexOut)) {
+  fs.rmSync(safariAppexOut, { recursive: true, force: true });
+}
 fs.writeFileSync(path.join(root, 'build', `${monitorId}.plist`), `<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict><key>Label</key><string>${monitorId}</string><key>BundleProgram</key><string>Contents/MacOS/BloomAppMonitor</string><key>RunAtLoad</key><true/><key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict></dict></plist>`);
 fs.writeFileSync(path.join(root, 'build', `${brokerId}.plist`), `<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict><key>Label</key><string>${brokerId}</string><key>BundleProgram</key><string>Contents/MacOS/BloomPolicyBroker</string><key>MachServices</key><dict><key>${team}.com.nashaat.bloomexercise.policy</key><true/></dict><key>RunAtLoad</key><true/><key>KeepAlive</key><true/><key>ProcessType</key><string>Background</string></dict></plist>`);
 process.stdout.write('Built an unsigned macOS system extension. Signing and provisioning are still required.\n');

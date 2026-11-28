@@ -37,7 +37,10 @@ run_check MacAppEnforcementCheck "$source_dir/MacAppEnforcement.swift" "$test_di
 run_check MacMonitorRulesCheck "$source_dir/MacMonitorRules.swift" "$test_dir/MacMonitorRulesCheck.swift"
 run_check MacServiceRegistrationPolicyCheck "$source_dir/MacServiceRegistrationPolicy.swift" "$test_dir/MacServiceRegistrationPolicyCheck.swift"
 run_check MacBrowserURLCheck "$source_dir/filter/WebsiteRules.swift" "$source_dir/MacBrowserURL.swift" "$test_dir/MacBrowserURLCheck.swift"
+run_check MacBrowserBridgeCheck "$source_dir/BloomAppGroup.swift" "$source_dir/MacDisplayBalance.swift" "$source_dir/MacBrowserPolicyProfile.swift" "$source_dir/MacBrowserBridgeInstaller.swift" "$source_dir/BloomBrowserBridge.swift" "$test_dir/MacBrowserBridgeCheck.swift"
 run_check TLSHostnameCheck "$source_dir/filter/WebsiteRules.swift" "$source_dir/filter/TLSHostname.swift" "$test_dir/TLSHostnameCheck.swift"
+run_check HTTPHostnameCheck "$source_dir/filter/WebsiteRules.swift" "$source_dir/filter/HTTPHostname.swift" "$test_dir/HTTPHostnameCheck.swift"
+run_check OutboundFlowInspectorCheck "$source_dir/filter/WebsiteRules.swift" "$source_dir/filter/TLSHostname.swift" "$source_dir/filter/HTTPHostname.swift" "$source_dir/filter/OutboundFlowInspector.swift" "$test_dir/OutboundFlowInspectorCheck.swift"
 run_check BloomFilterActivationPolicyCheck "$source_dir/BloomFilterActivationPolicy.swift" "$test_dir/BloomFilterActivationPolicyCheck.swift"
 run_check BloomWebsiteCleanupPolicyCheck "$source_dir/BloomWebsiteCleanupPolicy.swift" "$test_dir/BloomWebsiteCleanupPolicyCheck.swift"
 run_check MacUsageCheck "$source_dir/BloomAppGroup.swift" "$source_dir/filter/FilterCreditClock.swift" "$source_dir/MacUsageStore.swift" "$test_dir/MacUsageCheck.swift"
@@ -57,7 +60,10 @@ xcrun swiftc -O -parse-as-library -emit-library -module-name BloomFilterHost \
   "$source_dir/MacUsageStore.swift" "$source_dir/BloomAppController.swift" "$source_dir/BloomFilterController.swift" \
   "$source_dir/BloomPolicyBrokerController.swift" \
   "$source_dir/BloomPolicyBrokerReadiness.swift" \
-  "$source_dir/MacSharedPreferences.swift" "$source_dir/SupabaseCreditGrant.swift" "$source_dir/SupabaseUsageGrant.swift" "$source_dir/BloomFilterActivationPolicy.swift" \
+  "$source_dir/MacSharedPreferences.swift" "$source_dir/MacDisplayBalance.swift" "$source_dir/MacBrowserPolicyProfile.swift" "$source_dir/MacBrowserBridgeInstaller.swift" "$source_dir/SupabaseCreditGrant.swift" "$source_dir/SupabaseUsageGrant.swift" "$source_dir/BloomFilterActivationPolicy.swift" \
   "$source_dir/BloomWebsiteCleanupPolicy.swift" "$source_dir/MacHostsLifecycle.swift" "$source_dir/BloomFilterHost.swift" -lbsm -o "$temporary_dir/libBloomFilterHost.dylib"
+xcrun swiftc -typecheck -parse-as-library \
+  "$source_dir/BloomAppGroup.swift" "$source_dir/filter/WebsiteRules.swift" "$source_dir/filter/FilterCreditClock.swift" \
+  "$source_dir/MacUsageStore.swift" "$source_dir/MacDisplayBalance.swift" "$source_dir/safari-extension/SafariWebExtensionHandler.swift"
 xcrun clang "$test_dir/FilterBridgeCheck.c" -o "$temporary_dir/FilterBridgeCheck"
 "$temporary_dir/FilterBridgeCheck" "$temporary_dir/libBloomFilterHost.dylib"

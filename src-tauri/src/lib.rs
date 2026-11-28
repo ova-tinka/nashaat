@@ -1,9 +1,53 @@
 #[cfg(target_os = "macos")]
+struct PendingDeepLink(std::sync::Mutex<Option<String>>);
+
+#[cfg(target_os = "macos")]
+fn route_from_deep_link(url: &url::Url) -> Option<String> {
+  if url.scheme() != "bloomexercise" {
+    return None;
+  }
+  let host = url.host_str().unwrap_or("");
+  let path = url.path();
+  let is_focus = host == "focus" || path == "/focus" || (host.is_empty() && path == "focus");
+  if !is_focus {
+    return None;
+  }
+  let section = url.query_pairs().find_map(|(k, v)| {
+    if k == "section" && matches!(v.as_ref(), "focus" | "apps" | "websites" | "rules" | "earned") {
+      Some(v.into_owned())
+    } else {
+      None
+    }
+  });
+  match section {
+    Some(value) => Some(format!("/focus?section={value}")),
+    None => Some("/focus".to_string()),
+  }
+}
+
+#[cfg(target_os = "macos")]
 #[tauri::command]
-async fn macos_filter(action: String, domains: Option<Vec<String>>, apps: Option<Vec<String>>, timing: Option<serde_json::Value>, targets: Option<serde_json::Value>, usage: Option<serde_json::Value>, account_id: Option<String>) -> Result<serde_json::Value, String> {
-  if !matches!(action.as_str(), "activate" | "start" | "stop" | "clearManualDomains" | "cleanupHosts" | "hostsRecoveryStatus" | "hostsPolicyStatus" | "syncHostsManaged" | "enrollHosts" | "startHostsUsage" | "stopHostsUsage" | "clearManualApps" | "status" | "appStatus" | "clock" | "startCreditAccess" | "endCreditAccess" | "activateApps" | "chooseApp" | "listInstalledApps" | "startApps" | "stopApps" | "getUsageAccess" | "startUsageAccess" | "closeUsageAccess" | "clearUsageAccess" | "openAccessibilitySettings" | "syncManagedRules") {
+fn take_pending_deep_link(state: tauri::State<'_, PendingDeepLink>) -> Option<String> {
+  state.0.lock().ok().and_then(|mut guard| guard.take())
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+async fn macos_filter(action: String, domains: Option<Vec<String>>, apps: Option<Vec<String>>, timing: Option<serde_json::Value>, targets: Option<serde_json::Value>, usage: Option<serde_json::Value>, account_id: Option<String>, strict: Option<bool>, display_balance: Option<serde_json::Value>) -> Result<serde_json::Value, String> {
+  if !matches!(action.as_str(), "activate" | "start" | "stop" | "clearManualDomains" | "cleanupHosts" | "hostsRecoveryStatus" | "hostsPolicyStatus" | "syncHostsManaged" | "enrollHosts" | "startHostsUsage" | "stopHostsUsage" | "clearManualApps" | "status" | "appStatus" | "clock" | "startCreditAccess" | "endCreditAccess" | "activateApps" | "chooseApp" | "listInstalledApps" | "startApps" | "stopApps" | "getUsageAccess" | "startUsageAccess" | "closeUsageAccess" | "clearUsageAccess" | "openAccessibilitySettings" | "openLoginItemsSettings" | "installBrowserBridge" | "installBrowserProtection" | "openBrowserPolicyProfile" | "browserProtectionStatus" | "selfCheck" | "syncDisplayBalance" | "syncManagedRules") {
     return Err("Invalid filter action.".into());
   }
+  let (display_credit_enabled, display_credit_balance_minutes) = if action == "syncDisplayBalance" {
+    let value = display_balance.as_ref().ok_or("Missing display balance details.")?;
+    let enabled = value.get("creditsEnabled").and_then(|v| v.as_bool()).ok_or("Invalid credits flag.")?;
+    let minutes = value.get("balanceMinutes").and_then(|v| v.as_f64()).ok_or("Invalid balance amount.")?;
+    if !minutes.is_finite() || minutes < 0.0 || minutes > 1_000_000.0 {
+      return Err("Invalid balance amount.".into());
+    }
+    (Some(enabled), Some(minutes))
+  } else {
+    (None, None)
+  };
   if domains.as_ref().is_some_and(|items| items.len() > 500 || items.iter().any(|item| item.len() > 2048)) {
     return Err("Invalid website selection.".into());
   }
@@ -114,7 +158,8 @@ async fn macos_filter(action: String, domains: Option<Vec<String>>, apps: Option
       "usageRequestId": usage_request_id, "usageDeviceKey": usage_device_key,
       "usageRequestedMillis": usage_requested_millis, "usageAccessToken": usage_access_token, "hostsGrantKind": hosts_grant_kind,
       "creditWebsites": credit_websites, "creditApps": credit_apps,
-      "sessionId": session_id, "userId": user_id, "accountId": account_id }))
+      "sessionId": session_id, "userId": user_id, "accountId": account_id, "strict": strict,
+      "displayCreditEnabled": display_credit_enabled, "displayCreditBalanceMinutes": display_credit_balance_minutes }))
       .map_err(|_| "Could not prepare the protection request.")?;
     let input = CString::new(input).map_err(|_| "Invalid protection request.")?;
     let (sender, receiver) = mpsc::sync_channel::<Result<String, String>>(1);
@@ -186,11 +231,42 @@ mod reader_browser_tests {
   }
 }
 
+#[cfg(all(test, target_os = "macos"))]
+mod deep_link_tests {
+  use super::route_from_deep_link;
+
+  #[test]
+  fn accepts_bloom_focus_deep_links() {
+    let earned = url::Url::parse("bloomexercise://focus?section=earned").unwrap();
+    assert_eq!(route_from_deep_link(&earned).as_deref(), Some("/focus?section=earned"));
+
+    let plain = url::Url::parse("bloomexercise://focus").unwrap();
+    assert_eq!(route_from_deep_link(&plain).as_deref(), Some("/focus"));
+
+    let slash_path = url::Url::parse("bloomexercise:///focus?section=websites").unwrap();
+    assert_eq!(route_from_deep_link(&slash_path).as_deref(), Some("/focus?section=websites"));
+  }
+
+  #[test]
+  fn rejects_unknown_schemes_and_sections() {
+    let other = url::Url::parse("https://focus?section=earned").unwrap();
+    assert_eq!(route_from_deep_link(&other), None);
+
+    let unknown_host = url::Url::parse("bloomexercise://settings?section=earned").unwrap();
+    assert_eq!(route_from_deep_link(&unknown_host), None);
+
+    let bad_section = url::Url::parse("bloomexercise://focus?section=admin").unwrap();
+    assert_eq!(route_from_deep_link(&bad_section).as_deref(), Some("/focus"));
+  }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   let builder = tauri::Builder::default();
   #[cfg(target_os = "macos")]
-  let builder = builder.invoke_handler(tauri::generate_handler![macos_filter, open_reader_in_browser])
+  let builder = builder
+    .manage(PendingDeepLink(std::sync::Mutex::new(None)))
+    .invoke_handler(tauri::generate_handler![macos_filter, open_reader_in_browser, take_pending_deep_link])
     .on_window_event(|window, event| {
       if window.label() == "main" {
         if let tauri::WindowEvent::CloseRequested { api, .. } = event {
@@ -202,14 +278,30 @@ pub fn run() {
     });
   #[cfg(target_os = "macos")]
   {
-    use tauri::Manager;
+    use tauri::{Emitter, Manager};
     builder.build(tauri::generate_context!()).expect("failed to build Bloom")
       .run(|app, event| {
-        if let tauri::RunEvent::Reopen { has_visible_windows: false, .. } = event {
-          if let Some(window) = app.get_webview_window("main") {
-            let _ = window.show();
-            let _ = window.set_focus();
+        match event {
+          tauri::RunEvent::Reopen { has_visible_windows: false, .. } => {
+            if let Some(window) = app.get_webview_window("main") {
+              let _ = window.show();
+              let _ = window.set_focus();
+            }
           }
+          tauri::RunEvent::Opened { urls } => {
+            if let Some(route) = urls.iter().find_map(route_from_deep_link) {
+              if let Ok(mut pending) = app.state::<PendingDeepLink>().0.lock() {
+                *pending = Some(route.clone());
+              }
+              if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.show();
+                let _ = window.set_focus();
+              }
+              let _ = app.emit("bloom-deep-link", route);
+            }
+          }
+          _ => {}
         }
       });
   }

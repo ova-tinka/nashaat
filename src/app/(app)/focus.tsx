@@ -407,7 +407,7 @@ export default function FocusScreen() {
     </>}
   </Panel> : <Body>Screen-time credits are not enabled for this account.</Body>;
 
-  if (isMacDesktop()) return <MacosFocus initialSection={section} />;
+  if (isMacDesktop()) return <MacosFocus initialSection={section} openEarned={params.section === 'earned'} />;
   if (Platform.OS === 'android') {
     const managedApps = managedRules.filter((rule) => rule.platform === 'android' && rule.target_type === 'app').map((rule) => rule.target_identifier);
     const managedWebsites = managedRules.filter((rule) => rule.platform === 'android' && rule.target_type === 'website').map((rule) => rule.target_identifier);
@@ -483,5 +483,5 @@ export default function FocusScreen() {
 }
 
 function isFocusSection(value: unknown): value is FocusSettingsSection {
-  return value === 'focus' || value === 'apps' || value === 'websites' || value === 'rules';
+  return value === 'focus' || value === 'apps' || value === 'websites' || value === 'rules' || value === 'earned';
 }
