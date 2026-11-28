@@ -1,5 +1,5 @@
 import { Unzip, UnzipInflate } from 'npm:fflate@0.8.2';
-import { getDocument } from 'npm:pdfjs-dist@4.10.38/legacy/build/pdf.mjs';
+import { getResolvedPDFJS } from 'npm:unpdf@2.2.3';
 import {
   checkByteSize,
   checkTimeBudget,
@@ -83,7 +83,8 @@ export async function extractPdfSections(bytes: Uint8Array, options: ExtractOpti
 
   checkByteSize(bytes, maxBytes);
   if (bytes.length < 5 || new TextDecoder().decode(bytes.subarray(0, 5)) !== '%PDF-') throw new Error('This file is not a PDF');
-  const task = getDocument({ data: bytes, disableFontFace: true, useSystemFonts: true, isEvalSupported: false });
+  const pdfjs = await getResolvedPDFJS();
+  const task = pdfjs.getDocument({ data: bytes, disableFontFace: true, useSystemFonts: true });
   const document = await task.promise;
   try {
     if (!document.numPages || document.numPages > MAX_PAGES) throw new Error('PDF page count is outside the supported range');
