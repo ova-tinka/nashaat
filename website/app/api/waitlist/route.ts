@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { consumeLimit, publicOrigin, readJson, responseJson } from "@/lib/http";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { hmacHex, newGeneration, signToken, trustedClientAddress } from "@/lib/server-security";

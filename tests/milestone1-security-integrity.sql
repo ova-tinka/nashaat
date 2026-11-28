@@ -292,4 +292,58 @@ begin
 end;
 $$;
 
+-- M1-23: website waitlist PII and token operations are server-role only.
+do $$
+declare
+  v_signature text;
+  v_table text;
+begin
+  foreach v_signature in array array[
+    'public.bloom_website_consume_rate_limit(text,integer,integer)',
+    'public.bloom_website_start_waitlist(text,text,uuid,boolean,boolean,boolean,text)',
+    'public.bloom_website_confirm_waitlist(uuid,uuid)',
+    'public.bloom_website_mark_waitlist_email_sent(uuid,uuid)',
+    'public.bloom_website_start_management(text,uuid)',
+    'public.bloom_website_manage(uuid,uuid,text,boolean,boolean,text)',
+    'public.bloom_website_get_preferences(uuid,uuid)'
+  ] loop
+    if has_function_privilege('anon', v_signature, 'EXECUTE')
+      or has_function_privilege('authenticated', v_signature, 'EXECUTE') then
+      raise exception 'M1-23 failed: client role can execute %', v_signature;
+    end if;
+    if not has_function_privilege('service_role', v_signature, 'EXECUTE') then
+      raise exception 'M1-23 failed: service role cannot execute %', v_signature;
+    end if;
+  end loop;
+
+  foreach v_table in array array[
+    'public.bloom_website_waitlist',
+    'public.bloom_website_waitlist_events',
+    'public.bloom_website_rate_limits'
+  ] loop
+    if has_table_privilege('anon', v_table, 'SELECT')
+      or has_table_privilege('anon', v_table, 'INSERT')
+      or has_table_privilege('anon', v_table, 'UPDATE')
+      or has_table_privilege('anon', v_table, 'DELETE')
+      or has_table_privilege('authenticated', v_table, 'SELECT')
+      or has_table_privilege('authenticated', v_table, 'INSERT')
+      or has_table_privilege('authenticated', v_table, 'UPDATE')
+      or has_table_privilege('authenticated', v_table, 'DELETE') then
+      raise exception 'M1-23 failed: client role can access %', v_table;
+    end if;
+  end loop;
+
+  if exists (
+    select 1 from pg_class
+    where oid in (
+      'public.bloom_website_waitlist'::regclass,
+      'public.bloom_website_waitlist_events'::regclass,
+      'public.bloom_website_rate_limits'::regclass
+    ) and not relrowsecurity
+  ) then
+    raise exception 'M1-23 failed: row-level security is disabled for waitlist data';
+  end if;
+end;
+$$;
+
 rollback;
