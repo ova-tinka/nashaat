@@ -8,6 +8,10 @@ fn route_from_deep_link(url: &url::Url) -> Option<String> {
   }
   let host = url.host_str().unwrap_or("");
   let path = url.path();
+  let is_reset = host == "reset-password" || path == "/reset-password" || (host.is_empty() && path == "reset-password");
+  if is_reset {
+    return Some("/reset-password".to_string());
+  }
   let is_focus = host == "focus" || path == "/focus" || (host.is_empty() && path == "focus");
   if !is_focus {
     return None;
@@ -520,6 +524,9 @@ mod deep_link_tests {
 
     let slash_path = url::Url::parse("bloomexercise:///focus?section=websites").unwrap();
     assert_eq!(route_from_deep_link(&slash_path).as_deref(), Some("/focus?section=websites"));
+
+    let reset = url::Url::parse("bloomexercise://reset-password").unwrap();
+    assert_eq!(route_from_deep_link(&reset).as_deref(), Some("/reset-password"));
   }
 
   #[test]

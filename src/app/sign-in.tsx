@@ -1,9 +1,11 @@
-import { Redirect, useLocalSearchParams, type Href } from 'expo-router';
+import { Redirect, router, useLocalSearchParams, type Href } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Body, BloomWordmark, Button, ErrorText, Eyebrow, Field, Heading, Panel, Screen, sharedStyles, useIsDesktopLayout } from '../components/bloom-ui';
+import { trackEvent } from '../lib/analytics';
 import { useAuth } from '../lib/auth';
 import { validateInternalReturnPath } from '../lib/auth-return-path';
+import { captureException } from '../lib/sentry';
 import { createTransientSupabaseClient, supabase } from '../lib/supabase';
 import { getSavedChild, restoreChildSession } from '../lib/profile-switch';
 import { useBloomTheme } from '../lib/theme-context';
@@ -19,6 +21,7 @@ export default function SignInScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [signingUp, setSigningUp] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -46,14 +49,40 @@ export default function SignInScreen() {
     if (!supabase) return;
     if (!email.trim() || !password) { setError('Enter your email and password.'); return; }
     setBusy(true); setError(null); setMessage(null);
+    if (signingUp) void trackEvent('signup_started', { source: 'email' });
     try {
       const result = signingUp
         ? await supabase.auth.signUp({ email: email.trim(), password })
         : await supabase.auth.signInWithPassword({ email: email.trim(), password });
       if (result.error) throw result.error;
-      if (signingUp && !result.data.session) setMessage('Check your email to confirm your account, then sign in.');
+      if (signingUp) {
+        void trackEvent('signup_completed', { source: 'email' });
+        if (!result.data.session) setMessage('Check your email to confirm your account, then sign in.');
+      } else {
+        void trackEvent('login_completed', { source: 'email' });
+      }
     } catch (caught) {
+      captureException(caught, { flow: signingUp ? 'signup' : 'login' });
       setError(caught instanceof Error ? caught.message : 'Could not sign in. Please try again.');
+    } finally { setBusy(false); }
+  }
+
+  async function requestPasswordReset() {
+    if (!supabase) return;
+    if (!email.trim()) { setError('Enter your email address.'); return; }
+    setBusy(true); setError(null); setMessage(null);
+    try {
+      const webBase = process.env.EXPO_PUBLIC_BLOOM_WEB_URL?.trim()?.replace(/\/$/, '')
+        || (Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.origin : '');
+      const redirectTo = Platform.OS === 'web' && webBase
+        ? `${webBase}/reset-password`
+        : 'bloomexercise://reset-password';
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo });
+      if (resetError) throw resetError;
+      setMessage('If an account exists for that email, a password reset link has been sent.');
+    } catch (caught) {
+      captureException(caught, { flow: 'password_reset_request' });
+      setError('Could not send a password reset email right now. Please try again.');
     } finally { setBusy(false); }
   }
 
@@ -137,16 +166,25 @@ export default function SignInScreen() {
           {error && <ErrorText>{error}</ErrorText>}
           <Button label="Pair child device" onPress={() => void pairDevice()} busy={busy} />
           <Button label="Back to sign in" secondary onPress={() => { setPairing(false); setPairingCode(''); setError(null); }} disabled={busy} />
+        </Panel> : resetting ? <Panel>
+          <Eyebrow>Password recovery</Eyebrow>
+          <Body>Enter your account email and we will send a password reset link.</Body>
+          <Field label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" autoComplete="email" keyboardType="email-address" />
+          {error && <ErrorText>{error}</ErrorText>}{message && <Body>{message}</Body>}
+          <Button label="Send reset link" onPress={() => void requestPasswordReset()} busy={busy} />
+          <Button label="Back to sign in" secondary onPress={() => { setResetting(false); setError(null); setMessage(null); }} disabled={busy} />
         </Panel> : <Panel>
           <Eyebrow>{signingUp ? 'Create your account' : 'Welcome back'}</Eyebrow>
           <Field label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" autoComplete="email" keyboardType="email-address" />
           <Field label="Password" value={password} onChangeText={setPassword} secureTextEntry autoComplete={signingUp ? 'new-password' : 'current-password'} />
           {error && <ErrorText>{error}</ErrorText>}{message && <Body>{message}</Body>}
           <Button label={signingUp ? 'Create account' : 'Sign in'} onPress={() => void submit()} busy={busy} />
+          {!signingUp && <Button label="Forgot password?" variant="tertiary" onPress={() => { setResetting(true); setError(null); setMessage(null); }} disabled={busy} />}
           <Button label={signingUp ? 'Already have an account? Sign in' : 'New to Bloom? Create an account'} secondary onPress={() => { setSigningUp(!signingUp); setError(null); setMessage(null); }} />
           <Button label="Pair child device" secondary onPress={() => { setPairing(true); setError(null); }} disabled={busy} />
           <Button label="Link child email account" secondary onPress={() => { setLinking(true); setError(null); setMessage(null); }} disabled={busy} />
           {hasSavedChild && <Button label="Restore child profile" secondary onPress={() => void restoreChild()} disabled={busy} />}
+          <Button label="Privacy Policy & Terms" variant="tertiary" onPress={() => router.push('/legal' as Href)} disabled={busy} />
         </Panel>}
       </View>
     </View>
