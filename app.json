@@ -13,7 +13,7 @@
       "icon": "./assets/expo.icon"
     },
     "android": {
-      "package": "com.nashaat.bloomexercise",
+      "package": "com.bloomgrowth.app",
       "blockedPermissions": [
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE"
