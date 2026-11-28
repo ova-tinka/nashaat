@@ -36,6 +36,35 @@ import Foundation
     precondition(!MacFlowSource.shouldDropHostlessFlow(sourceBundleIdentifier: "org.example.browser",
       blockedBrowserBundleIdentifier: "org.example.browser", checkedAtMillis: 1000,
       checkedBoot: 8, nowMillis: 2000, boot: 7))
+
+    for (browser, helper) in [
+      ("com.google.Chrome", "com.google.Chrome.helper"),
+      ("com.google.Chrome", "com.google.Chrome.helper.renderer"),
+      ("com.google.Chrome.beta", "com.google.Chrome.beta.helper"),
+      ("com.microsoft.edgemac", "com.microsoft.edgemac.helper.renderer"),
+      ("company.thebrowser.Browser", "company.thebrowser.Browser.helper"),
+      ("com.operasoftware.Opera", "com.operasoftware.Opera.helper"),
+      ("org.mozilla.firefox", "org.mozilla.plugincontainer"),
+    ] {
+      precondition(MacFlowSource.unreadableBrowserDecision(sourceBundleIdentifier: helper, browserBundleIdentifier: browser) == .inspectBrowser)
+      precondition(MacFlowSource.shouldDropHostlessFlow(sourceBundleIdentifier: helper,
+        blockedBrowserBundleIdentifier: browser, checkedAtMillis: 1000,
+        checkedBoot: 7, nowMillis: 2000, boot: 7))
+    }
+
+    for process in ["com.apple.Safari", "com.brave.Browser", "com.brave.Browser.helper", "com.google.Chrome", "com.google.Chrome.helper", "org.mozilla.firefox"] {
+      precondition(MacFlowSource.isKnownBrowserProcess(process))
+      precondition(MacFlowSource.shouldDropBrowserQUIC(isDatagram: true, remotePort: "443", sourceBundleIdentifier: process))
+      precondition(!MacFlowSource.shouldDropBrowserQUIC(isDatagram: false, remotePort: "443", sourceBundleIdentifier: process))
+      precondition(!MacFlowSource.shouldDropBrowserQUIC(isDatagram: true, remotePort: "53", sourceBundleIdentifier: process))
+      precondition(!MacFlowSource.shouldDropBrowserQUIC(isDatagram: true, remotePort: "80", sourceBundleIdentifier: process))
+      precondition(!MacFlowSource.shouldDropBrowserQUIC(isDatagram: true, remotePort: nil, sourceBundleIdentifier: process))
+      precondition(!MacFlowSource.shouldDropBrowserQUIC(isDatagram: true, remotePort: "3478", sourceBundleIdentifier: process))
+    }
+    for nonBrowser in [nil, "", "org.example.other", "com.brave.Browser.framework.AlertNotificationService", "com.brave.Browser.helper.utility"] {
+      precondition(!MacFlowSource.isKnownBrowserProcess(nonBrowser))
+      precondition(!MacFlowSource.shouldDropBrowserQUIC(isDatagram: true, remotePort: "443", sourceBundleIdentifier: nonBrowser))
+    }
     print("macOS flow source checks passed")
   }
 }

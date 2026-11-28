@@ -14,11 +14,11 @@ import UniformTypeIdentifiers
     return UserDefaults(suiteName: group)
   }
 
-  func activate() throws -> String {
-    try ensureMonitor()
+  func activate() async throws -> String {
+    try await ensureMonitor()
   }
 
-  func ensureMonitor() throws -> String {
+  func ensureMonitor() async throws -> String {
     let service = SMAppService.agent(plistName: plist)
     let agentPlist = Bundle.main.bundleURL.appendingPathComponent("Contents/Library/LaunchAgents/\(plist)")
     let agentExecutable = Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/BloomAppMonitor")
@@ -28,22 +28,39 @@ import UniformTypeIdentifiers
     }
     let fingerprint = try MacServiceRegistrationPolicy.fingerprint(at: agentExecutable)
     let wasRegistered = service.status == .enabled || service.status == .requiresApproval
+    var refreshed = false
     if MacServiceRegistrationPolicy.shouldRefresh(isRegistered: wasRegistered,
       registeredFingerprint: UserDefaults.standard.string(forKey: registrationFingerprintKey),
       currentFingerprint: fingerprint) {
       // A copied or updated Bloom app can leave Service Management pointing at
       // an older helper that is still alive. Refresh only when the executable
       // changed, then register from this signed app copy.
-      try service.unregister()
-    }
-    if service.status == .enabled, let defaults, !isMonitorRunning(defaults) {
+      UserDefaults.standard.removeObject(forKey: registrationFingerprintKey)
+      try await service.unregister()
+      refreshed = true
+    } else if service.status == .enabled, let defaults, !isMonitorRunning(defaults) {
       // A previous app copy or a crashed helper can leave Service Management
       // enabled while its process no longer reports a heartbeat. Re-register
       // from the currently running app bundle so updates recover cleanly.
-      try service.unregister()
+      UserDefaults.standard.removeObject(forKey: registrationFingerprintKey)
+      try await service.unregister()
+      refreshed = true
+    }
+    if refreshed {
+      for _ in 0..<20 {
+        let current = service.status
+        if current != .enabled && current != .requiresApproval { break }
+        try? await Task.sleep(nanoseconds: 100_000_000)
+      }
     }
     if service.status == .notRegistered || service.status == .notFound {
-      try service.register()
+      do {
+        try service.register()
+      } catch {
+        guard refreshed else { throw error }
+        try? await Task.sleep(nanoseconds: 250_000_000)
+        try service.register()
+      }
       // Service Management may return a transient .notFound immediately after
       // register() while it records the bundled launch agent. Give it a short
       // window to publish the resulting state before treating this as a broken
@@ -51,10 +68,12 @@ import UniformTypeIdentifiers
       for _ in 0..<20 {
         let status = service.status
         if status != .notFound && status != .notRegistered {
-          UserDefaults.standard.set(fingerprint, forKey: registrationFingerprintKey)
+          if status == .enabled || status == .requiresApproval {
+            UserDefaults.standard.set(fingerprint, forKey: registrationFingerprintKey)
+          }
           return try monitorStatus(status)
         }
-        Thread.sleep(forTimeInterval: 0.1)
+        try? await Task.sleep(nanoseconds: 100_000_000)
       }
     }
     if service.status == .enabled || service.status == .requiresApproval {
@@ -63,18 +82,26 @@ import UniformTypeIdentifiers
     return try monitorStatus(service.status)
   }
 
-  func waitForWebsitePolicyReady(timeoutMillis: Double = 5_000) async -> Bool {
+  func waitForWebsitePolicyReady(timeoutMillis: Double = 8_000) async -> Bool {
     guard let defaults else { return false }
-    let deadline = FilterCreditClock.nowMillis() + timeoutMillis
+    let started = FilterCreditClock.nowMillis()
+    let deadline = started + timeoutMillis
+    var attemptedBrokerRefresh = false
     while FilterCreditClock.nowMillis() <= deadline {
+      let now = FilterCreditClock.nowMillis()
       let brokerStatus = BloomPolicyBrokerController.shared.status()
+      let monitorRunning = isMonitorRunning(defaults)
       let acknowledgement = (defaults.object(forKey: "monitorPolicyBrokerSnapshotAckMillis") as? NSNumber)?.doubleValue
       if BloomPolicyBrokerReadiness.isReady(serviceStatus: brokerStatus,
-        monitorRunning: isMonitorRunning(defaults),
+        monitorRunning: monitorRunning,
         snapshotAccepted: defaults.bool(forKey: "monitorPolicyBrokerSnapshotAccepted"),
         acknowledgementMillis: acknowledgement,
-        nowMillis: FilterCreditClock.nowMillis()) {
+        nowMillis: now) {
         return true
+      }
+      if !attemptedBrokerRefresh && now - started >= 3_000 && brokerStatus == "active" && monitorRunning {
+        attemptedBrokerRefresh = true
+        _ = try? await BloomPolicyBrokerController.shared.ensureRegistered(forceRefresh: true)
       }
       do {
         try await Task.sleep(nanoseconds: 100_000_000)
@@ -83,6 +110,10 @@ import UniformTypeIdentifiers
       }
     }
     return false
+  }
+
+  func isMonitorLive() -> Bool {
+    defaults.map(isMonitorRunning) ?? false
   }
 
   private func monitorStatus(_ status: SMAppService.Status) throws -> String {
@@ -98,6 +129,17 @@ import UniformTypeIdentifiers
   func openAccessibilitySettings() throws {
     guard let url = URL(string: "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_Accessibility"),
           NSWorkspace.shared.open(url) else { throw AppError.unavailable }
+  }
+
+  func openLoginItemsSettings() throws {
+    let candidates = [
+      "x-apple.systempreferences:com.apple.LoginItems-Settings.extension",
+      "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension",
+    ]
+    for candidate in candidates {
+      if let url = URL(string: candidate), NSWorkspace.shared.open(url) { return }
+    }
+    throw AppError.unavailable
   }
 
   func chooseApp() throws -> (id: String, name: String)? {
@@ -165,7 +207,7 @@ import UniformTypeIdentifiers
     guard MacSharedPreferences.write(["blockedApps": normalized.filter { !managed.contains($0) }, "appBlockingEnabled": true]) else { throw AppError.unavailable }
   }
 
-  func syncManagedApps(_ apps: [String], accountId: String) throws -> String {
+  func syncManagedApps(_ apps: [String], accountId: String) async throws -> String {
     guard let normalized = MacAppRules.normalize(apps), let defaults else { throw AppError.invalidApps }
     guard !accountId.isEmpty, accountId.count <= 64 else { throw AppError.invalidApps }
     let previous = defaults.stringArray(forKey: "managedApps") ?? []
@@ -173,12 +215,12 @@ import UniformTypeIdentifiers
     if normalized.isEmpty && previous.isEmpty { return "inactive" }
     if normalized == previous {
       let unchangedStatus = SMAppService.agent(plistName: plist).status
-      if !normalized.isEmpty && unchangedStatus == .notRegistered { _ = try ensureMonitor() }
+      if !normalized.isEmpty && unchangedStatus == .notRegistered { _ = try await ensureMonitor() }
       let current = SMAppService.agent(plistName: plist).status
       if current == .requiresApproval { return "needsApproval" }
       return current == .enabled ? "active" : "unavailable"
     }
-    if !normalized.isEmpty { _ = try ensureMonitor() }
+    if !normalized.isEmpty { _ = try await ensureMonitor() }
     let serviceStatus = SMAppService.agent(plistName: plist).status
     var updates: [String: Any] = ["managedApps": normalized]
     if !normalized.isEmpty && serviceStatus == .enabled {

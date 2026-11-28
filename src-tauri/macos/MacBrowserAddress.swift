@@ -22,9 +22,15 @@ enum MacBrowserAddress {
     let accessibilityFirst = accessibilityAllowed
       && MacBrowserURL.prefersAccessibilityBeforeAutomation(bundleIdentifier)
     if accessibilityFirst,
-       let host = accessibilityHost(for: app, bundleIdentifier: bundleIdentifier) {
-      return MacBrowserAddressResult(bundleIdentifier: bundleIdentifier, browserName: name,
-        host: host, readable: true, source: "accessibility", automationStatus: "notRequested")
+       let value = accessibilityValue(for: app, bundleIdentifier: bundleIdentifier) {
+      if let host = WebsiteRules.host(value) {
+        return MacBrowserAddressResult(bundleIdentifier: bundleIdentifier, browserName: name,
+          host: host, readable: true, source: "accessibility", automationStatus: "notRequested")
+      }
+      if MacBrowserURL.isInternalPage(value) {
+        return MacBrowserAddressResult(bundleIdentifier: bundleIdentifier, browserName: name,
+          host: nil, readable: true, source: "accessibility", automationStatus: "notRequested")
+      }
     }
 
     if let source = MacBrowserURL.appleScript(for: bundleIdentifier) {
@@ -36,6 +42,10 @@ enum MacBrowserAddress {
           return MacBrowserAddressResult(bundleIdentifier: bundleIdentifier, browserName: name,
             host: host, readable: true, source: "automation", automationStatus: automationStatus)
         }
+        if MacBrowserURL.isInternalPage(value) {
+          return MacBrowserAddressResult(bundleIdentifier: bundleIdentifier, browserName: name,
+            host: nil, readable: true, source: "automation", automationStatus: automationStatus)
+        }
       } else {
         let errorNumber = (error?[NSAppleScript.errorNumber] as? NSNumber)?.intValue
         automationStatus = errorNumber == -1743 ? "permissionRequired" : "unavailable"
@@ -43,16 +53,22 @@ enum MacBrowserAddress {
     }
 
     if accessibilityAllowed, !accessibilityFirst,
-       let host = accessibilityHost(for: app, bundleIdentifier: bundleIdentifier) {
-      return MacBrowserAddressResult(bundleIdentifier: bundleIdentifier, browserName: name,
-        host: host, readable: true, source: "accessibility", automationStatus: automationStatus)
+       let value = accessibilityValue(for: app, bundleIdentifier: bundleIdentifier) {
+      if let host = WebsiteRules.host(value) {
+        return MacBrowserAddressResult(bundleIdentifier: bundleIdentifier, browserName: name,
+          host: host, readable: true, source: "accessibility", automationStatus: automationStatus)
+      }
+      if MacBrowserURL.isInternalPage(value) {
+        return MacBrowserAddressResult(bundleIdentifier: bundleIdentifier, browserName: name,
+          host: nil, readable: true, source: "accessibility", automationStatus: automationStatus)
+      }
     }
     return MacBrowserAddressResult(bundleIdentifier: bundleIdentifier, browserName: name,
       host: nil, readable: false, source: MacBrowserURL.isSupported(bundleIdentifier) ? "unreadable" : "unsupported",
       automationStatus: automationStatus)
   }
 
-  private static func accessibilityHost(for app: NSRunningApplication, bundleIdentifier: String) -> String? {
+  private static func accessibilityValue(for app: NSRunningApplication, bundleIdentifier: String) -> String? {
     guard app.processIdentifier > 0 else { return nil }
     let application = AXUIElementCreateApplication(app.processIdentifier)
     AXUIElementSetMessagingTimeout(application, 0.08)
@@ -60,10 +76,10 @@ enum MacBrowserAddress {
     guard AXUIElementCopyAttributeValue(application, kAXFocusedWindowAttribute as CFString, &focusedWindow) == .success,
           let focusedWindow, CFGetTypeID(focusedWindow) == AXUIElementGetTypeID() else { return nil }
     let window = unsafeBitCast(focusedWindow, to: AXUIElement.self)
-    return findAddress(in: window, bundleIdentifier: bundleIdentifier, depth: 0, remaining: 300)
+    return findAddressValue(in: window, bundleIdentifier: bundleIdentifier, depth: 0, remaining: 300)
   }
 
-  private static func findAddress(in element: AXUIElement, bundleIdentifier: String, depth: Int, remaining: Int) -> String? {
+  private static func findAddressValue(in element: AXUIElement, bundleIdentifier: String, depth: Int, remaining: Int) -> String? {
     guard depth <= 12, remaining > 0 else { return nil }
     AXUIElementSetMessagingTimeout(element, 0.08)
     let role = stringAttribute(element, kAXRoleAttribute as CFString)
@@ -72,13 +88,14 @@ enum MacBrowserAddress {
       ?? stringAttribute(element, kAXTitleAttribute as CFString)
     if MacBrowserURL.matchesAddressField(bundleIdentifier: bundleIdentifier, role: role,
          identifier: identifier, label: label),
-       let value = attribute(element, kAXValueAttribute as CFString) as? String,
-       let host = WebsiteRules.host(value) { return host }
+       let value = attribute(element, kAXValueAttribute as CFString) as? String {
+      return value
+    }
 
     guard let children = attribute(element, kAXChildrenAttribute as CFString) as? [AXUIElement] else { return nil }
     var budget = remaining - 1
     for child in children.prefix(budget) {
-      if let host = findAddress(in: child, bundleIdentifier: bundleIdentifier, depth: depth + 1, remaining: budget) { return host }
+      if let value = findAddressValue(in: child, bundleIdentifier: bundleIdentifier, depth: depth + 1, remaining: budget) { return value }
       budget -= 1
       if budget <= 0 { break }
     }

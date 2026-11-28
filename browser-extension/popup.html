@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Bloom Focus</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #ffffff;
+        --soft: #edf2fa;
+        --ink: #141b35;
+        --muted: #586784;
+        --accent: #1e5ebe;
+        --on-accent: #ffffff;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #18213a;
+          --soft: #222c49;
+          --ink: #f4f6ff;
+          --muted: #c0c8e0;
+          --accent: #8db3ff;
+          --on-accent: #101a33;
+        }
+      }
+      body {
+        margin: 0;
+        width: 280px;
+        padding: 16px;
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+        background: var(--bg);
+        color: var(--ink);
+      }
+      h1 {
+        margin: 0 0 6px;
+        font-size: 16px;
+      }
+      p {
+        margin: 0 0 14px;
+        font-size: 13px;
+        line-height: 1.4;
+        color: var(--muted);
+      }
+      button {
+        width: 100%;
+        border: 0;
+        border-radius: 10px;
+        padding: 10px 12px;
+        font-size: 13px;
+        font-weight: 600;
+        background: var(--accent);
+        color: var(--on-accent);
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <h1 id="status-title">Checking Bloom…</h1>
+    <p id="status-body">Connecting to the Bloom desktop app.</p>
+    <button id="open-btn" type="button">Open Bloom</button>
+    <script src="popup.js"></script>
+  </body>
+</html>

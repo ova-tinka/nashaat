@@ -18,15 +18,22 @@ final class BloomFilterController: NSObject, @preconcurrency OSSystemExtensionRe
   private(set) var lastError: String?
 
   func activate() async throws -> Activation {
-    let monitorStatus = try BloomAppController.shared.ensureMonitor()
+    _ = MacBrowserBridgeInstaller.installFromMainBundle()
+    let monitorStatus = try await BloomAppController.shared.ensureMonitor()
     if monitorStatus == "needsApproval" { throw FilterError.monitorNeedsApproval }
     guard monitorStatus == "active" else { throw FilterError.websitePolicyNotReady }
 
-    let brokerStatus = try BloomPolicyBrokerController.shared.ensureRegistered()
+    let brokerStatus = try await BloomPolicyBrokerController.shared.ensureRegistered()
     if brokerStatus == "needsApproval" { return .needsBrokerApproval }
     guard brokerStatus == "active" else { throw FilterError.policyBrokerUnavailable }
     guard await BloomAppController.shared.waitForWebsitePolicyReady() else {
-      throw FilterError.websitePolicyNotReady
+      if BloomPolicyBrokerController.shared.status() == "needsApproval" {
+        return .needsBrokerApproval
+      }
+      if !BloomAppController.shared.isMonitorLive() {
+        throw FilterError.websitePolicyNotReady
+      }
+      throw FilterError.policyBrokerNotResponding
     }
     if !BloomFilterActivationPolicy.shouldSubmitRequest(alreadyActive: activation == .active) {
       return .active
@@ -43,6 +50,7 @@ final class BloomFilterController: NSObject, @preconcurrency OSSystemExtensionRe
   }
 
   func start(domains: [String]) async throws {
+    _ = MacBrowserBridgeInstaller.installFromMainBundle()
     guard !domains.isEmpty, domains.count <= 500 else { throw FilterError.invalidDomains }
     let normalized = domains.compactMap(WebsiteRules.host)
     guard normalized.count == domains.count else { throw FilterError.invalidDomains }
@@ -158,7 +166,7 @@ final class BloomFilterController: NSObject, @preconcurrency OSSystemExtensionRe
     guard MacSharedPreferences.write(["managedDomains": normalized, "manualDomains": manual, "blockedDomains": effective, "managedRuleAccountId": accountId]) else { throw FilterError.unavailable }
 
     if !effective.isEmpty {
-      let brokerStatus = try BloomPolicyBrokerController.shared.ensureRegistered()
+      let brokerStatus = try await BloomPolicyBrokerController.shared.ensureRegistered()
       if brokerStatus == "needsApproval" { return "needsBrokerApproval" }
       guard brokerStatus == "active" else { throw FilterError.policyBrokerUnavailable }
     }
@@ -292,11 +300,12 @@ final class BloomFilterController: NSObject, @preconcurrency OSSystemExtensionRe
   }
 
   private enum FilterError: LocalizedError {
-    case requestInProgress, invalidDomains, anotherFilterActive, filterActive, sessionActive, invalidDuration, filterInactive, unavailable, parentRulesActive, invalidSignature, policyBrokerUnavailable, monitorNeedsApproval, websitePolicyNotReady
+    case requestInProgress, invalidDomains, anotherFilterActive, filterActive, sessionActive, invalidDuration, filterInactive, unavailable, parentRulesActive, invalidSignature, policyBrokerUnavailable, policyBrokerNotResponding, monitorNeedsApproval, websitePolicyNotReady
     var errorDescription: String? {
       switch self {
       case .invalidSignature: return "macOS rejected Bloom’s system extension signature. Check the signed app and its notarization before trying again."
       case .policyBrokerUnavailable: return "Approve Bloom’s website policy broker in System Settings before starting website protection."
+      case .policyBrokerNotResponding: return "Bloom’s website policy service is not responding. Open System Settings → General → Login Items & Extensions, allow Bloom, then try again."
       case .monitorNeedsApproval: return "Approve Bloom’s background monitor in System Settings → General → Login Items & Extensions before starting website protection."
       case .websitePolicyNotReady: return "Bloom’s website monitor has not checked in from this installation yet. Keep Bloom open and try again."
       case .requestInProgress: return "Bloom is already setting up website blocking."

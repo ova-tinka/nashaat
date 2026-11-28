@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "Bloom Focus",
+  "version": "1.0.0",
+  "description": "Enforces Bloom website rules in Safari and shows why a site is blocked.",
+  "permissions": [
+    "declarativeNetRequest",
+    "tabs",
+    "alarms",
+    "nativeMessaging",
+    "storage"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Bloom Focus",
+    "default_popup": "popup.html"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["blocked.html", "blocked.css", "blocked.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

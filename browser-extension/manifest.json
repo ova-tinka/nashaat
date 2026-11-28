@@ -1,0 +1,38 @@
+{
+  "manifest_version": 3,
+  "name": "Bloom Focus",
+  "version": "1.0.0",
+  "minimum_chrome_version": "114",
+  "description": "Enforces Bloom website rules in your browser and shows why a site is blocked.",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2uEdR9dDnCgLarpEk9Im4BRO7tDGkYkuzt3KmaAdZpKGWtmfbFBT1jHktityiei3QuHgH7YE7VkTcBSSLk7TZYltDJD7pKmb3fImq4owrzzCINQucSA4/WIO3kCMrqTF/a0TSgyb0Lu+JKD0j6wM/M0ocBxT7ccnVfzCbR/+G4CXvhRyPjOxbRjLkyEp1p8PKAmHP/Itfd6QGyHi9a/rkJw8J0EvZ/pmDdfdj4wIFvhr+HwZQGHFb7vUsipaXQ8z2hOdj1bhEWnds13f0lXNMPzxOv5g+aHeCoyMhXD2Ig6DSk3/lQKDXatRrB7pToZK1c1g4XGhSvHDVNSGNIh+NQIDAQAB",
+  "permissions": [
+    "declarativeNetRequest",
+    "tabs",
+    "alarms",
+    "nativeMessaging",
+    "storage"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Bloom Focus",
+    "default_popup": "popup.html"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["blocked.html", "blocked.css", "blocked.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

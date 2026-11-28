@@ -39,6 +39,18 @@ struct MacBrowserURL {
 
   static func displayName(_ bundleIdentifier: String) -> String? { browserNames[bundleIdentifier] }
 
+  static func isInternalPage(_ address: String) -> Bool {
+    let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    if trimmed.isEmpty { return true }
+    let prefixes = [
+      "about:", "chrome://", "chrome-extension://", "brave://", "edge://",
+      "arc://", "opera://", "vivaldi://", "moz-extension://",
+      "safari-web-extension://", "safari-extension://", "file://",
+      "view-source:", "favorites://",
+    ]
+    return prefixes.contains { trimmed.hasPrefix($0) }
+  }
+
   static func isSupported(_ bundleIdentifier: String) -> Bool {
     addressIdentifiers[bundleIdentifier] != nil
   }

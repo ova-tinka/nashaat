@@ -45,6 +45,7 @@
         "MacOS/libBloomFilterHost.dylib": "macos/build/libBloomFilterHost.dylib",
         "MacOS/BloomAppMonitor": "macos/build/BloomAppMonitor",
         "MacOS/BloomPolicyBroker": "macos/build/BloomPolicyBroker",
+        "MacOS/BloomBrowserBridge": "macos/build/BloomBrowserBridge",
         "Library/LaunchAgents/com.focusflow.focusFlowFlutter.monitor.plist": "macos/build/com.focusflow.focusFlowFlutter.monitor.plist",
         "Library/LaunchDaemons/com.focusflow.focusFlowFlutter.policy-broker.plist": "macos/build/com.focusflow.focusFlowFlutter.policy-broker.plist",
         "Library/SystemExtensions/com.focusflow.focusFlowFlutter.filter.systemextension/Contents/Info.plist": "macos/build/com.focusflow.focusFlowFlutter.filter.systemextension/Contents/Info.plist",

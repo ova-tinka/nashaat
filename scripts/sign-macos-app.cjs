@@ -119,18 +119,49 @@ const brokerService = run('/usr/libexec/PlistBuddy', ['-c', `Print :MachServices
 if (brokerLabel !== brokerId || brokerService !== 'true') throw new Error('The website policy broker LaunchDaemon is misconfigured.');
 const hostExecutable = path.join(appPath, 'Contents', 'MacOS', 'libBloomFilterHost.dylib');
 const monitorExecutable = path.join(appPath, 'Contents', 'MacOS', 'BloomAppMonitor');
-for (const required of [filterBundle, path.join(filterContents, 'MacOS', 'BloomFilter'), hostExecutable, monitorExecutable, brokerExecutable]) {
+const bridgeExecutable = path.join(appPath, 'Contents', 'MacOS', 'BloomBrowserBridge');
+for (const required of [filterBundle, path.join(filterContents, 'MacOS', 'BloomFilter'), hostExecutable, monitorExecutable, brokerExecutable, bridgeExecutable]) {
   if (!fs.existsSync(required)) throw new Error(`Required macOS component is missing from the app bundle: ${required}`);
 }
 
 fs.copyFileSync(hostProfile, path.join(appPath, 'Contents', 'embedded.provisionprofile'));
 fs.copyFileSync(filterProfile, path.join(filterContents, 'embedded.provisionprofile'));
 
+const resourcesDir = path.join(appPath, 'Contents', 'Resources');
+for (const profileName of ['BloomBrowserProtection.mobileconfig', 'BloomBrowserProtectionStrict.mobileconfig']) {
+  const generatedProfile = path.join(generatedDir, profileName);
+  if (!fs.existsSync(generatedProfile)) continue;
+  fs.mkdirSync(resourcesDir, { recursive: true });
+  const destinationProfile = path.join(resourcesDir, profileName);
+  const cmsResult = spawnSync('/usr/bin/security', ['cms', '-S', '-N', identity, '-i', generatedProfile, '-o', destinationProfile], { encoding: 'utf8' });
+  if (cmsResult.status !== 0) {
+    process.stderr.write(`Warning: could not CMS-sign ${profileName} with ${identity}; embedding unsigned profile instead.\n`);
+    fs.copyFileSync(generatedProfile, destinationProfile);
+  }
+}
+
+const builtSafariAppex = path.join(generatedDir, 'BloomSafariExtension.appex');
+const safariProfile = path.resolve(process.env.BLOOM_SAFARI_PROFILE || path.join(os.homedir(), 'Downloads', 'Bloom_macOS_Safari.provisionprofile'));
+const safariId = `${bundleId}.safari-extension`;
+let bundledSafariAppex = null;
+if (fs.existsSync(builtSafariAppex) && fs.existsSync(safariProfile)) {
+  const pluginsDir = path.join(appPath, 'Contents', 'PlugIns');
+  fs.mkdirSync(pluginsDir, { recursive: true });
+  bundledSafariAppex = path.join(pluginsDir, 'BloomSafariExtension.appex');
+  fs.rmSync(bundledSafariAppex, { recursive: true, force: true });
+  fs.cpSync(builtSafariAppex, bundledSafariAppex, { recursive: true });
+  fs.copyFileSync(safariProfile, path.join(bundledSafariAppex, 'Contents', 'embedded.provisionprofile'));
+}
+
 // Sign nested code first. Tauri signs the outer app during bundling; this pass
 // replaces that signature after embedding the Developer ID profiles.
 sign(filterBundle, filterId, path.join(generatedDir, 'Filter.entitlements'));
+if (bundledSafariAppex) {
+  sign(bundledSafariAppex, safariId, path.join(generatedDir, 'SafariExtension.entitlements'));
+}
 sign(hostExecutable, `${bundleId}.host-library`);
 sign(monitorExecutable, `${bundleId}.monitor`, path.join(generatedDir, 'Agent.entitlements'));
+sign(bridgeExecutable, `${bundleId}.browser-bridge`, path.join(generatedDir, 'Agent.entitlements'));
 sign(brokerExecutable, brokerId);
 sign(appPath, bundleId, path.join(generatedDir, 'Host.entitlements'));
 run('/usr/bin/codesign', ['--verify', '--deep', '--strict', '--verbose=2', appPath], { stdio: 'inherit' });

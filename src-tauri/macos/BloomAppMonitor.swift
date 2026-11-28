@@ -8,6 +8,17 @@ import os
 @main struct BloomAppMonitor {
   private static let logger = Logger(subsystem: "com.focusflow.focusFlowFlutter", category: "monitor")
 
+  private struct ActiveShieldContext {
+    let pid: pid_t
+    let target: MacAppShieldOverlay.ShieldTarget
+  }
+
+  private struct PendingWebsiteShield {
+    let pid: pid_t
+    let host: String
+    var seenCount: Int
+  }
+
   @MainActor static func main() {
     guard let group = BloomAppGroup.identifier else {
       logger.error("Monitor cannot resolve its signed app-group entitlement.")
@@ -21,29 +32,41 @@ import os
     let application = NSApplication.shared
     application.setActivationPolicy(.accessory)
     let workspace = NSWorkspace.shared
-    var enforcement = MacAppEnforcement(running: Set(workspace.runningApplications.map(\.processIdentifier)))
-    var warningPanel: NSPanel?
-    func showAppWarning() {
-      guard warningPanel == nil else { return }
-      let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 430, height: 130),
-        styleMask: [.titled, .nonactivatingPanel], backing: .buffered, defer: false)
-      panel.title = "Bloom app protection"
-      panel.isReleasedWhenClosed = false
-      panel.level = .floating
-      let label = NSTextField(wrappingLabelWithString: "Selected apps will be asked to quit in 30 seconds. Save your work now. Apps that remain open may be force closed.")
-      label.frame = NSRect(x: 24, y: 25, width: 382, height: 75)
-      panel.contentView?.addSubview(label)
-      panel.center()
-      panel.orderFrontRegardless()
-      warningPanel = panel
-    }
+    let shieldOverlay = MacAppShieldOverlay()
+    var activeShield: ActiveShieldContext?
+    var pendingWebsiteShield: PendingWebsiteShield?
+    let monitorPID = ProcessInfo.processInfo.processIdentifier
     let usageStore = try? MacUsageStore.shared(group: group)
     try? usageStore?.recoverAfterInterruption()
     var interactive = true
     var lastHeartbeat = 0.0
     var lastProviderQuery = 0.0
+    var lastBrokerPublish = 0.0
     var lastWebsitePolicySignature = ""
     var requestedAccessibilityPrompt = false
+
+    func clearShield() {
+      activeShield = nil
+      shieldOverlay.dismiss()
+    }
+
+    func showShield(for runningApp: NSRunningApplication, target: MacAppShieldOverlay.ShieldTarget, balanceHint: String?) {
+      activeShield = ActiveShieldContext(pid: runningApp.processIdentifier, target: target)
+      shieldOverlay.show(
+        target: target,
+        appIcon: runningApp.icon,
+        balanceHint: balanceHint,
+        onOpenBloom: {
+          clearShield()
+          MacAppShieldOverlay.openBloomApp()
+        },
+        onSwitchAway: {
+          clearShield()
+          _ = runningApp.hide()
+        }
+      )
+    }
+
     func checkFrontmost() {
       let now = FilterCreditClock.nowMillis()
       guard let boot = FilterCreditClock.boot() else {
@@ -98,32 +121,108 @@ import os
       let websiteUsageTarget = usageAllowed && usage?.activeSinceMillis != nil && websiteBlocking ? websiteHost : nil
       let websiteUsageBrowser = usageAllowed && usage?.activeSinceMillis != nil && websiteBlocking ? unreadableBrowser?.bundleIdentifier : nil
       let creditAllowed = FilterCreditClock.isAllowed(configuration: config)
-      let runningApps = workspace.runningApplications.filter { !$0.isTerminated }
-      let runningIDs = Set(runningApps.map(\.processIdentifier))
-      let blockedIDs = Set(runningApps.filter { candidate in
-        MacAppRules.shouldBlock(bundleId: candidate.bundleIdentifier, active: appBlocking,
-          selected: selectedApps, creditAllowed: creditAllowed || usageAllowed)
-      }.map(\.processIdentifier))
-      if !interactive { enforcement.restartWarnings(now: now) }
-      let actions = enforcement.update(running: runningIDs, blocked: blockedIDs, now: now)
-      for action in actions {
-        switch action {
-        case .warn: showAppWarning()
-        case .quit(let pid): _ = runningApps.first { $0.processIdentifier == pid }?.terminate()
-        case .forceQuit(let pid): _ = runningApps.first { $0.processIdentifier == pid }?.forceTerminate()
-        }
-      }
-      if !enforcement.hasWarnings { warningPanel?.close(); warningPanel = nil }
-      // A successful quit request is not proof the app exited. Keep the
-      // protection status degraded until every selected process is gone.
-      _ = MacSharedPreferences.write(["monitorHideFailed": enforcement.hasUnconfirmedApps])
+      let balanceHint = MacDisplayBalance.formatHint(MacDisplayBalance.read(from: defaults))
       let blockUnreadableBrowser = interactive && unreadableBrowser != nil && !creditAllowed && !usageAllowed
       let blockRuleSiteInBrowser = rules.shouldBlockActiveBrowser(host: browserAddress?.host,
         interactive: interactive, protectionEnabled: websiteBlocking,
         creditAllowed: creditAllowed, usageAllowed: usageAllowed)
+
+      if !interactive || creditAllowed || usageAllowed {
+        pendingWebsiteShield = nil
+        clearShield()
+      } else if let app, app.processIdentifier == monitorPID {
+        if let currentShield = activeShield,
+           let runningShielded = workspace.runningApplications.first(where: { $0.processIdentifier == currentShield.pid && !$0.isTerminated && !$0.isHidden }) {
+          switch currentShield.target {
+          case .app(let bundleID, _, _):
+            if appBlocking && MacAppRules.shouldBlock(bundleId: bundleID, active: true, selected: selectedApps, creditAllowed: false) {
+              showShield(for: runningShielded, target: currentShield.target, balanceHint: balanceHint)
+            } else {
+              clearShield()
+            }
+          case .website(let shieldedHost, _, let browserName, _):
+            let rechecked = websiteBlocking ? MacBrowserAddress.current(for: runningShielded, accessibilityAllowed: accessibilityTrusted) : nil
+            let recheckedHost = rechecked?.host.flatMap { rules.blocks($0) ? $0 : nil }
+            if let recheckedHost {
+              let managedDomains = defaults.stringArray(forKey: "managedDomains") ?? []
+              let isManaged = WebsiteRules(configuration: ["blockedDomains": managedDomains]).blocks(recheckedHost)
+              let nextTarget = MacAppShieldOverlay.ShieldTarget.website(
+                host: recheckedHost,
+                browserBundleID: runningShielded.bundleIdentifier ?? "",
+                browserName: browserName,
+                isManaged: isManaged
+              )
+              showShield(for: runningShielded, target: nextTarget, balanceHint: balanceHint)
+            } else if recheckedHost == nil && shieldedHost != "" {
+              clearShield()
+            } else {
+              clearShield()
+            }
+          case .unreadableBrowser:
+            let rechecked = websiteBlocking ? MacBrowserAddress.current(for: runningShielded, accessibilityAllowed: accessibilityTrusted) : nil
+            if websiteBlocking, let rechecked, !rechecked.readable {
+              showShield(for: runningShielded, target: currentShield.target, balanceHint: balanceHint)
+            } else {
+              clearShield()
+            }
+          }
+        } else {
+          clearShield()
+        }
+      } else if let app, appBlocking,
+                MacAppRules.shouldBlock(bundleId: app.bundleIdentifier, active: true, selected: selectedApps, creditAllowed: false) {
+        pendingWebsiteShield = nil
+        let isManaged = (defaults.stringArray(forKey: "managedApps") ?? []).contains {
+          $0.lowercased() == (app.bundleIdentifier ?? "").lowercased()
+        }
+        let target = MacAppShieldOverlay.ShieldTarget.app(
+          bundleID: app.bundleIdentifier ?? "",
+          displayName: app.localizedName ?? app.bundleIdentifier ?? "This app",
+          isManaged: isManaged
+        )
+        showShield(for: app, target: target, balanceHint: balanceHint)
+      } else if let app, blockRuleSiteInBrowser, let host = websiteHost {
+        // Debounce one poll (~0.35s) so browser profiles with the Bloom extension
+        // redirect to blocked.html cleanly without flashing the native overlay.
+        if let existing = pendingWebsiteShield, existing.pid == app.processIdentifier, existing.host == host {
+          pendingWebsiteShield = PendingWebsiteShield(pid: app.processIdentifier, host: host, seenCount: existing.seenCount + 1)
+        } else {
+          pendingWebsiteShield = PendingWebsiteShield(pid: app.processIdentifier, host: host, seenCount: 1)
+        }
+        if (pendingWebsiteShield?.seenCount ?? 0) >= 2 {
+          let managedDomains = defaults.stringArray(forKey: "managedDomains") ?? []
+          let isManaged = WebsiteRules(configuration: ["blockedDomains": managedDomains]).blocks(host)
+          let target = MacAppShieldOverlay.ShieldTarget.website(
+            host: host,
+            browserBundleID: browserAddress?.bundleIdentifier ?? app.bundleIdentifier ?? "",
+            browserName: browserAddress?.browserName ?? app.localizedName ?? "Browser",
+            isManaged: isManaged
+          )
+          showShield(for: app, target: target, balanceHint: balanceHint)
+        } else {
+          clearShield()
+        }
+      } else if let app, blockUnreadableBrowser, let unreadable = unreadableBrowser {
+        pendingWebsiteShield = nil
+        let target = MacAppShieldOverlay.ShieldTarget.unreadableBrowser(
+          browserBundleID: unreadable.bundleIdentifier,
+          browserName: unreadable.browserName
+        )
+        showShield(for: app, target: target, balanceHint: balanceHint)
+      } else {
+        pendingWebsiteShield = nil
+        clearShield()
+      }
+
+      _ = MacSharedPreferences.write([
+        "monitorHideFailed": false,
+        "monitorBrowserHideFailed": false,
+      ])
+
       let accessDecision = creditAllowed ? "credit" : usageAllowed ? "usage" : "denied"
       let policySignature = "interactive=\(interactive ? "yes" : "no") protection=\(websiteBlocking ? "on" : "off") address=\(browserAddress?.readable == true ? "readable" : browserAddress?.source ?? "none") source=\(browserAddress?.source ?? "none") rule-match=\(websiteHost == nil ? "no" : "yes") access=\(accessDecision) active-block=\(blockRuleSiteInBrowser ? "yes" : "no")"
-      if policySignature != lastWebsitePolicySignature {
+      let policyChanged = policySignature != lastWebsitePolicySignature
+      if policyChanged {
         logger.debug("website-policy \(policySignature, privacy: .public)")
         lastWebsitePolicySignature = policySignature
       }
@@ -165,39 +264,24 @@ import os
         usageTargetHeartbeatMillis: now,
         usageTargetBoot: boot,
         usageAccessDeadlineMillis: usageDeadline)
-      MacPolicyBrokerClient.shared.publish(policySnapshot) { accepted in
-        let acknowledgedAt = FilterCreditClock.nowMillis()
-        let saved = MacSharedPreferences.write([
-          "monitorPolicyBrokerSnapshotAccepted": accepted,
-          "monitorPolicyBrokerSnapshotAckMillis": NSNumber(value: acknowledgedAt),
-        ])
-        if !saved { logger.error("Monitor could not publish its website-policy broker status.") }
-      }
-      if blockUnreadableBrowser || blockRuleSiteInBrowser {
-        let hideAccepted = app?.hide() ?? false
-        if !hideAccepted {
-          var failures: [String: Any] = [:]
-          if blockUnreadableBrowser || blockRuleSiteInBrowser { failures["monitorBrowserHideFailed"] = true }
-          if !failures.isEmpty { _ = MacSharedPreferences.write(failures) }
-        } else if let app {
-          // `hide()` reports that the request was accepted. Verify the state
-          // after AppKit has had a run-loop turn, and clear a previous latched
-          // failure only after observing the app hidden (or terminated).
-          DispatchQueue.main.async {
-            let hidden = MacMonitorRules.didHideSuccessfully(callAccepted: hideAccepted, isHidden: app.isHidden, isTerminated: app.isTerminated)
-            var updates: [String: Any] = [:]
-            if blockUnreadableBrowser || blockRuleSiteInBrowser { updates["monitorBrowserHideFailed"] = !hidden }
-            if !updates.isEmpty { _ = MacSharedPreferences.write(updates) }
-          }
+      if policyChanged || now - lastBrokerPublish >= 500 {
+        lastBrokerPublish = now
+        MacPolicyBrokerClient.shared.publish(policySnapshot) { accepted in
+          let acknowledgedAt = FilterCreditClock.nowMillis()
+          let saved = MacSharedPreferences.write([
+            "monitorPolicyBrokerSnapshotAccepted": accepted,
+            "monitorPolicyBrokerSnapshotAckMillis": NSNumber(value: acknowledgedAt),
+          ])
+          if !saved { logger.error("Monitor could not publish its website-policy broker status.") }
         }
-      } else { _ = MacSharedPreferences.write(["monitorBrowserHideFailed": false]) }
+      }
     }
     let observer = workspace.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { _ in Task { @MainActor in checkFrontmost() } }
     let asleep = workspace.notificationCenter.addObserver(forName: NSWorkspace.screensDidSleepNotification, object: nil, queue: .main) { _ in Task { @MainActor in interactive = false; checkFrontmost() } }
-    let awake = workspace.notificationCenter.addObserver(forName: NSWorkspace.screensDidWakeNotification, object: nil, queue: .main) { _ in Task { @MainActor in interactive = true; enforcement.restartWarnings(now: FilterCreditClock.nowMillis()); checkFrontmost() } }
+    let awake = workspace.notificationCenter.addObserver(forName: NSWorkspace.screensDidWakeNotification, object: nil, queue: .main) { _ in Task { @MainActor in interactive = true; checkFrontmost() } }
     let inactive = workspace.notificationCenter.addObserver(forName: NSWorkspace.sessionDidResignActiveNotification, object: nil, queue: .main) { _ in Task { @MainActor in interactive = false; checkFrontmost() } }
-    let active = workspace.notificationCenter.addObserver(forName: NSWorkspace.sessionDidBecomeActiveNotification, object: nil, queue: .main) { _ in Task { @MainActor in interactive = true; enforcement.restartWarnings(now: FilterCreditClock.nowMillis()); checkFrontmost() } }
-    let timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in Task { @MainActor in checkFrontmost() } }
+    let active = workspace.notificationCenter.addObserver(forName: NSWorkspace.sessionDidBecomeActiveNotification, object: nil, queue: .main) { _ in Task { @MainActor in interactive = true; checkFrontmost() } }
+    let timer = Timer.scheduledTimer(withTimeInterval: 0.35, repeats: true) { _ in Task { @MainActor in checkFrontmost() } }
     checkFrontmost()
     application.run()
     timer.invalidate()

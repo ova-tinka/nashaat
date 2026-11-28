@@ -1,5 +1,12 @@
-# Bloom browser extension work
+# Bloom Focus Browser Extension
 
-`lib/domain-policy.mjs` is the shared browser-side domain matching foundation. It is not a browser extension package: there is no manifest, communication channel, background worker, or released browser coverage yet. Do not distribute it or represent any browser as protected by this code.
+Manifest V3 extension that enforces Bloom's macOS website rules inside Chromium browsers (Brave, Google Chrome, Microsoft Edge, Arc) via `declarativeNetRequest` and native messaging (`BloomBrowserBridge`), showing a branded block page (`blocked.html`) with an **Open Bloom to unlock** action and automatically redirecting already-open blocked tabs.
 
-The label-boundary matching approach is adapted from Focuser commit `14cbfdb3d55d3bc669bc9a39a6eddb9915e61844`; its MIT notice is in `FOCUSER-LICENSE`. Bloom deliberately retains subdomain-specific rules and does not import Focuser's wildcard, path, keyword, or full-internet features. Native and browser implementations run the same domain coverage vectors in `tests/fixtures/macos-domain-policy.json`.
+## Local Installation (Brave / Chrome / Edge / Arc)
+
+1. Open `/Applications/Bloom.app`, go to **Focus → Websites to block**, and click **Register browser bridge** (or **Save and start website blocking**).
+2. Open `brave://extensions` (or `chrome://extensions`).
+3. Enable **Developer mode** (top right).
+4. Click **Load unpacked** and select this `browser-extension` directory.
+
+The shared domain matcher in `lib/domain-policy.mjs` is adapted from Focuser commit `14cbfdb3d55d3bc669bc9a39a6eddb9915e61844` (MIT license in `FOCUSER-LICENSE`) and shares the exact same test vectors (`tests/fixtures/macos-domain-policy.json`) as the native macOS `WebsiteRules.swift`.

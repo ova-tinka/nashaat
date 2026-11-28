@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Blocked by Bloom</title>
+    <link rel="stylesheet" href="blocked.css" />
+  </head>
+  <body>
+    <main class="backdrop">
+      <section class="card" aria-labelledby="title">
+        <p id="badge" class="badge">Bloom Focus</p>
+        <div class="icon-ring" aria-hidden="true">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+            <path
+              d="M12 3L5 6v5.5c0 4.6 3 8.8 7 9.9 4-1.1 7-5.3 7-9.9V6l-7-3z"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linejoin="round"
+            />
+            <path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </div>
+        <h1 id="title">This site is blocked by Bloom</h1>
+        <p id="reason" class="body">
+          Complete Exercise, Study, Reading, or Tasks to earn screen time, or start an earned session in Bloom.
+        </p>
+        <div id="unlocked-banner" class="banner" hidden>
+          Screen time is active. You can continue to <strong id="unlocked-host"></strong> now.
+        </div>
+        <div id="balance-pill" class="balance-pill" hidden></div>
+        <div class="actions">
+          <button id="primary-btn" class="btn btn-primary" type="button">Open Bloom to unlock</button>
+          <button id="continue-btn" class="btn btn-primary" type="button" hidden>Continue to site</button>
+          <button id="back-btn" class="btn btn-secondary" type="button">Go back</button>
+        </div>
+      </section>
+    </main>
+    <script src="blocked.js"></script>
+  </body>
+</html>

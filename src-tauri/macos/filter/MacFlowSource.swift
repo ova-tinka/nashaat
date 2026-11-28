@@ -5,12 +5,55 @@ import Security
 /// Missing or invalid tokens stay unknown; callers must not treat them as a browser match.
 enum MacFlowSource {
   private static let blockedBrowserFreshnessMillis = 2_500.0
+  private static let knownBrowsers: Set<String> = [
+    "com.apple.Safari",
+    "com.google.Chrome",
+    "com.google.Chrome.beta",
+    "com.microsoft.edgemac",
+    "com.brave.Browser",
+    "company.thebrowser.Browser",
+    "com.operasoftware.Opera",
+    "org.mozilla.firefox",
+  ]
   private static let browserHelperIdentifiers: [String: Set<String>] = [
+    "com.google.Chrome": [
+      "com.google.Chrome.helper",
+      "com.google.Chrome.helper.renderer",
+    ],
+    "com.google.Chrome.beta": [
+      "com.google.Chrome.beta.helper",
+      "com.google.Chrome.beta.helper.renderer",
+    ],
+    "com.microsoft.edgemac": [
+      "com.microsoft.edgemac.helper",
+      "com.microsoft.edgemac.helper.renderer",
+    ],
     "com.brave.Browser": [
       "com.brave.Browser.helper",
       "com.brave.Browser.helper.renderer",
     ],
+    "company.thebrowser.Browser": [
+      "company.thebrowser.Browser.helper",
+      "company.thebrowser.Browser.helper.renderer",
+    ],
+    "com.operasoftware.Opera": [
+      "com.operasoftware.Opera.helper",
+      "com.operasoftware.Opera.helper.renderer",
+    ],
+    "org.mozilla.firefox": [
+      "org.mozilla.plugincontainer",
+    ],
   ]
+  private static let allKnownBrowserHelpers: Set<String> = Set(browserHelperIdentifiers.values.flatMap { $0 })
+
+  static func isKnownBrowserProcess(_ sourceBundleIdentifier: String?) -> Bool {
+    guard let sourceBundleIdentifier, !sourceBundleIdentifier.isEmpty else { return false }
+    return knownBrowsers.contains(sourceBundleIdentifier) || allKnownBrowserHelpers.contains(sourceBundleIdentifier)
+  }
+
+  static func shouldDropBrowserQUIC(isDatagram: Bool, remotePort: String?, sourceBundleIdentifier: String?) -> Bool {
+    isDatagram && remotePort == "443" && isKnownBrowserProcess(sourceBundleIdentifier)
+  }
 
   static func matchesBrowserProcess(sourceBundleIdentifier: String?, browserBundleIdentifier: String) -> Bool {
     guard let sourceBundleIdentifier, !sourceBundleIdentifier.isEmpty else { return false }

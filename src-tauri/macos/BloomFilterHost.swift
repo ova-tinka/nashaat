@@ -18,6 +18,18 @@ private struct FilterRequest: Decodable {
   let accountId: String?
   let sessionId: String?
   let userId: String?
+  let strict: Bool?
+  let displayCreditEnabled: Bool?
+  let displayCreditBalanceMinutes: Double?
+}
+
+private struct MacSelfCheckResponse: Encodable {
+  let monitorLive: Bool
+  let policyBrokerReady: Bool
+  let filterProviderHealthy: Bool
+  let filterVersion: String
+  let accessibilityTrusted: Bool
+  let browserProtection: MacBrowserBridgeInstaller.BrowserProtectionSnapshot
 }
 
 private struct FilterResponse: Encodable {
@@ -48,6 +60,8 @@ private struct FilterResponse: Encodable {
   var boot: Int64?
   var remainingMillis: Double?
   var usage: UsageResponse?
+  var browserProtection: MacBrowserBridgeInstaller.BrowserProtectionSnapshot?
+  var selfCheck: MacSelfCheckResponse?
   var error: String?
 }
 
@@ -112,7 +126,7 @@ struct BloomFilterHost {
         try await BloomFilterController.shared.clearManualDomains()
         response = FilterResponse(ok: true, status: "cleared")
       case "cleanupHosts":
-        let service = try BloomPolicyBrokerController.shared.ensureRegistered()
+        let service = try await BloomPolicyBrokerController.shared.ensureRegistered()
         guard service == "active" else { throw HostError.hostsServiceUnavailable }
         let grant: MacHostsAdminGrant
         do { grant = try MacHostsAdminGrant.request() } catch { throw HostError.hostsDenied }
@@ -141,7 +155,7 @@ struct BloomFilterHost {
         guard website.remainingMillis <= 0, try BloomAppController.shared.status().remainingMillis <= 0 else { throw HostError.usageActive }
         if let usage = try BloomAppController.shared.usageStatus(), !usage.closed { throw HostError.usageActive }
         let manual = try BloomFilterController.shared.manualDomains()
-        guard try BloomPolicyBrokerController.shared.ensureRegistered() == "active" else { throw HostError.hostsServiceUnavailable }
+        guard try await BloomPolicyBrokerController.shared.ensureRegistered() == "active" else { throw HostError.hostsServiceUnavailable }
         let grant: MacHostsAdminGrant
         do { grant = try MacHostsAdminGrant.request() } catch { throw HostError.hostsDenied }
         let authorization = try grant.externalForm()
@@ -236,12 +250,61 @@ struct BloomFilterHost {
       case "openAccessibilitySettings":
         try BloomAppController.shared.openAccessibilitySettings()
         response = FilterResponse(ok: true, status: "opened")
+      case "openLoginItemsSettings":
+        try BloomAppController.shared.openLoginItemsSettings()
+        response = FilterResponse(ok: true, status: "opened")
+      case "installBrowserBridge":
+        let count = MacBrowserBridgeInstaller.installFromMainBundle()
+        response = FilterResponse(ok: true, status: count > 0 ? "installed" : "notFound",
+          browserProtection: MacBrowserBridgeInstaller.protectionStatus())
+      case "installBrowserProtection":
+        let result = MacBrowserBridgeInstaller.installAllFromMainBundle()
+        let snapshot = MacBrowserBridgeInstaller.protectionStatus()
+        response = FilterResponse(
+          ok: true,
+          status: (result.nativeBridges > 0 || result.externalExtensions > 0) ? "installed" : "notFound",
+          browserProtection: snapshot
+        )
+      case "openBrowserPolicyProfile":
+        let status = try MacBrowserBridgeInstaller.openProtectionProfile(strict: request.strict == true)
+        response = FilterResponse(ok: true, status: status,
+          browserProtection: MacBrowserBridgeInstaller.protectionStatus())
+      case "browserProtectionStatus":
+        response = FilterResponse(ok: true, status: "ok",
+          browserProtection: MacBrowserBridgeInstaller.protectionStatus())
+      case "selfCheck":
+        let appStatus = try BloomAppController.shared.status()
+        let filterVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+        let report = MacSelfCheckResponse(
+          monitorLive: appStatus.service == "active",
+          policyBrokerReady: appStatus.websitePolicyBrokerStatus == "active",
+          filterProviderHealthy: appStatus.websiteProviderHealthy,
+          filterVersion: filterVersion,
+          accessibilityTrusted: appStatus.accessibilityTrusted,
+          browserProtection: MacBrowserBridgeInstaller.protectionStatus()
+        )
+        response = FilterResponse(ok: true, status: "ok",
+          browserProtection: report.browserProtection, selfCheck: report)
+      case "syncDisplayBalance":
+        guard let enabled = request.displayCreditEnabled,
+              let minutes = request.displayCreditBalanceMinutes,
+              minutes.isFinite, minutes >= 0 else {
+          throw HostError.invalidRequest
+        }
+        guard MacSharedPreferences.write([
+          MacDisplayBalance.enabledKey: enabled,
+          MacDisplayBalance.minutesKey: NSNumber(value: minutes),
+          MacDisplayBalance.syncedAtKey: NSNumber(value: Date().timeIntervalSince1970 * 1000),
+        ]) else {
+          throw HostError.hostsServiceUnavailable
+        }
+        response = FilterResponse(ok: true, status: "synced")
       case "syncManagedRules":
         guard let accountId = request.accountId, !accountId.isEmpty else { throw HostError.invalidRequest }
         let managedApps = request.apps ?? []
         let managedDomains = request.domains ?? []
-        let appStatus = try BloomAppController.shared.syncManagedApps(managedApps, accountId: accountId)
-        let monitorStatus = (managedApps.isEmpty && managedDomains.isEmpty) ? "inactive" : try BloomAppController.shared.ensureMonitor()
+        let appStatus = try await BloomAppController.shared.syncManagedApps(managedApps, accountId: accountId)
+        let monitorStatus = (managedApps.isEmpty && managedDomains.isEmpty) ? "inactive" : try await BloomAppController.shared.ensureMonitor()
         let websiteStatus = try await BloomFilterController.shared.syncManagedDomains(managedDomains, accountId: accountId)
         let statuses = [appStatus, monitorStatus, websiteStatus]
         let status = statuses.contains("needsApproval") ? "needsApproval"
@@ -280,7 +343,7 @@ struct BloomFilterHost {
         try BloomAppController.shared.clearUsage(user: user, session: session)
         response = FilterResponse(ok: true, status: "cleared")
       case "activateApps":
-        response = FilterResponse(ok: true, status: try BloomAppController.shared.activate())
+        response = FilterResponse(ok: true, status: try await BloomAppController.shared.activate())
       case "chooseApp":
         let selected = try BloomAppController.shared.chooseApp()
         response = FilterResponse(ok: true, status: selected == nil ? "cancelled" : "selected", selectedAppId: selected?.id, selectedAppName: selected?.name)
