@@ -269,18 +269,37 @@ begin
 end;
 $$;
 
+create or replace function public.bloom_website_get_preferences(
+  p_id uuid,
+  p_generation uuid
+) returns jsonb
+language plpgsql security definer set search_path = pg_catalog, public, pg_temp as $$
+declare
+  v_row public.bloom_website_waitlist%rowtype;
+begin
+  select * into v_row from public.bloom_website_waitlist
+    where id = p_id and status = 'confirmed'
+      and management_generation = p_generation
+      and management_expires_at > clock_timestamp();
+  if not found then return null; end if;
+  return jsonb_build_object('beta_interest', v_row.beta_interest, 'marketing_consent', v_row.marketing_consent);
+end;
+$$;
+
 revoke all on function public.bloom_website_consume_rate_limit(text, integer, integer) from public, anon, authenticated;
 revoke all on function public.bloom_website_start_waitlist(text, text, uuid, boolean, boolean, boolean, text) from public, anon, authenticated;
 revoke all on function public.bloom_website_confirm_waitlist(uuid, uuid) from public, anon, authenticated;
 revoke all on function public.bloom_website_mark_waitlist_email_sent(uuid, uuid) from public, anon, authenticated;
 revoke all on function public.bloom_website_start_management(text, uuid) from public, anon, authenticated;
 revoke all on function public.bloom_website_manage(uuid, uuid, text, boolean, boolean, text) from public, anon, authenticated;
+revoke all on function public.bloom_website_get_preferences(uuid, uuid) from public, anon, authenticated;
 grant execute on function public.bloom_website_consume_rate_limit(text, integer, integer) to service_role;
 grant execute on function public.bloom_website_start_waitlist(text, text, uuid, boolean, boolean, boolean, text) to service_role;
 grant execute on function public.bloom_website_confirm_waitlist(uuid, uuid) to service_role;
 grant execute on function public.bloom_website_mark_waitlist_email_sent(uuid, uuid) to service_role;
 grant execute on function public.bloom_website_start_management(text, uuid) to service_role;
 grant execute on function public.bloom_website_manage(uuid, uuid, text, boolean, boolean, text) to service_role;
+grant execute on function public.bloom_website_get_preferences(uuid, uuid) to service_role;
 
 comment on table public.bloom_website_waitlist is 'Adult-submitted Bloom iPhone launch list. Access is restricted to the server-side service role.';
 comment on table public.bloom_website_waitlist_events is 'Minimal waitlist consent and lifecycle audit. Never contains addresses.';
