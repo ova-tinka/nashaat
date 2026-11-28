@@ -29,6 +29,9 @@ create function auth.uid() returns uuid language sql stable as $$ select nullif(
 create function auth.jwt() returns jsonb language sql stable as $$
   select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb
 $$;
+create function public.finalize_and_reset_weekly_leaderboards() returns void
+  language plpgsql as $$ begin return; end; $$;
+grant execute on function public.finalize_and_reset_weekly_leaderboards() to public, anon, authenticated;
 grant usage on schema auth, public to authenticated, anon;
 grant execute on function auth.uid() to authenticated, anon;
 grant execute on function auth.jwt() to authenticated, anon;

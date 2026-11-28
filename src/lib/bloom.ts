@@ -364,6 +364,14 @@ export async function startEnforcedCreditSession(requestId: string, deviceKey: s
   return remaining;
 }
 
+export async function cancelEnforcedCreditSession(requestId: string, deviceKey: string): Promise<void> {
+  const { error } = await client().rpc('bloom_cancel_enforced_credit_session', {
+    p_request_id: requestId,
+    p_device_key: deviceKey,
+  });
+  if (error) throw error;
+}
+
 export async function startUsageSession(requestId: string, deviceKey: string, requestedMillis: number) {
   const { data, error } = await client().rpc('bloom_start_usage_session', { p_request_id: requestId, p_device_key: deviceKey, p_requested_ms: requestedMillis });
   if (error) throw error;

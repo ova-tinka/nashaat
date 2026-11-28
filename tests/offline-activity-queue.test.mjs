@@ -91,3 +91,49 @@ test('offline queue persists all 4 pillars, survives restart, reuses activityId,
   assert.equal(secondPass.remaining.length, 0);
   assert.deepEqual(seenIds, ['act-ex', 'act-study', 'act-read', 'act-read', 'act-task']);
 });
+
+test('enqueue during an in-flight flush is saved immediately and kept after sync', async () => {
+  const storage = memoryStorage();
+  const scope = { profileId: 'profile-race', deviceId: 'device-race' };
+  const payload = (itemId) => ({
+    kind: 'task_completion', itemId, itemTitle: itemId, completedAt: '2026-11-28T12:00:00Z',
+  });
+  await enqueueOfflineActivity(storage, scope, 'first', payload('first'));
+
+  let releaseExecutor;
+  let notifyExecutor;
+  const executorStarted = new Promise((resolve) => { notifyExecutor = resolve; });
+  const executorGate = new Promise((resolve) => { releaseExecutor = resolve; });
+  const sync = syncOfflineQueue(storage, scope, async () => {
+    notifyExecutor();
+    await executorGate;
+    return 'accepted';
+  });
+  await executorStarted;
+  const enqueue = enqueueOfflineActivity(storage, scope, 'second', payload('second'));
+  const enqueueResult = await Promise.race([
+    enqueue.then(() => true, () => false),
+    new Promise((resolve) => setTimeout(() => resolve(false), 250)),
+  ]);
+  releaseExecutor();
+  await Promise.all([sync, enqueue]);
+
+  assert.equal(enqueueResult, true, 'offline work should not wait for a network flush to finish');
+  assert.deepEqual((await loadOfflineQueue(storage, scope)).map((entry) => entry.activityId), ['second']);
+});
+
+test('concurrent enqueues preserve distinct activities and deduplicate a repeated request', async () => {
+  const storage = memoryStorage();
+  const scope = { profileId: 'profile-concurrent', deviceId: 'device-concurrent' };
+  const payload = (itemId) => ({
+    kind: 'task_completion', itemId, itemTitle: itemId, completedAt: '2026-11-28T12:00:00Z',
+  });
+
+  await Promise.all([
+    enqueueOfflineActivity(storage, scope, 'same', payload('same')),
+    enqueueOfflineActivity(storage, scope, 'other', payload('other')),
+    enqueueOfflineActivity(storage, scope, 'same', payload('same')),
+  ]);
+
+  assert.deepEqual((await loadOfflineQueue(storage, scope)).map((entry) => entry.activityId), ['same', 'other']);
+});

@@ -8,7 +8,7 @@ import BloomBlocking from '../../../modules/bloom-blocking/src/BloomBlockingModu
 import type { AppCandidate, BlockingStatus, SafariContentBlockerState, UsageAccess } from '../../../modules/bloom-blocking/src/BloomBlocking.types';
 import { useBloom } from '../../lib/bloom-context';
 import { useAuth } from '../../lib/auth';
-import { findUsageSession, finishUsageSession, startEnforcedCreditSession, startUsageSession } from '../../lib/bloom';
+import { cancelEnforcedCreditSession, findUsageSession, finishUsageSession, startEnforcedCreditSession, startUsageSession } from '../../lib/bloom';
 import {
   parseUsageReservationRecord,
   prepareOrRecoverUsageReservation,
@@ -166,9 +166,30 @@ export default function FocusScreen() {
       if (!pending) { await SecureStore.setItemAsync(pendingKey, JSON.stringify(request)); setPending(request); }
       const clock = BloomBlocking.getCreditClock();
       if (clock.boot < 0) throw new Error('Could not verify this device’s uptime.');
-      const availableMillis = await startEnforcedCreditSession(request.requestId, request.deviceKey, request.minutes);
-      if (Platform.OS === 'android' && profileId) await BloomBlocking.startCreditAccessForAccount(profileId, availableMillis, clock.elapsedMillis, clock.boot);
-      else await BloomBlocking.startCreditAccess(availableMillis, clock.elapsedMillis, clock.boot);
+      const reconcileFailedStart = async (clearNativeAccess: boolean) => {
+        try {
+          if (clearNativeAccess) await BloomBlocking.endCreditAccess();
+          await cancelEnforcedCreditSession(request.requestId, request.deviceKey);
+          await SecureStore.deleteItemAsync(pendingKey);
+          setPending(null);
+        } catch {
+          throw new Error('Screen-time request could not be confirmed. Retry to reconcile the saved request before starting another session.');
+        }
+      };
+      let availableMillis: number;
+      try {
+        availableMillis = await startEnforcedCreditSession(request.requestId, request.deviceKey, request.minutes);
+      } catch (startError) {
+        await reconcileFailedStart(false);
+        throw startError;
+      }
+      try {
+        if (Platform.OS === 'android' && profileId) await BloomBlocking.startCreditAccessForAccount(profileId, availableMillis, clock.elapsedMillis, clock.boot);
+        else await BloomBlocking.startCreditAccess(availableMillis, clock.elapsedMillis, clock.boot);
+      } catch (activationError) {
+        await reconcileFailedStart(true);
+        throw activationError;
+      }
       await SecureStore.deleteItemAsync(pendingKey);
       setPending(null);
       setRemaining(BloomBlocking.getCreditAccessRemaining());

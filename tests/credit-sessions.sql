@@ -3,14 +3,16 @@ begin;
 insert into auth.users(id) values
   ('00000000-0000-0000-0000-000000000021'), ('00000000-0000-0000-0000-000000000022'),
   ('00000000-0000-0000-0000-000000000023'), ('00000000-0000-0000-0000-000000000024'),
-  ('00000000-0000-0000-0000-000000000025'), ('00000000-0000-0000-0000-000000000026');
+  ('00000000-0000-0000-0000-000000000025'), ('00000000-0000-0000-0000-000000000026'),
+  ('00000000-0000-0000-0000-000000000027');
 insert into public.bloom_settings(user_id, credit_mode, credit_timezone, super_daily_cap_minutes) values
   ('00000000-0000-0000-0000-000000000021', 'hard', 'UTC', null),
   ('00000000-0000-0000-0000-000000000022', 'hard', 'UTC', null),
   ('00000000-0000-0000-0000-000000000023', 'hard', 'UTC', null),
   ('00000000-0000-0000-0000-000000000024', 'super_hard', 'UTC', 5),
   ('00000000-0000-0000-0000-000000000025', 'hard', 'UTC', null),
-  ('00000000-0000-0000-0000-000000000026', 'hard', 'UTC', null);
+  ('00000000-0000-0000-0000-000000000026', 'hard', 'UTC', null),
+  ('00000000-0000-0000-0000-000000000027', 'hard', 'UTC', null);
 insert into public.bloom_credit_ledger(user_id, amount_minutes, entry_type, idempotency_key, expires_at) values
   ('00000000-0000-0000-0000-000000000021', 70, 'earned', 'earned-21', now() + interval '3 hours'),
   ('00000000-0000-0000-0000-000000000022', 1, 'earned', 'earned-22-early', now() + interval '1 hour'),
@@ -22,7 +24,8 @@ insert into public.bloom_credit_ledger(user_id, amount_minutes, entry_type, idem
   ('00000000-0000-0000-0000-000000000025', -1, 'spent', 'spent-25-early', now() + interval '1 hour'),
   ('00000000-0000-0000-0000-000000000025', 69, 'earned', 'earned-25-late', now() + interval '2 hours'),
   ('00000000-0000-0000-0000-000000000026', 70, 'earned', 'earned-26', now() + interval '3 hours'),
-  ('00000000-0000-0000-0000-000000000026', -10, 'spent', 'spent-26', now() + interval '3 hours');
+  ('00000000-0000-0000-0000-000000000026', -10, 'spent', 'spent-26', now() + interval '3 hours'),
+  ('00000000-0000-0000-0000-000000000027', 10, 'earned', 'earned-27', now() + interval '3 hours');
 insert into public.bloom_credit_sessions(user_id, request_id, mode, started_at, ends_at, expires_at)
   values ('00000000-0000-0000-0000-000000000023', '50000000-0000-0000-0000-000000000023',
     'hard', now() - interval '2 minutes', now() - interval '1 minute', now() + interval '3 hours');
@@ -127,6 +130,31 @@ begin
   exception when raise_exception then
     if sqlerrm <> 'No screen time is available for today' then raise; end if;
   end;
+end; $$;
+
+-- A native activation failure can settle the matching enforced request safely and idempotently.
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000027', true);
+do $$
+declare
+  v_request uuid := '50000000-0000-0000-0000-000000000027';
+  v_device uuid := '70000000-0000-0000-0000-000000000027';
+  v_session uuid;
+  v_settled timestamptz;
+  v_failed boolean := false;
+begin
+  select session_id into v_session from public.bloom_start_enforced_credit_session(v_request, v_device, 1);
+  perform public.bloom_cancel_enforced_credit_session(v_request, v_device);
+  perform public.bloom_cancel_enforced_credit_session(v_request, v_device);
+  select settled_at into v_settled from public.bloom_credit_sessions where id = v_session;
+  if v_settled is null then raise exception 'Credit activation cancellation did not settle the server session'; end if;
+  if (select count(*) from public.bloom_credit_ledger where idempotency_key = 'countdown:' || v_session::text) > 1 then
+    raise exception 'Credit activation cancellation duplicated its debit';
+  end if;
+  begin
+    perform public.bloom_cancel_enforced_credit_session(v_request, '70000000-0000-0000-0000-000000000099');
+  exception when raise_exception then v_failed := true;
+  end;
+  if not v_failed then raise exception 'Credit activation cancellation accepted a different device key'; end if;
 end; $$;
 
 rollback;

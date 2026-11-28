@@ -276,4 +276,20 @@ begin
 end;
 $$;
 
+-- M1-22: leaderboard resets are available only to the scheduler service role.
+do $$
+begin
+  if has_function_privilege('anon', 'public.finalize_and_reset_weekly_leaderboards()', 'EXECUTE')
+    or has_function_privilege('authenticated', 'public.finalize_and_reset_weekly_leaderboards()', 'EXECUTE') then
+    raise exception 'M1-22 failed: client roles can execute the leaderboard reset';
+  end if;
+  if not has_function_privilege('service_role', 'public.finalize_and_reset_weekly_leaderboards()', 'EXECUTE') then
+    raise exception 'M1-22 failed: service role cannot execute the leaderboard reset';
+  end if;
+  if has_function_privilege('anon', 'public.bloom_cancel_enforced_credit_session(uuid,uuid)', 'EXECUTE') then
+    raise exception 'M1-22 failed: anonymous role can cancel a credit session';
+  end if;
+end;
+$$;
+
 rollback;

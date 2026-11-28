@@ -58,6 +58,9 @@ export type QueuedOfflineActivity = {
 
 export type OfflineSyncExecutor = (entry: QueuedOfflineActivity) => Promise<'accepted' | 'archived'>;
 
+const queueLocks = new Map<string, Promise<void>>();
+const syncLocks = new Map<string, Promise<void>>();
+
 export function offlineQueueStorageKey(scope: OfflineScope): string {
   return `bloom.offline-activity-queue.v1:${scope.profileId}:${scope.deviceId}`;
 }
@@ -89,6 +92,25 @@ async function saveOfflineQueue(storage: QueueStorage, scope: OfflineScope, entr
   await storage.setItem(offlineQueueStorageKey(scope), JSON.stringify(entries));
 }
 
+async function withLock<T>(locks: Map<string, Promise<void>>, scope: OfflineScope, operation: () => Promise<T>): Promise<T> {
+  const key = offlineQueueStorageKey(scope);
+  const previous = locks.get(key) ?? Promise.resolve();
+  let release!: () => void;
+  const current = new Promise<void>((resolve) => { release = resolve; });
+  locks.set(key, current);
+  await previous;
+  try {
+    return await operation();
+  } finally {
+    if (locks.get(key) === current) locks.delete(key);
+    release();
+  }
+}
+
+function withQueueLock<T>(scope: OfflineScope, operation: () => Promise<T>): Promise<T> {
+  return withLock(queueLocks, scope, operation);
+}
+
 export async function enqueueOfflineActivity(
   storage: QueueStorage,
   scope: OfflineScope,
@@ -96,22 +118,24 @@ export async function enqueueOfflineActivity(
   payload: OfflineActivityPayload,
   nowIso = new Date().toISOString(),
 ): Promise<QueuedOfflineActivity> {
-  const current = await loadOfflineQueue(storage, scope);
-  const existing = current.find((entry) => entry.activityId === activityId);
-  if (existing) return existing;
+  return withQueueLock(scope, async () => {
+    const current = await loadOfflineQueue(storage, scope);
+    const existing = current.find((entry) => entry.activityId === activityId);
+    if (existing) return existing;
 
-  const next: QueuedOfflineActivity = {
-    activityId,
-    profileId: scope.profileId,
-    deviceId: scope.deviceId,
-    status: 'pending',
-    createdAt: nowIso,
-    attempts: 0,
-    lastError: null,
-    payload,
-  };
-  await saveOfflineQueue(storage, scope, [...current, next]);
-  return next;
+    const next: QueuedOfflineActivity = {
+      activityId,
+      profileId: scope.profileId,
+      deviceId: scope.deviceId,
+      status: 'pending',
+      createdAt: nowIso,
+      attempts: 0,
+      lastError: null,
+      payload,
+    };
+    await saveOfflineQueue(storage, scope, [...current, next]);
+    return next;
+  });
 }
 
 export async function syncOfflineQueue(
@@ -119,36 +143,47 @@ export async function syncOfflineQueue(
   scope: OfflineScope,
   executor: OfflineSyncExecutor,
 ): Promise<{ accepted: number; archived: number; remaining: QueuedOfflineActivity[] }> {
-  const queue = await loadOfflineQueue(storage, scope);
-  if (queue.length === 0) {
-    return { accepted: 0, archived: 0, remaining: [] };
-  }
-  let accepted = 0;
-  let archived = 0;
-  const remaining: QueuedOfflineActivity[] = [];
+  return withLock(syncLocks, scope, async () => {
+    const queue = await withQueueLock(scope, () => loadOfflineQueue(storage, scope));
+    if (queue.length === 0) {
+      return { accepted: 0, archived: 0, remaining: [] };
+    }
+    let accepted = 0;
+    let archived = 0;
+    const completedIds = new Set<string>();
+    const failedEntries = new Map<string, QueuedOfflineActivity>();
 
-  for (let i = 0; i < queue.length; i += 1) {
-    const entry = queue[i];
-    try {
-      const outcome = await executor(entry);
-      if (outcome === 'archived') archived += 1;
-      else accepted += 1;
-    } catch (cause) {
-      const failed: QueuedOfflineActivity = {
-        ...entry,
-        attempts: entry.attempts + 1,
-        lastError: cause instanceof Error ? cause.message : 'Sync interrupted',
-      };
-      remaining.push(failed);
-      if (failed.attempts < 3) {
-        remaining.push(...queue.slice(i + 1));
-        break;
+    for (let i = 0; i < queue.length; i += 1) {
+      const entry = queue[i];
+      try {
+        const outcome = await executor(entry);
+        if (outcome === 'archived') archived += 1;
+        else accepted += 1;
+        completedIds.add(entry.activityId);
+      } catch (cause) {
+        const failed: QueuedOfflineActivity = {
+          ...entry,
+          attempts: entry.attempts + 1,
+          lastError: cause instanceof Error ? cause.message : 'Sync interrupted',
+        };
+        failedEntries.set(entry.activityId, failed);
+        if (failed.attempts < 3) break;
       }
     }
-  }
 
-  await saveOfflineQueue(storage, scope, remaining);
-  return { accepted, archived, remaining };
+    const remaining = await withQueueLock(scope, async () => {
+      const current = await loadOfflineQueue(storage, scope);
+      const next = current.flatMap((entry) => {
+        if (completedIds.has(entry.activityId)) return [];
+        const failed = failedEntries.get(entry.activityId);
+        if (failed) return [failed];
+        return [entry];
+      });
+      await saveOfflineQueue(storage, scope, next);
+      return next;
+    });
+    return { accepted, archived, remaining };
+  });
 }
 
 export async function cacheOfflineSnapshot<T>(
