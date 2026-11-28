@@ -50,6 +50,14 @@ Deno.serve(studyTutorHandler({
     const active = await authenticateActiveUser(token);
     return Boolean(active) && access.permits(active!.user.id);
   },
+  async loadSaved(token, requestId, itemId) {
+    const { data, error } = await userClient(token).rpc('bloom_load_tutor_answer', {
+      p_request: requestId,
+      p_item: itemId,
+    });
+    if (error) throw error;
+    return data && typeof data === 'object' ? data as Record<string, unknown> : null;
+  },
   async begin(token, requestId, itemId, prompt) {
     const { data, error } = await userClient(token).rpc('bloom_begin_study_tutor_request', {
       p_request_id: requestId,

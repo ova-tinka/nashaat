@@ -3,14 +3,12 @@ import { AppState, Platform } from 'react-native';
 import {
   ensureBloomSettingsInitialized,
   loadAnalyticsSection,
-  loadSubscriptionSection,
   loadWalletSection,
   loadWorkoutsSection,
   updateCreditRules,
   updateCredits,
   type ActiveWorkout,
   type CreditSettings,
-  type Subscription,
   type WorkoutAnalytics,
   type WorkoutPlan,
 } from './bloom';
@@ -27,7 +25,6 @@ type BloomState = {
   creditSettings: CreditSettings | null;
   creditBalance: number;
   workoutAnalytics: WorkoutAnalytics | null;
-  subscription: Subscription | null;
   blockingRules: ChildRule[];
   blockingRulesSyncError: string | null;
   blockingRulesSyncedAt: number | null;
@@ -50,7 +47,6 @@ export function BloomProvider({ userId, children }: PropsWithChildren<{ userId: 
   const [creditSettings, setCreditSettings] = useState<CreditSettings | null>(null);
   const [creditBalance, setCreditBalance] = useState(0);
   const [workoutAnalytics, setWorkoutAnalytics] = useState<WorkoutAnalytics | null>(null);
-  const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [blockingRules, setBlockingRules] = useState<{ userId: string; rules: ChildRule[] } | null>(null);
   const [blockingRulesSync, setBlockingRulesSync] = useState<{ userId: string; error: string | null; syncedAt: number | null; status: string | null }>({ userId, error: null, syncedAt: null, status: null });
   const [loading, setLoading] = useState(true);
@@ -67,7 +63,6 @@ export function BloomProvider({ userId, children }: PropsWithChildren<{ userId: 
         wallet: () => bloomCoordinator.runDeduplicated(userId, 'wallet', () => loadWalletSection(userId)),
         workouts: () => bloomCoordinator.runDeduplicated(userId, 'workouts', () => loadWorkoutsSection(userId)),
         analytics: () => bloomCoordinator.runDeduplicated(userId, 'analytics', () => loadAnalyticsSection()),
-        subscription: () => bloomCoordinator.runDeduplicated(userId, 'subscription', () => loadSubscriptionSection()),
       });
       if (version !== refreshVersion.current) return;
       if (values.wallet) {
@@ -81,7 +76,6 @@ export function BloomProvider({ userId, children }: PropsWithChildren<{ userId: 
         setActiveWorkout(values.workouts.activeWorkout);
       }
       if (values.analytics) setWorkoutAnalytics(values.analytics);
-      if ('subscription' in values) setSubscription(values.subscription ?? null);
       if (values.wallet || values.workouts) {
         setLastConfirmedAt({ userId, at: Date.now() });
       }
@@ -163,7 +157,7 @@ export function BloomProvider({ userId, children }: PropsWithChildren<{ userId: 
     setCreditSettings((current) => current ? { ...current, ...settings } : current);
   }
 
-  return <BloomContext.Provider value={{ plans, completedSessions, activeWorkout, creditsEnabled, creditSettings, creditBalance, workoutAnalytics, subscription,
+  return <BloomContext.Provider value={{ plans, completedSessions, activeWorkout, creditsEnabled, creditSettings, creditBalance, workoutAnalytics,
     blockingRules: blockingRules?.userId === userId ? blockingRules.rules : [],
     blockingRulesSyncError: blockingRulesSync.userId === userId ? blockingRulesSync.error : null,
     blockingRulesSyncedAt: blockingRulesSync.userId === userId ? blockingRulesSync.syncedAt : null,

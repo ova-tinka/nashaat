@@ -138,9 +138,16 @@ docker exec -i "$bloom_test_container" psql -q -v ON_ERROR_STOP=1 -U postgres -d
   < "$bloom_dir/tests/exercise-bests.sql" >/dev/null
 docker exec -i "$bloom_test_container" psql -q -v ON_ERROR_STOP=1 -U postgres -d postgres \
   < "$bloom_dir/tests/e2e-acceptance.sql" >/dev/null
+docker exec -i "$bloom_test_container" psql -q -v ON_ERROR_STOP=1 -U postgres -d postgres \
+  < "$bloom_dir/tests/billing.sql" >/dev/null
+docker exec -i "$bloom_test_container" psql -q -v ON_ERROR_STOP=1 -U postgres -d postgres \
+  < "$bloom_dir/tests/billing-rollout.sql" >/dev/null
+docker exec -i "$bloom_test_container" psql -q -v ON_ERROR_STOP=1 -U postgres -d postgres \
+  < "$bloom_dir/tests/billing-play-offers.sql" >/dev/null
 python3 "$bloom_dir/tests/credit-concurrency.py" "$bloom_test_container"
 python3 "$bloom_dir/tests/profile-concurrency.py" "$bloom_test_container"
 python3 "$bloom_dir/tests/competition-concurrency.py" "$bloom_test_container"
 python3 "$bloom_dir/tests/study-tutor-concurrency.py" "$bloom_test_container"
 python3 "$bloom_dir/tests/weekly-cap-concurrency.py" "$bloom_test_container"
+python3 "$bloom_dir/tests/billing-concurrency.py" "$bloom_test_container"
 echo 'Bloom schema and access checks passed.'

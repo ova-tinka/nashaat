@@ -30,7 +30,6 @@ export type WorkoutPlan = {
   bloom_plan_exercises: PlanExercise[];
 };
 export type DraftExercise = { exercise_id: string; sets: number; target: number; weight_kg?: number; distance_km?: number };
-export type Subscription = { id: string; status: string; current_period_end: string | null };
 export type CreditSettings = {
   credits_enabled: boolean;
   credit_mode: 'easy' | 'hard' | 'super_hard';
@@ -291,31 +290,22 @@ export async function loadAnalyticsSection() {
   return { ...(analytics.data as WorkoutAnalytics), ...(planProgress.data as Pick<WorkoutAnalytics, 'planned_workouts' | 'completed_planned_workouts' | 'scheduled_days' | 'rest_days' | 'missed_planned_workouts'>) };
 }
 
-export async function loadSubscriptionSection() {
-  const { data, error } = await client().from('bloom_subscriptions').select('id,status,current_period_end')
-    .order('created_at', { ascending: false }).limit(1).maybeSingle();
-  if (error) throw error;
-  return data as Subscription | null;
-}
-
 export async function loadBloomData(userId: string) {
-  const [wallet, workouts, workoutAnalytics, subscription] = await Promise.all([
+  const [wallet, workouts, workoutAnalytics] = await Promise.all([
     loadWalletSection(userId),
     loadWorkoutsSection(userId),
     loadAnalyticsSection(),
-    loadSubscriptionSection(),
   ]);
   return {
     ...wallet,
     ...workouts,
-    subscription,
     workoutAnalytics,
   };
 }
 
 export async function loadCreditLedger(): Promise<CreditLedgerEntry[]> {
   const { data, error } = await client().from('bloom_credit_ledger')
-    .select('id,amount_minutes,entry_type,expires_at,created_at,workout_session_id,growth_module_id,growth_source_type')
+    .select('id,amount_minutes,entry_type,expires_at,created_at,workout_session_id,growth_module_id,growth_source_type').neq('entry_type', 'usage')
     .order('created_at', { ascending: false }).limit(100);
   if (error) throw error;
   return (data ?? []).map((row) => ({ ...row, amount_minutes: Number(row.amount_minutes) })) as CreditLedgerEntry[];

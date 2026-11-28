@@ -10,6 +10,7 @@ import { useBloomTheme } from '../lib/theme-context';
 
 export default function SignInScreen() {
   const { theme } = useBloomTheme();
+  const { checkout, tap_id: tapId } = useLocalSearchParams<{ checkout?: string; tap_id?: string }>();
   const { session, loading, configured } = useAuth();
   const desktop = useIsDesktopLayout();
   const { width } = useWindowDimensions();
@@ -37,7 +38,9 @@ export default function SignInScreen() {
   }, []);
 
   if (loading) return <Screen><ActivityIndicator color={theme.colors.action} /></Screen>;
-  if (session) return <Redirect href={(validatedNext ?? '/') as Href} />;
+  if (session) return <Redirect href={checkout && /^[a-f0-9-]{36}$/i.test(checkout)
+    ? { pathname: '/subscription', params: { attempt: checkout, tap_id: tapId } }
+    : (validatedNext ?? '/') as Href} />;
 
   async function submit() {
     if (!supabase) return;

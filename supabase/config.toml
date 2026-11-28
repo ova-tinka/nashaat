@@ -486,3 +486,9 @@ enabled = true
 verify_jwt = true
 import_map = "./functions/bloom-account-delete/deno.json"
 entrypoint = "./functions/bloom-account-delete/index.ts"
+
+[functions.bloom-revenuecat]
+verify_jwt = false
+
+[functions.bloom-tap]
+verify_jwt = false

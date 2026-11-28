@@ -9,6 +9,7 @@ export type StudyTutorDependencies = {
   enabled: boolean;
   minorsApproved: boolean;
   authenticate: (token: string) => Promise<boolean>;
+  loadSaved?: (token: string, requestId: string, itemId: string) => Promise<Record<string, unknown> | null>;
   begin: (token: string, requestId: string, itemId: string, prompt: string) => Promise<{
     data: unknown;
     errorMessage?: string;
@@ -91,6 +92,10 @@ export function studyTutorHandler(deps: StudyTutorDependencies) {
     try {
       if (!await deps.authenticate(token)) return reply(401, { error: 'Sign in required' });
       authorized = true;
+      if (deps.loadSaved) {
+        const saved = await deps.loadSaved(token, requestId, itemId);
+        if (saved) return reply(200, { status: 'answered', ...saved });
+      }
       const beginResult = await deps.begin(token, requestId, itemId, prompt);
       const context = validContext(beginResult.data);
       if (beginResult.errorMessage || !context) {

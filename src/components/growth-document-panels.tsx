@@ -1,3 +1,5 @@
+import { usageRequestFailed } from '../lib/usage-request';
+import { UsageButton } from './usage-action';
 import { randomUUID } from 'expo-crypto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as DocumentPicker from 'expo-document-picker';
@@ -333,6 +335,7 @@ export function StudyDocumentHelpPanel({ profileId, documents, initialDocumentId
       try { setAnswers(await loadStudyDocumentAnswers(selectedDocument.id)); }
       catch { setNotice('Your answer was saved. The full history could not refresh yet.'); }
     } catch (cause) {
+      if (pending.current && await usageRequestFailed(pending.current.requestId)) pending.current = null;
       setError(cause instanceof Error ? cause.message : 'Could not answer this question from the document. The question remains here so you can retry.');
     } finally { setBusy(false); }
   }
@@ -363,7 +366,7 @@ export function StudyDocumentHelpPanel({ profileId, documents, initialDocumentId
         label={`${selectedDocumentId === document.id ? '✓ ' : ''}${document.title}`} variant="tertiary" disabled={busy || readOnly}
         onPress={() => setDocumentId(document.id)} />)}</View>
       <Field label="Question about the document" value={readOnly ? '' : prompt} onChangeText={setPrompt} maxLength={2000} multiline editable={!busy && !readOnly} />
-      <Button label="Ask with cited sources" onPress={() => void ask()} busy={busy}
+      <UsageButton feature="document_help" replay={Boolean(error)} label="Ask with cited sources" onPress={() => ask()} busy={busy}
         disabled={busy || readOnly || !selectedDocument || !prompt.trim() || !aiReady || !documentReady} />
     </>}
     {!aiReady && <Body>Study AI consent and eligibility must be complete before a request can be sent.</Body>}
