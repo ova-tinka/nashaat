@@ -1,16 +1,12 @@
 import "server-only";
+import { readBoundedJson } from "@/lib/bounded-json";
 
 export function responseJson(status: number, body: Record<string, unknown>) {
   return Response.json(body, { status, headers: { "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" } });
 }
 
 export async function readJson(request: Request): Promise<unknown> {
-  if (!request.headers.get("content-type")?.toLowerCase().includes("application/json")) throw new Error("Expected JSON");
-  const length = Number(request.headers.get("content-length") ?? 0);
-  if (length > 10_000) throw new Error("Request too large");
-  const text = await request.text();
-  if (text.length > 10_000) throw new Error("Request too large");
-  return JSON.parse(text) as unknown;
+  return readBoundedJson(request);
 }
 
 export function publicOrigin() {
