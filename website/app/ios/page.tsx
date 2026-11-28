@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, Check, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowRight, ShieldCheck, Sparkles } from "lucide-react";
 import { WaitlistForm } from "@/components/waitlist-form";
 import { track } from "@/lib/analytics";
 

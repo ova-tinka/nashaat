@@ -1,14 +1,31 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { track } from "@/lib/analytics";
 
+const CONSENT_KEY = "bloom-site-analytics-consent";
+const CONSENT_CHANGE_EVENT = "bloom-site-analytics-consent-change";
+
+function subscribe(callback: () => void) {
+  window.addEventListener("storage", callback);
+  window.addEventListener(CONSENT_CHANGE_EVENT, callback);
+  return () => {
+    window.removeEventListener("storage", callback);
+    window.removeEventListener(CONSENT_CHANGE_EVENT, callback);
+  };
+}
+
+function getSnapshot() {
+  return localStorage.getItem(CONSENT_KEY);
+}
+
 export function CookieConsent() {
-  const [visible, setVisible] = useState(false);
-  useEffect(() => { setVisible(localStorage.getItem("bloom-site-analytics-consent") === null); }, []);
+  const consent = useSyncExternalStore(subscribe, getSnapshot, () => "unknown");
+  const visible = consent === null;
+
   function choose(value: "accepted" | "rejected") {
-    localStorage.setItem("bloom-site-analytics-consent", value);
-    setVisible(false);
+    localStorage.setItem(CONSENT_KEY, value);
+    window.dispatchEvent(new Event(CONSENT_CHANGE_EVENT));
     if (value === "accepted") track("website_analytics_consent", { choice: "accepted" });
   }
   if (!visible) return null;
