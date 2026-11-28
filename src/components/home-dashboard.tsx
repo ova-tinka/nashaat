@@ -251,7 +251,7 @@ function ByDevicePanel({ devices, loading, error, onRetry }: {
       <Body>Unavailable</Body>
       <Button label="Try again" variant="secondary" onPress={onRetry} />
     </> : devices.length > 0 ? <>
-      <Text style={[styles.deviceAvailability, { color: theme.colors.inkMuted }]}>Hours unavailable</Text>
+      <Text style={[styles.deviceAvailability, { color: theme.colors.inkMuted }]}>Per-device hours not tracked yet</Text>
       {devices.slice(0, 3).map((device) => <Pressable key={device.device_id} accessibilityRole="button"
         accessibilityLabel={`${device.display_name}. Per-device screen-time totals are not available yet.`}
         onPress={() => router.push({ pathname: '/device-detail', params: { deviceId: device.device_id } })}

@@ -13,6 +13,7 @@ import { MacCreditRecovery } from '../../components/mac-credit-recovery';
 import { supabase } from '../../lib/supabase';
 import { isChildRestrictedRoute } from '../../lib/route-access';
 import { useLocale } from '../../lib/locale-context';
+import { identifyStoreBilling } from '../../lib/store-billing';
 import { useBloomTheme } from '../../lib/theme-context';
 import { ModuleVisibilityProvider } from '../../lib/module-visibility';
 import { isMacDesktop, macosFilter } from '../../lib/macos-blocking';
@@ -33,6 +34,7 @@ export default function AppLayout() {
   if (isChildRestrictedRoute(pathname, childProfile, assignedModules)) return <Redirect href="/" />;
   return <BloomProvider key={`${session.user.id}:${profileId}`} userId={profileId}>
     <BillingProvider>
+      <StoreBillingIdentity profileId={profileId} childProfile={childProfile} />
       <MacDeepLinkListener />
       <MacBalanceSync />
       <MacCreditRecovery key={`${session.user.id}:${profileId}`} />
@@ -53,7 +55,15 @@ export default function AppLayout() {
   </BloomProvider>;
 }
 
+function StoreBillingIdentity({ profileId, childProfile }: { profileId: string; childProfile: boolean }) {
+  useEffect(() => {
+    if (!childProfile) void identifyStoreBilling(profileId).catch(() => undefined);
+  }, [childProfile, profileId]);
+  return null;
+}
+
 function BillingNotice() {
+  const { childProfile } = useAuth();
   const { summary } = useBilling();
   const { locale, language } = useLocale();
   if (!summary?.metered || summary.plan) return null;
@@ -63,8 +73,10 @@ function BillingNotice() {
       ? <Body>{arabic ? 'ينتهي الوصول الانتقالي في' : 'Your transition access ends'} {
         new Date(summary.enforcement_at).toLocaleDateString(locale, { dateStyle: 'long' })
       }</Body>
-      : <Body>{arabic ? 'تحتاج إلى اشتراك لبدء نشاط جديد.' : 'Choose a subscription to start new activities.'}</Body>}
-    <Button label={arabic ? 'عرض الاشتراك' : 'View subscription'} secondary onPress={() => router.push('/subscription')} />
+      : <Body>{childProfile
+        ? (arabic ? 'يتولى وليّ الأمر إدارة الفوترة لهذا الحساب.' : 'Your household payer manages billing for this account.')
+        : (arabic ? 'تحتاج إلى اشتراك لبدء نشاط جديد.' : 'Choose a subscription to start new activities.')}</Body>}
+    {!childProfile && <Button label={arabic ? 'عرض الاشتراك' : 'View subscription'} secondary onPress={() => router.push('/subscription')} />}
   </Panel>;
 }
 

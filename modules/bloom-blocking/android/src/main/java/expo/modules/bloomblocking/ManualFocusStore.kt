@@ -9,6 +9,7 @@ import org.json.JSONObject
 /** Manual sessions are device- and account-specific and never change credit grants. */
 internal object ManualFocusStore {
   data class Selection(val apps: Set<String>, val websites: Set<String>)
+  data class RawConfig(val selection: Selection, val enabled: Boolean, val deadline: Long, val recordedBoot: Int)
   data class State(val selection: Selection, val active: Boolean, val remainingMillis: Long?)
   private const val CONFIG = "manual_focus_config:"
   private const val ACTIVE = "manual_focus_active:"
@@ -26,21 +27,27 @@ internal object ManualFocusStore {
     }
     val apps = strings("apps")
     val sites = strings("websites")
-    require(apps.all { it.matches(packageId) && it != ownPackage }) { "Invalid app selection." }
+    require(apps.all { it.matches(packageId) && !ProtectedPackages.isProtected(it, ownPackage) }) { "Invalid app selection." }
     require(sites.all { WebsiteDomains.host(it) == it }) { "Invalid website selection." }
     return Selection(apps, sites)
   }
 
-  fun read(context: Context, expectedAccount: String? = null): State? = synchronized(FocusRoutineStore) {
+  fun readRaw(context: Context, expectedAccount: String? = null): RawConfig? = synchronized(FocusRoutineStore) {
     val account = FocusRoutineStore.account(context) ?: return@synchronized null
     if (expectedAccount != null) check(account == expectedAccount) { "The device account changed. Sync and try again." }
     val prefs = context.getSharedPreferences(BloomBlockingModule.PREFERENCES, Context.MODE_PRIVATE)
     val selection = parse(prefs.getString(CONFIG + account, "{\"apps\":[],\"websites\":[]}")!!, context.packageName)
     val enabled = prefs.getBoolean(ACTIVE + account, false)
     val deadline = prefs.getLong(DEADLINE + account, -1)
+    val recordedBoot = prefs.getInt(BOOT + account, -1)
+    RawConfig(selection, enabled, deadline, recordedBoot)
+  }
+
+  fun read(context: Context, expectedAccount: String? = null): State? = synchronized(FocusRoutineStore) {
+    val raw = readRaw(context, expectedAccount) ?: return@synchronized null
     val boot = Settings.Global.getInt(context.contentResolver, Settings.Global.BOOT_COUNT, -1)
-    val timing = ManualFocusTiming.evaluate(enabled, deadline, prefs.getInt(BOOT + account, -1), boot, SystemClock.elapsedRealtime())
-    State(selection, timing.active, timing.remainingMillis)
+    val timing = ManualFocusTiming.evaluate(raw.enabled, raw.deadline, raw.recordedBoot, boot, SystemClock.elapsedRealtime())
+    State(raw.selection, timing.active, timing.remainingMillis)
   }
 
   fun save(context: Context, account: String, raw: String) = synchronized(FocusRoutineStore) {

@@ -1,10 +1,10 @@
 import { provisionHandler } from '../_shared/child-pairing.ts';
-import { admin, findIdentity, userClient } from '../_shared/supabase.ts';
+import { admin, authenticateActiveUser, findIdentity, userClient } from '../_shared/supabase.ts';
 
 Deno.serve(provisionHandler({
   async authenticate(token) {
-    const { data, error } = await userClient().auth.getUser(token);
-    return error ? null : data.user?.id ?? null;
+    const active = await authenticateActiveUser(token);
+    return active?.user.id ?? null;
   },
   async authorize(token, profileId) {
     const { data, error } = await userClient(token).rpc('bloom_authorize_child_provisioning', { p_profile_id: profileId });

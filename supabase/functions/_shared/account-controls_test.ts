@@ -86,6 +86,8 @@ Deno.test('accountDeleteHandler routes active Family accounts to review and resu
         const remaining = job.pending_storage_paths.filter((p) => !removed.includes(p));
         job = { ...job, pending_storage_paths: remaining, status: remaining.length ? 'removing_files' : 'clearing_records' };
       } else if (step === 'clear_records') {
+        job = { ...job, status: 'deleting_auth_user' };
+      } else if (step === 'finalize') {
         job = { ...job, status: 'completed' };
       }
       return job;
@@ -109,4 +111,60 @@ Deno.test('accountDeleteHandler routes active Family accounts to review and resu
   const retryAttempt = await personalHandler(new Request('http://localhost/', { method: 'POST', headers: { authorization: `Bearer ${freshToken}` } }));
   assert(retryAttempt.status === 200 && authDeleted, 'Retry should complete deletion');
   assert(deletedFiles.length === 2 && deletedFiles[0] === 'p1/read/a.pdf' && deletedFiles[1] === 'p1/read/b.pdf', 'Each file deleted once');
+
+  let billingRevoked = false;
+  const billingBlockedHandler = accountDeleteHandler({
+    authenticate: async () => ({ userId: 'u2', sessionId: 's2' }),
+    resolveProfileId: async () => 'p2',
+    requestDeletion: async () => ({
+      id: 'job-billing',
+      profile_id: 'p2',
+      account_scope: 'personal',
+      status: 'needs_billing_cancellation',
+      pending_storage_paths: [],
+    }),
+    advanceDeletionJob: async () => { throw new Error('Should not advance'); },
+    invalidateAuthSession: async () => { billingRevoked = true; },
+    removeStorageFile: async () => { billingRevoked = true; },
+    deleteAuthUser: async () => { billingRevoked = true; },
+    nowMs: () => nowMs,
+  });
+  const billingRes = await billingBlockedHandler(new Request('http://localhost/', { method: 'POST', headers: { authorization: `Bearer ${freshToken}` } }));
+  assert(billingRes.status === 409 && !billingRevoked, 'Active Tap billing should return 409 before revoking sessions or removing files');
+
+  let failDeleteOnce = true;
+  let profileRemoved = false;
+  let retryJob: DeletionJobRecord = {
+    id: 'job-3',
+    profile_id: 'p3',
+    account_scope: 'personal',
+    status: 'queued',
+    pending_storage_paths: [],
+  };
+  const deleteRetryHandler = accountDeleteHandler({
+    authenticate: async () => ({ userId: 'u3', sessionId: 's3' }),
+    resolveProfileId: async () => (profileRemoved ? null : 'p3'),
+    requestDeletion: async () => retryJob,
+    advanceDeletionJob: async (_jobId, step) => {
+      if (step === 'revoke_access') retryJob = { ...retryJob, status: 'clearing_records', revoked_session_ids: [] };
+      else if (step === 'clear_records') {
+        profileRemoved = true;
+        retryJob = { ...retryJob, status: 'deleting_auth_user' };
+      } else if (step === 'finalize') retryJob = { ...retryJob, status: 'completed' };
+      return retryJob;
+    },
+    invalidateAuthSession: async () => {},
+    removeStorageFile: async () => {},
+    deleteAuthUser: async () => {
+      if (failDeleteOnce) {
+        failDeleteOnce = false;
+        throw new Error('auth delete timeout');
+      }
+    },
+    nowMs: () => nowMs,
+  });
+  const failAuthRes = await deleteRetryHandler(new Request('http://localhost/', { method: 'POST', headers: { authorization: `Bearer ${freshToken}` } }));
+  assert(failAuthRes.status === 503 && retryJob.status === 'deleting_auth_user', 'Auth delete failure should leave job resumable');
+  const recoverAuthRes = await deleteRetryHandler(new Request('http://localhost/', { method: 'POST', headers: { authorization: `Bearer ${freshToken}` } }));
+  assert(recoverAuthRes.status === 200 && (retryJob.status as string) === 'completed', 'Retry after auth delete failure should finalize cleanly');
 });

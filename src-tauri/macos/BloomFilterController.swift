@@ -70,7 +70,7 @@ final class BloomFilterController: NSObject, @preconcurrency OSSystemExtensionRe
     let configuration = NEFilterProviderConfiguration()
     configuration.filterDataProviderBundleIdentifier = Self.extensionIdentifier
     configuration.filterSockets = true
-    configuration.vendorConfiguration = ["blockedDomains": effective]
+    configuration.vendorConfiguration = ["blockedDomains": effective, "managedDomains": managed]
     manager.providerConfiguration = configuration
     manager.localizedDescription = "Bloom website blocking"
     manager.isEnabled = true
@@ -194,6 +194,7 @@ final class BloomFilterController: NSObject, @preconcurrency OSSystemExtensionRe
       let configuration = manager.providerConfiguration!
       var vendor = configuration.vendorConfiguration ?? [:]
       vendor["blockedDomains"] = effective
+      vendor["managedDomains"] = normalized
       configuration.vendorConfiguration = vendor
       manager.providerConfiguration = configuration
       try await manager.saveToPreferences()

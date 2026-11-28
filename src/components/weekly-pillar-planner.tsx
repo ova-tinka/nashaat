@@ -60,7 +60,8 @@ export function WeeklyPillarPlanner({ allowedModules }: { allowedModules: Module
   async function persist(goals: WeeklyScheduleGoal[], successMessage: string) {
     setBusy(true); setError(null); setNotice(null);
     try {
-      await saveWeeklyPillarGoals(goals.map(({ module_id, target_count, active_days }) => ({ module_id, target_count, active_days })));
+      const preserved = savedGoals.filter((goal) => !modules.some((m) => m.moduleId === goal.module_id));
+      await saveWeeklyPillarGoals([...preserved, ...goals].map(({ module_id, target_count, active_days }) => ({ module_id, target_count, active_days })));
       setProposal(null); setCheckIn(null);
       await refresh();
       setNotice(successMessage);

@@ -100,6 +100,10 @@ bloom_fixtures+=(offline-activity-sync.sql)
 bloom_fixtures+=(account-export-deletion.sql)
 bloom_fixtures+=(exercise-bests.sql)
 bloom_fixtures+=(e2e-acceptance.sql)
+bloom_fixtures+=(billing.sql)
+bloom_fixtures+=(billing-rollout.sql)
+bloom_fixtures+=(billing-play-offers.sql)
+bloom_fixtures+=(milestone1-security-integrity.sql)
 if [[ "${BLOOM_SKIP_PUBLIC_COMPETITIONS:-0}" != "1" ]]; then
   bloom_fixtures+=(competitions.sql)
 fi

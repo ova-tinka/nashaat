@@ -21,10 +21,13 @@ declare
   v_doc1 jsonb;
   v_doc2 jsonb;
 begin
-  perform public.bloom_register_device('91000000-0000-0000-0000-000000000901', 'Personal Mac', 'macos', true, 'allowed', 'on', 1);
+  perform public.bloom_register_device('91000000-0000-0000-0000-000000000991', 'Second Mac', 'macos', true, 'allowed', 'on', 1);
   v_item := public.bloom_create_growth_item('read', 'reading', 'Personal Book', '', null, null, '92000000-0000-0000-0000-000000000001');
   v_doc1 := public.bloom_create_growth_document('read', v_item, 'Doc 1', 'doc1.pdf', 'pdf', 'application/pdf', 1000, '92000000-0000-0000-0000-000000000002');
   v_doc2 := public.bloom_create_growth_document('read', v_item, 'Doc 2', 'doc2.pdf', 'pdf', 'application/pdf', 1000, '92000000-0000-0000-0000-000000000003');
+  insert into storage.objects(bucket_id, name) values ('bloom-growth-content', v_doc1->>'storage_path'), ('bloom-growth-content', v_doc2->>'storage_path');
+  perform public.bloom_confirm_growth_document((v_doc1->>'id')::uuid);
+  perform public.bloom_confirm_growth_document((v_doc2->>'id')::uuid);
   perform set_config('bloom.del_path_1', v_doc1->>'storage_path', true);
   perform set_config('bloom.del_path_2', v_doc2->>'storage_path', true);
 end $$;
@@ -85,7 +88,7 @@ begin
   if v_job->>'status' <> 'queued' or jsonb_array_length(v_job->'pending_storage_paths') <> 2 then
     raise exception 'Personal deletion job did not queue storage paths: %', v_job;
   end if;
-  v_step := public.bloom_advance_account_deletion_job((v_job->>'id')::uuid, 'revoke_access', '{}', '90000000-0000-0000-0000-000000000901');
+  v_step := public.bloom_advance_account_deletion_job((v_job->>'id')::uuid, 'revoke_access', '{}', '90000000-0000-0000-0000-000000000999');
   if v_step->>'status' <> 'removing_files'
     or not public.bloom_is_session_revoked('90000000-0000-0000-0000-000000000901') then
     raise exception 'Revoke access step failed: %', v_step;
@@ -109,8 +112,12 @@ begin
     raise exception 'Final file removal did not advance to clearing_records: %', v_step;
   end if;
   v_step := public.bloom_advance_account_deletion_job((v_job->>'id')::uuid, 'clear_records', '{}', null);
+  if v_step->>'status' <> 'deleting_auth_user' then
+    raise exception 'Clear records did not advance to deleting_auth_user: %', v_step;
+  end if;
+  v_step := public.bloom_advance_account_deletion_job((v_job->>'id')::uuid, 'finalize', '{}', null);
   if v_step->>'status' <> 'completed' then
-    raise exception 'Clear records did not complete job: %', v_step;
+    raise exception 'Finalize did not complete job: %', v_step;
   end if;
 end $$;
 

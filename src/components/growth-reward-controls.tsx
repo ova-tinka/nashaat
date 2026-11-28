@@ -39,6 +39,7 @@ export function GrowthRewardControls({
   const { theme } = useBloomTheme();
   const [savedRules, setSavedRules] = useState<GrowthRewardRule[]>([]);
   const [drafts, setDrafts] = useState<Record<string, GrowthRewardRule>>({});
+  const [textDrafts, setTextDrafts] = useState<Record<string, { reward: string; daily: string; weekly: string; minimum: string }>>({});
   const [events, setEvents] = useState<GrowthRewardEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingModule, setSavingModule] = useState<GrowthModuleId | null>(null);
@@ -57,6 +58,15 @@ export function GrowthRewardControls({
       }));
       setSavedRules(data.rules);
       setDrafts(nextDrafts);
+      setTextDrafts(Object.fromEntries(modules.map((moduleId) => {
+        const rule = nextDrafts[moduleId];
+        return [moduleId, {
+          reward: String(rule.reward_minutes),
+          daily: String(rule.daily_cap_minutes),
+          weekly: String(rule.weekly_cap_minutes),
+          minimum: String(rule.minimum_session_minutes),
+        }];
+      })));
       setEvents(data.events);
       setError(null);
     } catch {
@@ -72,13 +82,18 @@ export function GrowthRewardControls({
     setDrafts((current) => ({ ...current, [moduleId]: { ...current[moduleId], ...changes } }));
   }
 
+  function updateText(moduleId: GrowthModuleId, field: 'reward' | 'daily' | 'weekly' | 'minimum', value: string) {
+    setTextDrafts((current) => ({ ...current, [moduleId]: { ...current[moduleId], [field]: value } }));
+  }
+
   async function save(moduleId: GrowthModuleId) {
     const rule = drafts[moduleId];
-    if (!rule) return;
-    const reward = parseMinutes(String(rule.reward_minutes), 1440);
-    const daily = parseMinutes(String(rule.daily_cap_minutes), 1440);
-    const weekly = parseMinutes(String(rule.weekly_cap_minutes), 10080);
-    const minimum = Number(rule.minimum_session_minutes);
+    const texts = textDrafts[moduleId];
+    if (!rule || !texts) return;
+    const reward = parseMinutes(texts.reward, 1440);
+    const daily = parseMinutes(texts.daily, 1440);
+    const weekly = parseMinutes(texts.weekly, 10080);
+    const minimum = texts.minimum.trim() === '' ? NaN : Number(texts.minimum);
     if (!reward || !daily || !weekly || !Number.isFinite(minimum) || minimum < 0 || minimum > 720) {
       setError('Use a reward and caps above 0, with a session minimum from 0 to 720 minutes.');
       return;
@@ -113,10 +128,11 @@ export function GrowthRewardControls({
 
   const dirty = (moduleId: GrowthModuleId) => {
     const draft = drafts[moduleId];
+    const texts = textDrafts[moduleId];
     const saved = savedRules.find((rule) => rule.module_id === moduleId) ?? initialRule(profileId, moduleId, approvalByDefault);
-    return draft && (draft.enabled !== saved.enabled || draft.reward_minutes !== saved.reward_minutes
-      || draft.daily_cap_minutes !== saved.daily_cap_minutes || draft.weekly_cap_minutes !== saved.weekly_cap_minutes
-      || draft.minimum_session_minutes !== saved.minimum_session_minutes
+    return draft && texts && (draft.enabled !== saved.enabled || texts.reward !== String(saved.reward_minutes)
+      || texts.daily !== String(saved.daily_cap_minutes) || texts.weekly !== String(saved.weekly_cap_minutes)
+      || texts.minimum !== String(saved.minimum_session_minutes)
       || draft.require_parent_approval !== saved.require_parent_approval);
   };
 
@@ -129,23 +145,24 @@ export function GrowthRewardControls({
     {notice && <Body>{notice}</Body>}
     {!loading && modules.map((moduleId) => {
       const rule = drafts[moduleId];
-      if (!rule) return null;
+      const texts = textDrafts[moduleId];
+      if (!rule || !texts) return null;
       return <View key={moduleId} style={[sharedStyles.column, { borderTopWidth: 1, borderTopColor: theme.colors.border, paddingTop: 14 }]}>
         <View style={sharedStyles.row}>
-          <View style={sharedStyles.grow}><Label>{moduleLabels[moduleId]}</Label><Body>{rule.enabled ? `${rule.reward_minutes} min per eligible completion` : 'Rewards off'}</Body></View>
+          <View style={sharedStyles.grow}><Label>{moduleLabels[moduleId]}</Label><Body>{rule.enabled ? `${texts.reward || rule.reward_minutes} min per eligible completion` : 'Rewards off'}</Body></View>
           <Switch accessibilityLabel={`${moduleLabels[moduleId]} rewards`} value={rule.enabled} disabled={!editable || savingModule !== null}
             onValueChange={(enabled) => update(moduleId, { enabled })} trackColor={{ true: theme.colors.action }} />
         </View>
-        <Field label="Minutes per completion" value={String(rule.reward_minutes)} keyboardType="decimal-pad" editable={editable && savingModule === null}
-          onChangeText={(value) => update(moduleId, { reward_minutes: Number(value) })} />
+        <Field label="Minutes per completion" value={texts.reward} keyboardType="decimal-pad" editable={editable && savingModule === null}
+          onChangeText={(value) => updateText(moduleId, 'reward', value)} />
         <View style={sharedStyles.row}>
-          <View style={sharedStyles.grow}><Field label="Daily cap (minutes)" value={String(rule.daily_cap_minutes)} keyboardType="decimal-pad" editable={editable && savingModule === null}
-            onChangeText={(value) => update(moduleId, { daily_cap_minutes: Number(value) })} /></View>
-          <View style={sharedStyles.grow}><Field label="Weekly cap (minutes)" value={String(rule.weekly_cap_minutes)} keyboardType="decimal-pad" editable={editable && savingModule === null}
-            onChangeText={(value) => update(moduleId, { weekly_cap_minutes: Number(value) })} /></View>
+          <View style={sharedStyles.grow}><Field label="Daily cap (minutes)" value={texts.daily} keyboardType="decimal-pad" editable={editable && savingModule === null}
+            onChangeText={(value) => updateText(moduleId, 'daily', value)} /></View>
+          <View style={sharedStyles.grow}><Field label="Weekly cap (minutes)" value={texts.weekly} keyboardType="decimal-pad" editable={editable && savingModule === null}
+            onChangeText={(value) => updateText(moduleId, 'weekly', value)} /></View>
         </View>
-        {moduleId !== 'tasks' && <Field label="Minimum Study/Read session (minutes)" value={String(rule.minimum_session_minutes)} keyboardType="decimal-pad" editable={editable && savingModule === null}
-          onChangeText={(value) => update(moduleId, { minimum_session_minutes: value === '' ? 0 : Number(value) })} />}
+        {moduleId !== 'tasks' && <Field label="Minimum Study/Read session (minutes)" value={texts.minimum} keyboardType="decimal-pad" editable={editable && savingModule === null}
+          onChangeText={(value) => updateText(moduleId, 'minimum', value)} />}
         {approvalByDefault && <View style={sharedStyles.row}>
           <View style={sharedStyles.grow}><Label>Parent approval</Label><Body>{rule.require_parent_approval ? 'Each reward waits for your review.' : 'Eligible rewards are added automatically.'}</Body></View>
           <Switch accessibilityLabel={`Require parent approval for ${moduleLabels[moduleId]} rewards`} value={rule.require_parent_approval}

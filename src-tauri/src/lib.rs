@@ -301,6 +301,60 @@ fn open_reader_in_browser(document_id: String) -> Result<(), String> {
 }
 
 #[cfg(target_os = "macos")]
+fn resolve_billing_url(target: &str, configured_origin: Option<&str>) -> Result<url::Url, String> {
+  match target {
+    "apple_subscriptions" => url::Url::parse("https://apps.apple.com/account/subscriptions")
+      .map_err(|_| "Could not build billing address.".to_string()),
+    "apple_report_problem" => url::Url::parse("https://reportaproblem.apple.com/")
+      .map_err(|_| "Could not build billing address.".to_string()),
+    "google_subscriptions" => url::Url::parse("https://play.google.com/store/account/subscriptions")
+      .map_err(|_| "Could not build billing address.".to_string()),
+    "google_order_history" => url::Url::parse("https://play.google.com/store/account/orderhistory")
+      .map_err(|_| "Could not build billing address.".to_string()),
+    "google_refund_help" => url::Url::parse("https://support.google.com/googleplay/answer/15574897")
+      .map_err(|_| "Could not build billing address.".to_string()),
+    "web_subscription" => {
+      let origin_raw = configured_origin.map(str::trim).filter(|s| !s.is_empty())
+        .ok_or_else(|| "Bloom web billing address is not configured.".to_string())?;
+      if origin_raw.len() > 512 || origin_raw.chars().any(|c| c.is_control() || c.is_whitespace()) {
+        return Err("Invalid Bloom web billing address.".into());
+      }
+      let origin = url::Url::parse(origin_raw).map_err(|_| "Invalid Bloom web billing address.")?;
+      let loopback_http = origin.scheme() == "http" && origin.host().is_some_and(|host| match host {
+        url::Host::Domain(domain) => domain == "localhost",
+        url::Host::Ipv4(address) => address.is_loopback(),
+        url::Host::Ipv6(address) => address.is_loopback(),
+      });
+      if (origin.scheme() != "https" && !loopback_http)
+        || !origin.username().is_empty()
+        || origin.password().is_some()
+        || origin.host().is_none()
+        || origin.path() != "/"
+        || origin.query().is_some()
+        || origin.fragment().is_some() {
+        return Err("Bloom web billing origin must be a clean HTTPS root URL.".into());
+      }
+      origin.join("/subscription").map_err(|_| "Could not build Bloom web billing address.".into())
+    }
+    _ => Err("Unsupported billing destination.".into()),
+  }
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+fn open_billing_url(target: String) -> Result<(), String> {
+  let runtime_origin = std::env::var("EXPO_PUBLIC_BLOOM_WEB_URL").ok();
+  let configured = option_env!("EXPO_PUBLIC_BLOOM_WEB_URL")
+    .or(runtime_origin.as_deref());
+  let parsed = resolve_billing_url(&target, configured)?;
+  std::process::Command::new("/usr/bin/open")
+    .arg(parsed.as_str())
+    .spawn()
+    .map(|_| ())
+    .map_err(|_| "Could not open the billing page in the default web browser.".into())
+}
+
+#[cfg(target_os = "macos")]
 const KEYCHAIN_SERVICE: &str = "app.bloom.exercise";
 
 #[cfg(target_os = "macos")]
@@ -402,7 +456,7 @@ fn macos_secure_storage_delete(key: String) -> Result<(), String> {
 
 #[cfg(all(test, target_os = "macos"))]
 mod reader_browser_tests {
-  use super::{build_reader_browser_url, decode_keychain_output, encode_hex, validate_keychain_key};
+  use super::{build_reader_browser_url, decode_keychain_output, encode_hex, resolve_billing_url, validate_keychain_key};
 
   const DOC_ID: &str = "7e09a2d3-f94c-47ac-82d6-8b64af1064e1";
 
@@ -434,6 +488,21 @@ mod reader_browser_tests {
     assert!(validate_keychain_key("bad\nkey").is_err());
     let encoded = encode_hex("{\"refresh_token\":\"secret-123\"}");
     assert_eq!(decode_keychain_output(&encoded).unwrap(), "{\"refresh_token\":\"secret-123\"}");
+  }
+
+  #[test]
+  fn allowlists_billing_destinations_and_rejects_arbitrary_targets() {
+    assert_eq!(
+      resolve_billing_url("apple_subscriptions", None).unwrap().as_str(),
+      "https://apps.apple.com/account/subscriptions"
+    );
+    assert_eq!(
+      resolve_billing_url("web_subscription", Some("https://bloom.example/")).unwrap().as_str(),
+      "https://bloom.example/subscription"
+    );
+    assert!(resolve_billing_url("https://evil.example/", None).is_err());
+    assert!(resolve_billing_url("web_subscription", None).is_err());
+    assert!(resolve_billing_url("web_subscription", Some("http://bloom.example")).is_err());
   }
 }
 
@@ -482,6 +551,7 @@ pub fn run() {
       macos_secure_storage_set,
       macos_secure_storage_delete,
       open_reader_in_browser,
+      open_billing_url,
       take_pending_deep_link
     ])
     .on_window_event(|window, event| {

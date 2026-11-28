@@ -9,7 +9,7 @@ let syncInFlight = null;
 
 async function sendNative(message) {
   try {
-    const response = await api.runtime.sendNativeMessage('com.focusflow.focusflowflutter.safari-extension', message);
+    const response = await api.runtime.sendNativeMessage('com.focusflow.focusFlowFlutter.safari-extension', message);
     return response || { ok: false, error: 'Could not reach Bloom.' };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : 'Could not reach Bloom.' };
@@ -31,8 +31,10 @@ async function applyRules(policy) {
 }
 
 async function sweepOpenTabs(policy) {
-  if (!policy.enabled || policy.accessAllowed) return;
-  const combined = [...new Set([...(policy.blockedDomains || []), ...(policy.managedDomains || [])])];
+  if (!policy.enabled) return;
+  const combined = policy.accessAllowed
+    ? [...new Set(policy.managedDomains || [])]
+    : [...new Set([...(policy.blockedDomains || []), ...(policy.managedDomains || [])])];
   if (combined.length === 0) return;
 
   const managedSet = compileDomains(policy.managedDomains || []);

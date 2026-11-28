@@ -160,7 +160,7 @@ function componentTokens(colors: ThemeColors): ThemeComponentTokens {
       secondaryBorder: colors.border,
       secondaryText: colors.ink,
       tertiaryText: colors.action,
-      destructiveBackground: colors.dangerText,
+      destructiveBackground: colors.ink === '#F4F7FF' ? '#C81E3A' : colors.dangerText,
       destructiveText: '#FFFFFF',
       focusBorder: colors.focusRing,
     },

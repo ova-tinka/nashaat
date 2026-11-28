@@ -1,9 +1,10 @@
 import { router, type Href } from 'expo-router';
 import { useState } from 'react';
-import { View } from 'react-native';
+import { Linking, Platform, Share, View } from 'react-native';
 import { Body, Button, DesktopContent, ErrorText, Eyebrow, Heading, Label, Panel, Screen, sharedStyles } from '../../components/bloom-ui';
 import { requestAccountDeletion, requestAccountExport, type AccountExportResult } from '../../lib/account-controls';
 import { useAuth } from '../../lib/auth';
+import { clearStoreBilling } from '../../lib/store-billing';
 
 export default function AccountScreen() {
   const { session, childProfile } = useAuth();
@@ -38,6 +39,7 @@ export default function AccountScreen() {
       if (result.status === 'needs_family_review') {
         setNotice(result.message);
       } else {
+        await clearStoreBilling().catch(() => undefined);
         router.replace('/sign-in');
       }
     } catch (caught) {
@@ -81,7 +83,24 @@ export default function AccountScreen() {
           <Button label="Export my data" variant="secondary" busy={busy} onPress={() => void handleExport()} />
           {!confirmDelete && <Button label="Delete account" variant="destructive" disabled={busy} onPress={() => setConfirmDelete(true)} />}
         </View>
-        {exportSummary && <Body>Exported at {new Date(exportSummary.exported_at).toLocaleString()} · {exportSummary.files.length} private file link(s) generated.</Body>}
+        {exportSummary && <View style={sharedStyles.column}>
+          <Body>Exported at {new Date(exportSummary.exported_at).toLocaleString()} · {exportSummary.files.length} private file link(s) generated.</Body>
+          <Button label="Save / share export JSON" variant="secondary" onPress={() => {
+            const serialized = JSON.stringify(exportSummary, null, 2);
+            if (Platform.OS === 'web' && typeof document !== 'undefined' && typeof Blob !== 'undefined') {
+              const blob = new Blob([serialized], { type: 'application/json' });
+              const url = URL.createObjectURL(blob);
+              const link = document.createElement('a');
+              link.href = url;
+              link.download = `bloom-export-${exportSummary.exported_at.slice(0, 10)}.json`;
+              link.click();
+              setTimeout(() => URL.revokeObjectURL(url), 1000);
+            } else {
+              void Share.share({ message: serialized, title: 'Bloom personal export' }).catch(() => undefined);
+            }
+          }} />
+          {exportSummary.files.map((file, index) => <Button key={`${file.storage_path}:${index}`} label={`Open file: ${file.storage_path.split('/').pop() ?? `File ${index + 1}`}`} variant="tertiary" onPress={() => void Linking.openURL(file.download_url)} />)}
+        </View>}
         {confirmDelete && <View style={sharedStyles.column}>
           <Body>Deleting a personal account revokes all sessions, removes private files, and clears your owned records. This cannot be undone.</Body>
           <Button label="Confirm account deletion" variant="destructive" busy={busy} onPress={() => void handleDelete()} />

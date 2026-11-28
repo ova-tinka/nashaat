@@ -17,6 +17,7 @@ import android.widget.Toast
 
 class BloomAccessibilityService : AccessibilityService() {
   private var lastBlockedTarget: String? = null
+  private var lastBlockedPackage: String? = null
   private var blockedOverlay: BloomBlockedOverlay? = null
   private var receiverRegistered = false
   private var heartbeatRunning = false
@@ -44,6 +45,9 @@ class BloomAccessibilityService : AccessibilityService() {
       handler.post(checkDeadline)
     }
   }
+  private val usagePreferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+    handler.post(checkDeadline)
+  }
   private val screenReceiver = object : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
       if (intent.action == Intent.ACTION_SCREEN_OFF) {
@@ -61,6 +65,8 @@ class BloomAccessibilityService : AccessibilityService() {
     UsageTracker.recoverAfterInterruption(this)
     val preferences = getSharedPreferences(BloomBlockingModule.PREFERENCES, Context.MODE_PRIVATE)
     preferences.registerOnSharedPreferenceChangeListener(preferenceListener)
+    getSharedPreferences("bloom_actual_usage", Context.MODE_PRIVATE)
+      .registerOnSharedPreferenceChangeListener(usagePreferenceListener)
     startHeartbeat()
     val filter = IntentFilter().apply { addAction(Intent.ACTION_SCREEN_OFF); addAction(Intent.ACTION_SCREEN_ON); addAction(Intent.ACTION_USER_PRESENT) }
     if (Build.VERSION.SDK_INT >= 33) registerReceiver(screenReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
@@ -92,9 +98,18 @@ class BloomAccessibilityService : AccessibilityService() {
   }
 
   private fun checkWindow(packageName: String, eventType: Int? = null) {
-    // The notice is drawn by this service and should not hide itself when its
-    // own accessibility window becomes active.
-    if (packageName == this.packageName && blockedOverlay != null) return
+    val effectivePackage = if (packageName == this.packageName && blockedOverlay != null) {
+      lastBlockedPackage ?: return
+    } else {
+      packageName
+    }
+    if (ProtectedPackages.isProtected(this, effectivePackage)) {
+      UsageTracker.setTracking(this, false)
+      lastBlockedTarget = null
+      lastBlockedPackage = null
+      dismissBlockedOverlay()
+      return
+    }
 
     val preferences = getSharedPreferences(BloomBlockingModule.PREFERENCES, Context.MODE_PRIVATE)
     val policy = policyCache.get(this, preferences)
@@ -102,31 +117,33 @@ class BloomAccessibilityService : AccessibilityService() {
     val personalApps = policy.personalApps
     val managedApps = policy.managedApps
     val routines = policy.activeRoutines()
-    val manual = policy.activeManual()
+    val currentBoot = Settings.Global.getInt(contentResolver, Settings.Global.BOOT_COUNT, -1)
+    val nowMs = SystemClock.elapsedRealtime()
+    val manual = policy.activeManual(nowMs, currentBoot)
     if (!active && routines.isEmpty() && manual == null) {
       handler.removeCallbacks(checkDeadline)
       UsageTracker.setTracking(this, false)
       lastBlockedTarget = null
+      lastBlockedPackage = null
       dismissBlockedOverlay()
       return
     }
     val remaining = if (CreditDeadline.accountMatches(policy.creditAccount, policy.focusRoutineAccount)) CreditDeadline.remainingMillis(
       preferences.getLong(BloomBlockingModule.CREDIT_DEADLINE, 0),
       preferences.getInt(BloomBlockingModule.CREDIT_BOOT, -1),
-      Settings.Global.getInt(contentResolver, Settings.Global.BOOT_COUNT, -1),
-      SystemClock.elapsedRealtime(),
+      currentBoot,
+      nowMs,
     ) else 0L
     handler.removeCallbacks(checkDeadline)
     val personalWebsites = policy.personalWebsites
     val managedWebsites = policy.managedWebsites
     val scheduledWebsites = routines.flatMap { it.websites }.toSet()
-    val blockedWebsites = (if (active) personalWebsites + managedWebsites else emptySet()) + scheduledWebsites + (manual?.selection?.websites ?: emptySet())
+    val blockedWebsites = (if (active) personalWebsites + managedWebsites else emptySet()) + scheduledWebsites + (manual?.websites ?: emptySet())
     val websiteChecksEnabled = policy.websiteChecksEnabled
-    val addressViewId = BrowserAddressIds.viewId(packageName)
-    val nowMs = SystemClock.elapsedRealtime()
-    val address = if (AccessibilityPolicyHelper.shouldInspectBrowserAddress(
+    val addressViewId = BrowserAddressIds.viewId(effectivePackage)
+    val address = if (packageName != this.packageName && AccessibilityPolicyHelper.shouldInspectBrowserAddress(
         eventType = eventType,
-        packageName = packageName,
+        packageName = effectivePackage,
         websiteChecksEnabled = websiteChecksEnabled,
         hasBlockedWebsites = blockedWebsites.isNotEmpty(),
         hasAddressViewId = addressViewId != null,
@@ -135,25 +152,25 @@ class BloomAccessibilityService : AccessibilityService() {
         nowMs = nowMs,
       )
     ) {
-      val root = rootInActiveWindow?.takeIf { it.packageName?.toString() == packageName }
+      val root = rootInActiveWindow?.takeIf { it.packageName?.toString() == effectivePackage }
       val resolved = root?.findAccessibilityNodeInfosByViewId(addressViewId!!)?.asSequence()
         ?.mapNotNull { it.text?.toString() }
         ?.firstOrNull()
-      lastAddressCheckPackage = packageName
+      lastAddressCheckPackage = effectivePackage
       lastAddressCheckAtMs = nowMs
       lastAddressValue = resolved
       resolved
-    } else if (websiteChecksEnabled && addressViewId != null && lastAddressCheckPackage == packageName) {
+    } else if (websiteChecksEnabled && addressViewId != null && lastAddressCheckPackage == effectivePackage) {
       lastAddressValue
     } else null
     fun target(apps: Set<String>, websites: Set<String>): String? {
-      val decision = if (websiteChecksEnabled) BrowserAddressIds.decide(packageName, address, websites)
+      val decision = if (websiteChecksEnabled) BrowserAddressIds.decide(effectivePackage, address, websites)
         else BrowserAddressIds.Decision(BrowserAddressIds.DecisionKind.NONE)
       return when {
-        packageName == this.packageName -> null
-        packageName in apps -> "app:$packageName"
-        decision.kind == BrowserAddressIds.DecisionKind.BLOCK_WEBSITE -> "website:$packageName:${decision.host}"
-        decision.kind == BrowserAddressIds.DecisionKind.BLOCK_UNREADABLE_BROWSER -> "browser-unreadable:$packageName"
+        ProtectedPackages.isProtected(this, effectivePackage) -> null
+        effectivePackage in apps -> "app:$effectivePackage"
+        decision.kind == BrowserAddressIds.DecisionKind.BLOCK_WEBSITE -> "website:$effectivePackage:${decision.host}"
+        decision.kind == BrowserAddressIds.DecisionKind.BLOCK_UNREADABLE_BROWSER -> "browser-unreadable:$effectivePackage"
         else -> null
       }
     }
@@ -163,11 +180,13 @@ class BloomAccessibilityService : AccessibilityService() {
     val scheduled = routines.mapNotNull { routine ->
       target(routine.apps, routine.websites)?.let { EffectiveAccess.Restriction(it, routine.name) }
     }
-    val manualTarget = manual?.selection?.let { target(it.apps, it.websites) }
+    val manualTarget = manual?.let { target(it.apps, it.websites) }
     val hard = EffectiveAccess.evaluate(managedTarget, manualTarget, scheduled, null, true)
     if (remaining > 0 && !hard.blocked) {
       UsageTracker.setTracking(this, false)
       lastBlockedTarget = null
+      lastBlockedPackage = null
+      dismissBlockedOverlay()
       handler.postDelayed(checkDeadline, remaining)
       return
     }
@@ -189,6 +208,7 @@ class BloomAccessibilityService : AccessibilityService() {
     val target = decision.target
     if (target == null) {
       lastBlockedTarget = null
+      lastBlockedPackage = null
       dismissBlockedOverlay()
       return
     }
@@ -196,11 +216,12 @@ class BloomAccessibilityService : AccessibilityService() {
     if (blockedKey == lastBlockedTarget && blockedOverlay != null) return
 
     lastBlockedTarget = blockedKey
+    lastBlockedPackage = effectivePackage
     UsageTracker.setTracking(this, false)
     try {
       val notice = BloomBlockedOverlay(this)
       notice.show(
-        targetLabel = blockedTargetLabel(packageName, target),
+        targetLabel = blockedTargetLabel(effectivePackage, target),
         reasons = decision.reasons,
         onOpenBloom = ::openBloomFromNotice,
         onGoHome = ::goHomeFromNotice,
@@ -279,6 +300,8 @@ class BloomAccessibilityService : AccessibilityService() {
     val preferences = getSharedPreferences(BloomBlockingModule.PREFERENCES, Context.MODE_PRIVATE)
     preferences.edit().putLong(BloomBlockingModule.SERVICE_HEARTBEAT, 0).apply()
     preferences.unregisterOnSharedPreferenceChangeListener(preferenceListener)
+    getSharedPreferences("bloom_actual_usage", Context.MODE_PRIVATE)
+      .unregisterOnSharedPreferenceChangeListener(usagePreferenceListener)
     heartbeatRunning = false
     handler.removeCallbacks(heartbeat)
     handler.removeCallbacks(checkDeadline)

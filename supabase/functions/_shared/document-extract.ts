@@ -1,10 +1,11 @@
-import { unzipSync } from 'npm:fflate@0.8.2';
+import { Unzip, UnzipInflate } from 'npm:fflate@0.8.2';
 import { getDocument } from 'npm:pdfjs-dist@4.10.38/legacy/build/pdf.mjs';
 import {
   checkByteSize,
   checkTimeBudget,
   DEFAULT_MAX_BYTES,
   DEFAULT_MAX_MS,
+  MAX_DOCX_UNCOMPRESSED,
   MAX_PAGES,
   MAX_TEXT,
   parseDocxXmlSections,
@@ -28,9 +29,48 @@ export function extractDocxSections(bytes: Uint8Array, options: ExtractOptions =
   if (bytes.length < 4 || bytes[0] !== 0x50 || bytes[1] !== 0x4b) throw new Error('This file is not a DOCX archive');
   validateDocxArchive(bytes);
   checkTimeBudget(startedAt, maxMs, now);
-  const files = unzipSync(bytes);
-  const document = files['word/document.xml'];
-  if (!document) throw new Error('This DOCX file does not contain a readable document');
+
+  const chunks: Uint8Array[] = [];
+  let totalInflated = 0;
+  let foundDocXml = false;
+  let streamError: Error | null = null;
+
+  const unzip = new Unzip((file) => {
+    if (file.name !== 'word/document.xml') return;
+    foundDocXml = true;
+    file.ondata = (err, data) => {
+      if (streamError) return;
+      if (err) {
+        streamError = new Error('Invalid DOCX archive');
+        return;
+      }
+      totalInflated += data.length;
+      if (totalInflated > MAX_DOCX_UNCOMPRESSED) {
+        streamError = new Error('DOCX content is too large to process');
+        return;
+      }
+      try {
+        checkTimeBudget(startedAt, maxMs, now);
+      } catch (e) {
+        streamError = e instanceof Error ? e : new Error('Document extraction timed out');
+        return;
+      }
+      if (data.length > 0) chunks.push(data);
+    };
+    file.start();
+  });
+  unzip.register(UnzipInflate);
+  unzip.push(bytes, true);
+
+  if (streamError) throw streamError;
+  if (!foundDocXml) throw new Error('This DOCX file does not contain a readable document');
+
+  const document = new Uint8Array(totalInflated);
+  let offset = 0;
+  for (const chunk of chunks) {
+    document.set(chunk, offset);
+    offset += chunk.length;
+  }
   const xml = new TextDecoder('utf-8', { fatal: true }).decode(document);
   return parseDocxXmlSections(xml, { startedAt, maxMs, now });
 }

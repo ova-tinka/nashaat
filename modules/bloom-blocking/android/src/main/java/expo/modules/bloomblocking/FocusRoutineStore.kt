@@ -65,7 +65,7 @@ internal object FocusRoutineStore {
       require(id.matches(Regex("^[A-Za-z0-9-]{1,64}$")) && ids.add(id)) { "Invalid routine identifier." }
       require(name.isNotEmpty() && name.length <= 80 && start in 0..1439 && end in 0..1439 && start != end) { "Check the routine name and times." }
       require(days.isNotEmpty() && days.all { it in 0..6 }) { "Choose at least one day." }
-      require(apps.size <= 500 && apps.all { it.matches(packageId) && it != ownPackage }) { "Invalid app selection." }
+      require(apps.size <= 500 && apps.all { it.matches(packageId) && !ProtectedPackages.isProtected(it, ownPackage) }) { "Invalid app selection." }
       require(sites.size <= 500 && sites.all { WebsiteDomains.host(it) == it }) { "Invalid website selection." }
       require(apps.isNotEmpty() || sites.isNotEmpty()) { "Choose an app or website." }
       FocusSchedule.Routine(id, name, item.getBoolean("enabled"), start, end, days, apps, sites)

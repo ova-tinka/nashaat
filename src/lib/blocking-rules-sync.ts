@@ -35,8 +35,8 @@ export async function syncBlockingRules(userId: string, platform: BlockingRulesP
       return native.status ?? 'synced';
     }
     await BloomBlocking.setFocusAccount(userId);
-    const always = websiteRules.filter((rule) => rule.scope === 'always').map((rule) => rule.domain);
-    const focus = [...websites, ...websiteRules.filter((rule) => rule.scope === 'focus').map((rule) => rule.domain)];
+    const always = [...new Set([...websites, ...websiteRules.filter((rule) => rule.scope === 'always').map((rule) => rule.domain)])];
+    const focus = websiteRules.filter((rule) => rule.scope === 'focus').map((rule) => rule.domain);
     const websiteStatus = await BloomBlocking.setSafariWebsiteRules(always, focus, userId);
     return websiteStatus.authorizationRequired ? 'websiteRulesAuthorizationRequired' : 'websiteRulesApplied';
   });

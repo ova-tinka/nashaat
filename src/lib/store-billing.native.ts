@@ -107,3 +107,19 @@ export async function restoreStorePurchases(profile: string) {
 export async function redeemAppleCode(profile: string) {
   await withAccount(profile, () => Purchases.presentCodeRedemptionSheet());
 }
+
+export async function identifyStoreBilling(profile: string): Promise<void> {
+  if (!key) return;
+  await withAccount(profile, async () => undefined);
+}
+
+export async function clearStoreBilling(): Promise<void> {
+  const result = queue.then(async () => {
+    if (key && (await Purchases.isConfigured())) {
+      await Purchases.logOut().catch(() => undefined);
+    }
+    activeProfile = undefined;
+  });
+  queue = result.then(() => undefined, () => undefined);
+  await result;
+}

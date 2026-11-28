@@ -242,6 +242,12 @@ final class BloomFilterDataProvider: NEFilterDataProvider {
   }
 
   private func targetAllowed(_ target: FlowTarget, flow: NEFilterFlow, configuration: [String: Any]?) -> Bool {
+    if case .website(let host) = target {
+      let managed = configuration?["managedDomains"] as? [String] ?? []
+      if !managed.isEmpty && WebsiteRules(configuration: ["blockedDomains": managed]).blocks(host) {
+        return false
+      }
+    }
     if FilterCreditClock.isAllowed(configuration: configuration) { return true }
     let userID = MacFlowSource.userID(for: flow.sourceAppAuditToken)
     switch target {

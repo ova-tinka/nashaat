@@ -34,7 +34,7 @@ begin
   perform public.bloom_set_child_module_assignments('00000000-0000-0000-0000-000000000072', array['exercise']::text[]);
   perform set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000072', true);
   insert into public.bloom_settings(user_id, credit_mode, credit_timezone)
-    values (auth.uid(), 'easy', 'UTC');
+    values (auth.uid(), 'hard', 'UTC');
   -- Device A creates a workout. Device B later observes and completes it.
   v_plan := public.bloom_create_workout_plan('Sync workout', '[
     {"exercise_id":"10000000-0000-0000-0000-000000000071","sets":2,"target":8}
@@ -45,7 +45,7 @@ begin
 end;
 $$;
 
--- Device B reads shared state and updates a shared setting.
+-- Device B reads shared state and updates a shared setting (on an adult account).
 do $$
 begin
   if not exists (select 1 from public.bloom_workout_plans
@@ -54,6 +54,14 @@ begin
       where id = current_setting('bloom.sync_workout')::uuid and status = 'in_progress') then
     raise exception 'A second device could not read the shared workout state';
   end if;
+end;
+$$;
+
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000071', true);
+do $$
+begin
+  insert into public.bloom_settings(user_id, credit_mode, credit_timezone)
+    values (auth.uid(), 'easy', 'UTC') on conflict (user_id) do nothing;
   update public.bloom_settings set credit_mode = 'hard', credit_timezone = 'Asia/Qatar'
     where user_id = auth.uid();
 end;

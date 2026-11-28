@@ -5,9 +5,10 @@ export function blockPagePath(host, managed = false) {
 }
 
 export function buildDynamicRules({ enabled, blockedDomains = [], managedDomains = [], accessAllowed = false }) {
-  if (!enabled || accessAllowed) return [];
+  if (!enabled) return [];
   const managedSet = compileDomains(managedDomains);
-  const combined = [...compileDomains([...blockedDomains, ...managedDomains])].sort().slice(0, 500);
+  const sourceDomains = accessAllowed ? managedDomains : [...blockedDomains, ...managedDomains];
+  const combined = [...compileDomains(sourceDomains)].sort().slice(0, 500);
   return combined.map((domain, index) => ({
     id: index + 1,
     priority: 1,

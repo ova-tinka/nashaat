@@ -137,6 +137,15 @@ public class BloomBlockingModule: Module {
       #endif
     }
 
+    Function("getFocusAccount") { () -> String? in
+      #if canImport(FamilyControls) && canImport(ManagedSettings)
+      return BloomBlockingStore.defaults?.string(forKey: "bloom_scheduled_focus_account")
+        ?? BloomBlockingStore.defaults?.string(forKey: "bloom_manual_account")
+      #else
+      return nil
+      #endif
+    }
+
     AsyncFunction("clearFocusAccount") { (accountId: String) throws -> Void in
       #if canImport(FamilyControls) && canImport(ManagedSettings)
       try BloomManualFocusStore.clearAccount(accountId)

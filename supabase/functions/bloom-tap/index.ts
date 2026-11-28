@@ -1,4 +1,4 @@
-import { admin, userClient } from '../_shared/supabase.ts';
+import { admin, authenticateActiveUser, userClient } from '../_shared/supabase.ts';
 import { json, providerFetch, record, requiredEnv, secureMatch, str, uuid } from '../_shared/billing.ts';
 import { billingSandbox, claimBillingWebhooks, finishBillingWebhook, queueBillingWebhook, type BillingWebhook } from '../_shared/billing-webhooks.ts';
 import { syncRevenueCat } from '../_shared/revenuecat-sync.ts';
@@ -156,9 +156,9 @@ Deno.serve(async request => {
     }
     if (!bearer.startsWith('Bearer ')) return reply({ error: 'Unauthorized' }, 401);
     const token = bearer.slice(7);
+    const active = await authenticateActiveUser(token);
+    if (!active) return reply({ error: 'Unauthorized' }, 401);
     const client = userClient(token);
-    const identity = await client.auth.getUser(token);
-    if (identity.error || !identity.data.user) return reply({ error: 'Unauthorized' }, 401);
     const { data, error } = await client.rpc('bloom_current_profile');
     const profile = str(data?.profile_id);
     if (error || !uuid.test(profile) || data.child_profile) return reply({ error: 'Billing is managed by the payer' }, 403);
@@ -171,12 +171,12 @@ Deno.serve(async request => {
     if (action === 'checkout' || action === 'card_update') {
       const attempt = record(result);
       const id = str(attempt.id);
-      const checkout = record(await processCharge(id, identity.data.user.email));
+      const checkout = record(await processCharge(id, active.user.email));
       return reply({ id, state: checkout.state ?? attempt.state, checkout_url: checkout.checkout_url ?? attempt.checkout_url });
     }
     if (action === 'checkout_status') {
       const attempt = record(result);
-      const tapId = str(input.tap_id) || str(attempt.provider_ref);
+      const tapId = str(attempt.provider_ref) || str(input.tap_id);
       let verified: unknown;
       if (tapId && attempt.state !== 'captured') verified = await retrieve(tapId, str(attempt.id));
       return reply({ state: record(verified).state ?? attempt.state });

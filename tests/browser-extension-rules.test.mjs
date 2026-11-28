@@ -2,9 +2,19 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { blockPagePath, buildDynamicRules, findMatchingDomain } from '../browser-extension/lib/extension-rules.mjs';
 
-test('buildDynamicRules returns empty when disabled or screen time is active', () => {
+test('buildDynamicRules returns empty when disabled or screen time is active for personal domains only', () => {
   assert.deepEqual(buildDynamicRules({ enabled: false, blockedDomains: ['youtube.com'] }), []);
   assert.deepEqual(buildDynamicRules({ enabled: true, blockedDomains: ['youtube.com'], accessAllowed: true }), []);
+  const managedDuringAccess = buildDynamicRules({
+    enabled: true,
+    blockedDomains: ['youtube.com'],
+    managedDomains: ['reddit.com'],
+    accessAllowed: true,
+  });
+  assert.deepEqual(
+    managedDuringAccess.map((rule) => [rule.condition.urlFilter, rule.action.redirect.extensionPath]),
+    [['||reddit.com^', blockPagePath('reddit.com', true)]],
+  );
 });
 
 test('buildDynamicRules generates deduplicated MV3 redirect rules with managed flag', () => {

@@ -152,7 +152,8 @@ if (fs.existsSync(path.join(safariDir, 'SafariWebExtensionHandler.swift')) && fs
   const safariBuild = spawnSync('xcrun', ['swiftc', '-O', '-target', target, '-parse-as-library', '-application-extension', '-module-name', 'BloomSafariExtension',
     path.join(root, 'BloomAppGroup.swift'), path.join(source, 'WebsiteRules.swift'), path.join(source, 'FilterCreditClock.swift'),
     path.join(root, 'MacUsageStore.swift'), path.join(root, 'MacDisplayBalance.swift'), path.join(safariDir, 'SafariWebExtensionHandler.swift'),
-    '-framework', 'Foundation', '-framework', 'SafariServices', '-o', path.join(appexMacos, 'BloomSafariExtension')], { stdio: 'inherit' });
+    '-framework', 'Foundation', '-framework', 'AppKit', '-framework', 'SafariServices',
+    '-Xlinker', '-e', '-Xlinker', '_NSExtensionMain', '-o', path.join(appexMacos, 'BloomSafariExtension')], { stdio: 'inherit' });
   if (safariBuild.error) throw safariBuild.error;
   if (safariBuild.status !== 0) process.exit(safariBuild.status || 1);
   const safariEntitlements = fs.readFileSync(path.join(safariDir, 'SafariExtension.entitlements'), 'utf8')

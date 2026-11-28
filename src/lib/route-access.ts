@@ -9,7 +9,7 @@ export function isFamilySpaceRoute(pathname: string) {
 export function moduleForPath(pathname: string): ModuleKey | null {
   const appModule = pathname.match(/^\/(?:apps\/)?(exercise|study|read|tasks)(?:\/|$)/)?.[1];
   if (appModule) return appModule as ModuleKey;
-  if (['/workouts', '/library', '/new-plan'].some((route) => pathname === route || pathname.startsWith(`${route}/`))) return 'exercise';
+  if (['/workouts', '/library', '/new-plan', '/coach', '/competitions'].some((route) => pathname === route || pathname.startsWith(`${route}/`))) return 'exercise';
   if (pathname.startsWith('/exercise/')) return 'exercise';
   return null;
 }

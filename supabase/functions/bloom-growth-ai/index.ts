@@ -1,6 +1,6 @@
 import { body, preliminary, reply } from '../_shared/child-pairing.ts';
 import { coachAccess } from '../_shared/coach-access.ts';
-import { admin, userClient } from '../_shared/supabase.ts';
+import { admin, authenticateActiveUser, userClient } from '../_shared/supabase.ts';
 
 const model = Deno.env.get('FIREWORKS_MODEL') ?? '';
 const apiKey = Deno.env.get('FIREWORKS_API_KEY') ?? '';
@@ -61,8 +61,8 @@ Deno.serve(async (request) => {
   if (!access.enabled) return reply(503, { error: 'AI suggestions are not available yet.' });
   let started = false; let authorized = false;
   try {
-    const { data, error } = await userClient().auth.getUser(token);
-    if (error || !data.user || !access.permits(data.user.id)) return reply(401, { error: 'Sign in required' });
+    const active = await authenticateActiveUser(token);
+    if (!active || !access.permits(active.user.id)) return reply(401, { error: 'Sign in required' });
     authorized = true;
     const buyer = userClient(token);
     const saved = await buyer.rpc('bloom_load_task_ai_draft', { p_request: requestId, p_item: itemId });
@@ -71,7 +71,12 @@ Deno.serve(async (request) => {
     const { data: context, error: beginError } = await buyer.rpc('bloom_begin_growth_ai_request', {
       p_request_id: requestId, p_module_id: 'tasks', p_kind: 'task_breakdown', p_item_id: itemId, p_prompt: prompt,
     });
-    if (beginError || !context || typeof context !== 'object') return reply(403, { error: 'Task AI consent and module access are required.' });
+    if (beginError) {
+      if (beginError.message?.includes('BLOOM_SUBSCRIPTION_REQUIRED')) return reply(402, { error: 'A Bloom subscription is required for AI features.' });
+      if (beginError.message?.includes('BLOOM_USAGE_CREDITS_EXHAUSTED')) return reply(429, { error: 'Weekly usage credits are exhausted. Visit Subscription to check your refill time.' });
+      return reply(403, { error: 'Task AI consent and module access are required.' });
+    }
+    if (!context || typeof context !== 'object') return reply(403, { error: 'Task AI consent and module access are required.' });
     started = true;
     const parsed = context as { is_child?: unknown; task?: { title?: unknown; notes?: unknown } };
     if (typeof parsed.is_child !== 'boolean' || typeof parsed.task?.title !== 'string' || typeof parsed.task.notes !== 'string') throw new Error('Invalid task context');

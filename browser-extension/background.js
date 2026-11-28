@@ -38,8 +38,10 @@ async function applyRules(policy) {
 }
 
 async function sweepOpenTabs(policy) {
-  if (!policy.enabled || policy.accessAllowed) return;
-  const combined = [...new Set([...(policy.blockedDomains || []), ...(policy.managedDomains || [])])];
+  if (!policy.enabled) return;
+  const combined = policy.accessAllowed
+    ? [...new Set(policy.managedDomains || [])]
+    : [...new Set([...(policy.blockedDomains || []), ...(policy.managedDomains || [])])];
   if (combined.length === 0) return;
 
   const managedSet = compileDomains(policy.managedDomains || []);

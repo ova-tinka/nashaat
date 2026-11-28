@@ -88,9 +88,8 @@ final class BloomDeviceActivityMonitor: DeviceActivityMonitor {
 
   private func scheduledParts(_ activity: DeviceActivityName) -> (String, String)? {
     let parts = activity.rawValue.split(separator: ".")
-    guard parts.count == 5, parts[0] == "bloom", parts[1] == "sched",
-          UUID(uuidString: String(parts[2])) != nil, UUID(uuidString: String(parts[3])) != nil,
-          Int(parts[4]) != nil else { return nil }
+    guard parts.count == 4, parts[0] == "bloom", parts[1] == "sched",
+          UUID(uuidString: String(parts[2])) != nil, UUID(uuidString: String(parts[3])) != nil else { return nil }
     return (String(parts[2]), String(parts[3]))
   }
 

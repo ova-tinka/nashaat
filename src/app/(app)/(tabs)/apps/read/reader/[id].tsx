@@ -207,7 +207,7 @@ export default function IntegratedReaderScreen() {
   const activeSession = Boolean(session && session.item_id === item?.id);
   const elapsed = activeSession && tick ? Math.max(0, Math.floor((tick - Date.parse(session!.started_at)) / 1000)) : 0;
 
-  return <Screen safeAreaTop={false}>
+  return <Screen safeAreaTop={true}>
     <View style={sharedStyles.column}>
       <Eyebrow>Bloom reader · private file</Eyebrow>
       <Heading>{document?.title ?? 'Open reading file'}</Heading>

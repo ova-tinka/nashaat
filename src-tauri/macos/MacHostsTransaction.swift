@@ -297,7 +297,7 @@ struct MacHostsTransaction {
       try writeFence(in: work)
       try writeDesiredPolicy(next, in: work, afterCommit: afterPolicyCommit)
       do {
-        try applyLocked(domains: allowed ? [] : combined, dir: dir, work: work)
+        try applyLocked(domains: allowed ? managed : combined, dir: dir, work: work)
         // An empty managed set retains enrollment for future parent changes.
       } catch Failure.recoveryRequired { throw Failure.recoveryRequired }
       catch { throw Failure.commitUncertain }
@@ -338,7 +338,7 @@ struct MacHostsTransaction {
       try writeDesiredPolicy(DesiredPolicy(version: 1, domains: policy.domains, manualDomains: policy.manualDomains,
         managedDomains: policy.managedDomains, owner: policy.owner,
         access: chosen, completedSessionID: policy.completedSessionID), in: work, afterCommit: afterWindowCommit)
-      do { try applyLocked(domains: [], dir: dir, work: work) }
+      do { try applyLocked(domains: policy.managedDomains ?? [], dir: dir, work: work) }
       catch Failure.recoveryRequired { throw Failure.recoveryRequired }
       catch { throw Failure.commitUncertain }
       installed = true
@@ -393,7 +393,7 @@ struct MacHostsTransaction {
       try recover(in: work, hostsDirectory: dir)
       guard let policy = try readDesiredPolicy(in: work) else { return }
       let accessAllowed = policy.access?.allows(now: now, boot: boot) == true
-      try applyLocked(domains: accessAllowed ? [] : policy.domains, dir: dir, work: work)
+      try applyLocked(domains: accessAllowed ? (policy.managedDomains ?? []) : policy.domains, dir: dir, work: work)
       if policy.access != nil && !accessAllowed {
         // Restore blocking first, even if the subsequent policy write fails.
         // Persist invalidation so a later clock reading cannot reopen it.

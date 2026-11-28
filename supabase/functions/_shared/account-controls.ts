@@ -96,7 +96,15 @@ export type DeletionJobRecord = {
   id: string;
   profile_id: string;
   account_scope: 'personal' | 'family_review';
-  status: 'queued' | 'revoking_access' | 'removing_files' | 'clearing_records' | 'completed' | 'needs_family_review';
+  status:
+    | 'queued'
+    | 'revoking_access'
+    | 'removing_files'
+    | 'clearing_records'
+    | 'deleting_auth_user'
+    | 'completed'
+    | 'needs_family_review'
+    | 'needs_billing_cancellation';
   pending_storage_paths: string[];
   revoked_session_ids?: string[];
 };
@@ -104,10 +112,10 @@ export type DeletionJobRecord = {
 export type AccountDeleteDependencies = {
   authenticate: (token: string) => Promise<ActiveIdentity | null>;
   resolveProfileId: (token: string) => Promise<string | null>;
-  requestDeletion: (profileId: string, userId: string) => Promise<DeletionJobRecord>;
+  requestDeletion: (profileId: string | null, userId: string) => Promise<DeletionJobRecord>;
   advanceDeletionJob: (
     jobId: string,
-    step: 'revoke_access' | 'mark_files_removed' | 'clear_records',
+    step: 'revoke_access' | 'mark_files_removed' | 'clear_records' | 'finalize',
     removedPaths?: string[],
     sessionId?: string | null,
   ) => Promise<DeletionJobRecord>;
@@ -135,14 +143,27 @@ export function accountDeleteHandler(deps: AccountDeleteDependencies) {
 
     try {
       const profileId = await deps.resolveProfileId(token);
-      if (!profileId) return reply(403, { error: 'Profile unavailable' });
-      let job = await deps.requestDeletion(profileId, auth.userId);
+      let job: DeletionJobRecord;
+      try {
+        job = await deps.requestDeletion(profileId, auth.userId);
+      } catch {
+        if (!profileId) return reply(403, { error: 'Profile unavailable' });
+        throw new Error('Deletion request failed');
+      }
 
       if (job.status === 'needs_family_review') {
         return reply(202, {
           status: 'needs_family_review',
           job_id: job.id,
           message: 'Active Family accounts require a reviewed deletion so other family members and their wallets stay protected.',
+        });
+      }
+
+      if (job.status === 'needs_billing_cancellation') {
+        return reply(409, {
+          status: 'needs_billing_cancellation',
+          job_id: job.id,
+          error: 'Cancel your active Tap subscription and wait for any pending payments or refunds to settle before deleting your account.',
         });
       }
 
@@ -180,8 +201,12 @@ export function accountDeleteHandler(deps: AccountDeleteDependencies) {
         job = await deps.advanceDeletionJob(job.id, 'clear_records', [], null);
       }
 
-      if (job.status === 'completed') {
+      if (job.status === 'deleting_auth_user') {
         await deps.deleteAuthUser(auth.userId);
+        job = await deps.advanceDeletionJob(job.id, 'finalize', [], auth.sessionId);
+      }
+
+      if (job.status === 'completed') {
         return reply(200, { status: 'completed', job_id: job.id });
       }
 

@@ -254,9 +254,10 @@ export function ReadModuleScreen({ sectionId }: { sectionId?: string }) {
               startedAt: activeSession.started_at,
               completedAt: new Date().toISOString(),
               durationSeconds,
-            });
+            }, activeSession.id);
             setPendingOfflineCount(await getPendingOfflineCount(profileId));
             setNotice('Reading session saved offline as Pending. It will sync as self-reported history when connected without automatic time-based credit.');
+            router.replace(routeFor('today'));
             return;
           } catch { /* Fall through if local persistence also failed. */ }
         }
@@ -401,7 +402,7 @@ export function ReadModuleScreen({ sectionId }: { sectionId?: string }) {
               <Label>{wantToRead[0]?.title ?? 'Choose something for your shelf'}</Label>
               <Body>{wantToRead[0] ? 'Start a timed session when you are ready. Page position is optional.' : 'Add a book or article to keep your reading plans together.'}</Body>
               <Button label={wantToRead[0] ? 'Start reading session' : 'Add your first book'} onPress={() => wantToRead[0] ? void startSession(wantToRead[0]) : router.push(addRouteFor('today'))} busy={saving} />
-              {wantToRead[0] && <Button label="View reading list" variant="tertiary" onPress={() => router.push(routeFor('item', wantToRead[0].id))} />}
+              {wantToRead[0] && <Button label="View reading list" variant="tertiary" onPress={() => selectSection('library')} />}
             </Panel>}
         </View>
         <Panel>

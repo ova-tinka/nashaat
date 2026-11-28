@@ -36,11 +36,13 @@ import Foundation
     } catch MacHostsTransaction.Failure.wrongOwner {}
     try store.installVerifiedWindow(ownerUID: 501, profileID: profile, sessionID: session,
       boot: 7, now: 1000, deadline: 5000, expectedFence: originalFence)
-    precondition((try? Data(contentsOf: hosts)) == original)
+    let expectedParent1 = try MacHostsPolicy.transform(original, domains: managed)
+    precondition((try? Data(contentsOf: hosts)) == expectedParent1)
     let activeFence = try store.policyFenceForOwner(ownerUID: 501, profileID: profile)
     let changed = try store.syncManagedDomains(["parent2.example.com"], ownerUID: 501, profileID: profile,
       expectedFence: activeFence, now: 2000, boot: 7)
-    precondition(changed && (try? Data(contentsOf: hosts)) == original)
+    let expectedParent2 = try MacHostsPolicy.transform(original, domains: ["parent2.example.com"])
+    precondition(changed && (try? Data(contentsOf: hosts)) == expectedParent2)
     do {
       _ = try store.syncManagedDomains(["parent1.example.com"], ownerUID: 501, profileID: profile,
         expectedFence: activeFence, now: 2000, boot: 7)
@@ -53,7 +55,8 @@ import Foundation
     try child.run(); child.waitUntilExit()
     precondition(child.terminationReason == .uncaughtSignal && child.terminationStatus == SIGKILL)
     try store.reconcilePersistentDomains(now: 3000, boot: 7)
-    precondition((try? Data(contentsOf: hosts)) == original)
+    let expectedParent3DuringWindow = try MacHostsPolicy.transform(original, domains: ["parent3.example.com"])
+    precondition((try? Data(contentsOf: hosts)) == expectedParent3DuringWindow)
     try store.reconcilePersistentDomains(now: 5000, boot: 7)
     let expected = try MacHostsPolicy.transform(original, domains: manual + ["parent3.example.com"])
     precondition((try? Data(contentsOf: hosts)) == expected)
@@ -73,11 +76,11 @@ import Foundation
     _ = try store.syncManagedDomains([], ownerUID: 501, profileID: profile, expectedFence: beforeEmpty, now: 7000, boot: 7)
     precondition((try? Data(contentsOf: hosts)) == original)
     let emptyFence = try store.policyFenceForOwner(ownerUID: 501, profileID: profile)
+    let expectedLater = try MacHostsPolicy.transform(original, domains: ["later.example.com"])
     _ = try store.syncManagedDomains(["later.example.com"], ownerUID: 501, profileID: profile,
       expectedFence: emptyFence, now: 8000, boot: 7)
-    precondition((try? Data(contentsOf: hosts)) == original)
+    precondition((try? Data(contentsOf: hosts)) == expectedLater)
     try store.reconcilePersistentDomains(now: 10000, boot: 7)
-    let expectedLater = try MacHostsPolicy.transform(original, domains: ["later.example.com"])
     precondition((try? Data(contentsOf: hosts)) == expectedLater)
     print("macOS managed hosts synchronization checks passed")
   }

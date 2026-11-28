@@ -342,15 +342,19 @@ export function MockExamPanel({ profileId, items, records, readOnly, onSaved }: 
         disabled={busy || readOnly || timeExpired} onPress={() => setAnswers((currentAnswers) => ({ ...currentAnswers, [current.id]: option }))} />)}
       {current.type === 'short_answer' && <Field label="Your answer" value={readOnly ? '' : answers[current.id] ?? ''} onChangeText={(value) => setAnswers((currentAnswers) => ({ ...currentAnswers, [current.id]: value }))}
         multiline maxLength={3000} editable={!busy && !readOnly && !timeExpired} />}
-      <View style={styles.row}>
+      {!timeExpired && activeQuestion < active.definition.questions.length - 1 ? <View style={styles.row}>
         <Button label="Previous" variant="secondary" disabled={busy || readOnly || activeQuestion === 0} onPress={() => setActiveQuestion((index) => Math.max(0, index - 1))} />
-        {!timeExpired && activeQuestion < active.definition.questions.length - 1
-          ? <Button label="Next question" onPress={() => setActiveQuestion((index) => index + 1)} disabled={busy || readOnly} />
-          : (hasShortAnswer
-            ? <UsageButton feature="mock_exam_assess" replay={Boolean(error)} label="Submit attempt" onPress={submit} busy={busy} disabled={busy || readOnly} />
-            : <Button label="Submit attempt" onPress={() => void submit()} busy={busy} disabled={busy || readOnly} />)}
-      </View>
-      <Button label="Leave this attempt" variant="tertiary" disabled={busy} onPress={() => { setActiveExamId(null); setStartTime(null); setActiveQuestion(0); setAnswers({}); pendingRequest.current = null; }} />
+        <Button label="Next question" onPress={() => setActiveQuestion((index) => index + 1)} disabled={busy || readOnly} />
+      </View> : <View style={sharedStyles.column}>
+        <Button label="Previous" variant="secondary" disabled={busy || readOnly || activeQuestion === 0} onPress={() => setActiveQuestion((index) => Math.max(0, index - 1))} />
+        {hasShortAnswer
+          ? <UsageButton feature="mock_exam_assess" replay={Boolean(error)} label="Submit attempt" onPress={submit} busy={busy} disabled={busy || readOnly} />
+          : <Button label="Submit attempt" onPress={() => void submit()} busy={busy} disabled={busy || readOnly} />}
+      </View>}
+      <Button label="Leave this attempt" variant="tertiary" disabled={busy} onPress={() => {
+        setActiveExamId(null); setStartTime(null); setActiveQuestion(0); setAnswers({}); pendingRequest.current = null;
+        if (draftKey && !title && !sourceReference && draftQuestions.length === 0) void AsyncStorage.removeItem(draftKey).catch(() => undefined);
+      }} />
     </View>}
 
     {examsNeedAi && <View style={sharedStyles.row}>

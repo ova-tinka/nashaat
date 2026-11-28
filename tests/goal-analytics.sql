@@ -7,16 +7,7 @@ insert into auth.users(id) values
 insert into public.exercises(id, name, measurement_type, is_system) values
   ('10000000-0000-0000-0000-000000000021', 'Goal repetitions', 'reps_only', true),
   ('10000000-0000-0000-0000-000000000022', 'Goal timer', 'time_only', true);
-insert into public.bloom_households(id, owner_user_id, name)
-  values ('20000000-0000-0000-0000-000000000021', '00000000-0000-0000-0000-000000000023', 'Analytics family');
-insert into public.bloom_household_members(household_id, user_id, role) values
-  ('20000000-0000-0000-0000-000000000021', '00000000-0000-0000-0000-000000000023', 'parent'),
-  ('20000000-0000-0000-0000-000000000021', '00000000-0000-0000-0000-000000000021', 'child');
-
 set local role authenticated;
-select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000021', true);
-select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000023', true);
-select public.bloom_set_child_module_assignments('00000000-0000-0000-0000-000000000021', array['exercise']::text[]);
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000021', true);
 
 do $$
@@ -34,6 +25,27 @@ begin
   end;
   update public.bloom_settings set earning_strategy = 'goal_analytics',
     weekly_workout_target = 2, weekly_credit_target_minutes = 20 where user_id = auth.uid();
+end;
+$$;
+
+reset role;
+insert into public.bloom_households(id, owner_user_id, name)
+  values ('20000000-0000-0000-0000-000000000021', '00000000-0000-0000-0000-000000000023', 'Analytics family');
+insert into public.bloom_household_members(household_id, user_id, role) values
+  ('20000000-0000-0000-0000-000000000021', '00000000-0000-0000-0000-000000000023', 'parent'),
+  ('20000000-0000-0000-0000-000000000021', '00000000-0000-0000-0000-000000000021', 'child');
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000023', true);
+select public.bloom_set_child_module_assignments('00000000-0000-0000-0000-000000000021', array['exercise']::text[]);
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000021', true);
+
+do $$
+declare
+  v_plan uuid;
+  v_session uuid;
+  v_amount numeric;
+  v_stats jsonb;
+begin
 
   v_plan := public.bloom_create_workout_plan('Weekly goal', '[
     {"exercise_id":"10000000-0000-0000-0000-000000000021","sets":2,"target":10},

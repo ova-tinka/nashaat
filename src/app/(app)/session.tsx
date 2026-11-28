@@ -168,7 +168,7 @@ export default function WorkoutSessionScreen() {
             completedAt: new Date().toISOString(),
             durationSeconds: Math.min(43200, fallbackDuration),
             results,
-          });
+          }, session.id);
           setDraftReady(false);
           await clearDraft();
           setQueuedOffline(true);
@@ -188,7 +188,7 @@ export default function WorkoutSessionScreen() {
     finally { setSaving(false); }
   }
 
-  return <Screen safeAreaTop={false}>
+  return <Screen safeAreaTop={true}>
     <View style={sharedStyles.column}><Eyebrow>Workout session</Eyebrow><Heading>{session?.status === 'completed' ? 'Workout saved' : 'Your workout'}</Heading></View>
     {loading && <ActivityIndicator color={theme.colors.action} />}
     {!loading && !session && <Panel><ErrorText>{error ?? 'Workout session not found.'}</ErrorText><Button label="Try again" onPress={() => void load()} /><Button label="Back to workouts" secondary onPress={() => router.replace('/workouts')} /></Panel>}

@@ -1,6 +1,6 @@
 import { body, preliminary, reply } from '../_shared/child-pairing.ts';
 import { coachAccess } from '../_shared/coach-access.ts';
-import { admin, userClient } from '../_shared/supabase.ts';
+import { admin, authenticateActiveUser, userClient } from '../_shared/supabase.ts';
 
 const model = Deno.env.get('FIREWORKS_MODEL') ?? '';
 const apiKey = Deno.env.get('FIREWORKS_API_KEY') ?? '';
@@ -71,13 +71,18 @@ Deno.serve(async (request) => {
   if (!access.enabled) return reply(503, { error: 'AI assessment is not available yet.' });
   let started = false; let authorized = false;
   try {
-    const { data: identity, error: identityError } = await userClient().auth.getUser(token);
-    if (identityError || !identity.user || !access.permits(identity.user.id)) return reply(401, { error: 'Sign in required' });
+    const active = await authenticateActiveUser(token);
+    if (!active || !access.permits(active.user.id)) return reply(401, { error: 'Sign in required' });
     authorized = true;
     const { data: context, error: beginError } = await userClient(token).rpc('bloom_begin_mock_exam_assessment', {
       p_request_id: requestId, p_exam_id: examId, p_answers: answers,
     });
-    if (beginError || !context || typeof context !== 'object') return reply(403, { error: 'Study AI consent and module access are required.' });
+    if (beginError) {
+      if (beginError.message?.includes('BLOOM_SUBSCRIPTION_REQUIRED')) return reply(402, { error: 'A Bloom subscription is required for AI assessment.' });
+      if (beginError.message?.includes('BLOOM_USAGE_CREDITS_EXHAUSTED')) return reply(429, { error: 'Weekly usage credits are exhausted. Visit Subscription to check your refill time.' });
+      return reply(403, { error: 'Study AI consent and module access are required.' });
+    }
+    if (!context || typeof context !== 'object') return reply(403, { error: 'Study AI consent and module access are required.' });
     const parsed = context as { status?: unknown; result?: unknown; is_child?: unknown;
       questions?: unknown; answers?: unknown; exam?: { title?: unknown; source_reference?: unknown; definition?: { questions?: unknown } } };
     if (parsed.status === 'completed' && parsed.result && typeof parsed.result === 'object') return reply(200, { status: 'assessed', ...parsed.result as Record<string, unknown> });

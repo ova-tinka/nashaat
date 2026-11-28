@@ -107,7 +107,7 @@ class BloomBlockingModule : Module() {
       @Suppress("DEPRECATION")
       context.packageManager.queryIntentActivities(intent, PackageManager.MATCH_ALL)
         .asSequence()
-        .filter { it.activityInfo.packageName != context.packageName }
+        .filter { !ProtectedPackages.isProtected(context, it.activityInfo.packageName) }
         .distinctBy { it.activityInfo.packageName }
         .map {
           mapOf(
@@ -212,15 +212,16 @@ class BloomBlockingModule : Module() {
     AsyncFunction("setManagedTargets") { packageIds: List<String>, addresses: List<String>, accountId: String ->
       val context = appContext.reactContext ?: throw IllegalStateException("Bloom is not available.")
       require(packageIds.size <= MAX_TARGETS && packageIds.all { PACKAGE_ID.matches(it) && it != context.packageName }) { "A parent app rule is invalid." }
+      val filteredApps = packageIds.filterNot { ProtectedPackages.isProtected(context, it) }.toSet()
       require(addresses.size <= MAX_TARGETS) { "Too many parent website rules." }
       require(accountId.isNotBlank() && accountId.length <= 64) { "A parent account identifier is invalid." }
       val domains = addresses.map { WebsiteDomains.host(it) ?: throw IllegalArgumentException("A parent website rule is invalid.") }.toSet()
       val prefs = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
       val previousApps = prefs.getStringSet(MANAGED_APPS, emptySet()).orEmpty()
       val wasManaged = previousApps.isNotEmpty() || prefs.getStringSet(MANAGED_WEBSITES, emptySet()).orEmpty().isNotEmpty()
-      val edit = prefs.edit().putStringSet(MANAGED_APPS, packageIds.toSet()).putStringSet(MANAGED_WEBSITES, domains)
+      val edit = prefs.edit().putStringSet(MANAGED_APPS, filteredApps).putStringSet(MANAGED_WEBSITES, domains)
         .putString(MANAGED_ACCOUNT, accountId)
-      if (packageIds.isNotEmpty() || (domains.isNotEmpty() && prefs.getBoolean(WEBSITE_CONSENT, false))) edit.putBoolean(BLOCKING_ACTIVE, true)
+      if (filteredApps.isNotEmpty() || (domains.isNotEmpty() && prefs.getBoolean(WEBSITE_CONSENT, false))) edit.putBoolean(BLOCKING_ACTIVE, true)
       else if (wasManaged && prefs.getStringSet(BLOCKED_APPS, emptySet()).orEmpty().isEmpty()
         && prefs.getStringSet(BLOCKED_WEBSITES, emptySet()).orEmpty().isEmpty()) edit.putBoolean(BLOCKING_ACTIVE, false)
       check(edit.commit()) { "Could not save parent-set blocking rules." }
@@ -420,7 +421,7 @@ class BloomBlockingModule : Module() {
     @Suppress("DEPRECATION")
     return context.packageManager.queryIntentActivities(intent, PackageManager.MATCH_ALL)
       .map { it.activityInfo.packageName }
-      .filter { it != context.packageName }
+      .filter { !ProtectedPackages.isProtected(context, it) }
       .toSet()
   }
 

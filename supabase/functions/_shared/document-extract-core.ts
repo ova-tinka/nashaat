@@ -27,14 +27,18 @@ export function textSize(sections: ExtractedSection[]) {
   return sections.reduce((sum, section) => sum + section.text.length, 0);
 }
 
+function safeCodePoint(code: number): string {
+  return Number.isInteger(code) && code >= 0 && code <= 0x10FFFF ? String.fromCodePoint(code) : '';
+}
+
 function xmlText(value: string) {
   return value.replace(/<w:tab\s*\/?\s*>/g, ' ')
     .replace(/<w:(?:br|cr)\s*\/?\s*>/g, ' ')
     .replace(/<[^>]+>/g, '')
     .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"').replace(/&apos;/g, "'")
-    .replace(/&#(\d+);/g, (_match, number: string) => String.fromCodePoint(Number(number)))
-    .replace(/&#x([0-9a-f]+);/gi, (_match, number: string) => String.fromCodePoint(parseInt(number, 16)))
+    .replace(/&#(\d+);/g, (_match, number: string) => safeCodePoint(Number(number)))
+    .replace(/&#x([0-9a-f]+);/gi, (_match, number: string) => safeCodePoint(parseInt(number, 16)))
     .replace(/\s+/g, ' ').trim();
 }
 

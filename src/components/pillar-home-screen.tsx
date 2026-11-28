@@ -238,7 +238,8 @@ function ExerciseHomeScreen() {
 }
 
 function Metric({ value, label }: { value: string | number; label: string }) {
-  return <View style={styles.metric}><Text style={styles.metricValue}>{value}</Text><Text style={styles.metricLabel}>{label}</Text></View>;
+  const { theme } = useBloomTheme();
+  return <View style={styles.metric}><Text style={[styles.metricValue, { color: theme.colors.ink }]}>{value}</Text><Text style={[styles.metricLabel, { color: theme.colors.inkMuted }]}>{label}</Text></View>;
 }
 
 function getWorkoutDays(history: WorkoutHistoryItem[], timeZone: string, todayKey: string) {

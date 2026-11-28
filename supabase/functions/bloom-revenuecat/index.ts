@@ -1,4 +1,4 @@
-import { userClient } from '../_shared/supabase.ts';
+import { authenticateActiveUser, userClient } from '../_shared/supabase.ts';
 import { json, record, requiredEnv, secureMatch, str, uuid } from '../_shared/billing.ts';
 import { billingSandbox, queueBillingWebhook } from '../_shared/billing-webhooks.ts';
 import { revenueCatProfiles } from '../_shared/revenuecat-billing.ts';
@@ -28,9 +28,9 @@ Deno.serve(async request => {
     }
     if (action !== 'sync' || !bearer.startsWith('Bearer ')) return json({ error: 'Unauthorized' }, 401);
     const token = bearer.slice(7);
+    const active = await authenticateActiveUser(token);
+    if (!active) return json({ error: 'Unauthorized' }, 401);
     const client = userClient(token);
-    const identity = await client.auth.getUser(token);
-    if (identity.error || !identity.data.user) return json({ error: 'Unauthorized' }, 401);
     const { data, error } = await client.rpc('bloom_current_profile');
     const profile = str(data?.profile_id);
     if (error || !uuid.test(profile) || data.child_profile) return json({ error: 'Purchases are managed by the payer' }, 403);

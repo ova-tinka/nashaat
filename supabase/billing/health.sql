@@ -5,8 +5,9 @@ select
     or (state in ('ready','pending') and created_at<now()-interval '20 minutes')) as overdue_or_uncertain_charges,
   (select count(*) from bloom_private.tap_refunds where state='review'
     or (state in ('approved','pending') and next_check_at<now()-interval '10 minutes')) as overdue_or_uncertain_refunds,
-  (select count(*) from public.bloom_billing_events where processed_at is null) as unprocessed_events,
-  (select count(*) from public.bloom_billing_events where processed_at is null
+  (select count(*) from public.bloom_billing_events where processed_at is null and webhook_failed_at is null) as unprocessed_events,
+  (select count(*) from public.bloom_billing_events where processed_at is null and webhook_failed_at is not null) as dead_letter_webhooks,
+  (select count(*) from public.bloom_billing_events where processed_at is null and webhook_failed_at is null
     and received_at<now()-interval '5 minutes') as overdue_events,
   (select count(*) from bloom_private.tap_attempts a where a.kind<>'card_update'
     and a.state='captured' and (a.subscription_id is null or a.term_end is null)) as payments_without_coverage_record,

@@ -418,9 +418,10 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
             startedAt: session.started_at,
             completedAt: new Date().toISOString(),
             durationSeconds,
-          });
+          }, session.id);
           setPendingOfflineCount(await getPendingOfflineCount(profileId));
           setNotice('Session saved offline as Pending. It will sync as self-reported history when connected without automatic time-based credit.');
+          if (moduleId === 'study') router.replace(sectionHref('study', 'today'));
           return;
         } catch { /* Fall through to standard retry error. */ }
       }
@@ -536,7 +537,7 @@ export function GrowthModuleScreen({ moduleId, sectionId }: { moduleId: GrowthMo
   const isStudyImmersive = moduleId === 'study' && ['active-session', 'session-complete', 'learning-check'].includes(effectiveSectionId ?? '');
   const selectedStudyTab = moduleId === 'study' && !primarySections.some((section) => section.id === effectiveSectionId) ? 'more' : effectiveSectionId;
 
-  return <Screen safeAreaTop={false}>
+  return <Screen safeAreaTop={isStudyImmersive}>
     {moduleId === 'study' ? (!isStudyImmersive && <>
       {!desktop && <View style={styles.studyHeader}>
         <View style={[styles.moduleIcon, { backgroundColor: theme.colors.surface }]}><MaterialIcons name="school" size={24} color={accent.deep} /></View>

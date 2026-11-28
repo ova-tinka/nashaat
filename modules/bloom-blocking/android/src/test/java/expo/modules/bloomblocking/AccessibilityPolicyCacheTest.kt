@@ -2,6 +2,8 @@ package expo.modules.bloomblocking
 
 import android.view.accessibility.AccessibilityEvent
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -72,5 +74,35 @@ class AccessibilityPolicyCacheTest {
         nowMs = 1000L,
       ),
     )
+  }
+
+  @Test
+  fun protectsEssentialPackagesAndExpiresTimedManualFocusLive() {
+    assertTrue(ProtectedPackages.isProtected("com.android.settings", "com.bloomgrowth.app"))
+    assertTrue(ProtectedPackages.isProtected("com.android.dialer", "com.bloomgrowth.app"))
+    assertTrue(ProtectedPackages.isProtected("com.bloomgrowth.app", "com.bloomgrowth.app"))
+    assertFalse(ProtectedPackages.isProtected("com.example.game", "com.bloomgrowth.app"))
+
+    val policy = CachedAccessibilityPolicy(
+      revision = 1L,
+      active = false,
+      personalApps = emptySet(),
+      managedApps = emptySet(),
+      personalWebsites = emptySet(),
+      managedWebsites = emptySet(),
+      websiteChecksEnabled = false,
+      creditAccount = null,
+      focusRoutineAccount = null,
+      routines = emptyList(),
+      manual = ManualFocusStore.RawConfig(
+        selection = ManualFocusStore.Selection(setOf("com.example.game"), emptySet()),
+        enabled = true,
+        deadline = 5_000L,
+        recordedBoot = 2,
+      ),
+    )
+    assertNotNull(policy.activeManual(nowElapsedMs = 4_000L, currentBoot = 2))
+    assertNull(policy.activeManual(nowElapsedMs = 5_000L, currentBoot = 2))
+    assertNull(policy.activeManual(nowElapsedMs = 4_000L, currentBoot = 3))
   }
 }

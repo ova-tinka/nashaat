@@ -753,7 +753,7 @@ export function MacosFocus({ initialSection, openEarned = false }: {
             <Button label="Install Strict All-Profile (Private Windows)" variant="tertiary" onPress={() => void openBrowserPolicyProfile(true)} busy={busy} />
           </>
         ) : (
-          <Body>To deploy automatically across all Brave profiles without Developer Mode, publish the packaged zip in dist/bloom-browser-extension-cws.zip to the Chrome Web Store and build with BLOOM_CHROME_EXTENSION_ID.</Body>
+          <Body>Managed browser extension deployment is not configured in this build. Use &ldquo;Set up browser bridge &amp; extension&rdquo; above to configure Brave or Chrome protection on this Mac.</Body>
         )}
 
         <MacFocusDisclosure title="Protection details" summary="Browser coverage, permissions, and service status" expanded={showWebsiteDetails} onPress={() => setShowWebsiteDetails((open) => !open)}>

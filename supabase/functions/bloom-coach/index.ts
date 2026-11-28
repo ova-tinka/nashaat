@@ -1,7 +1,7 @@
 import { coachHandler, CoachProviderError } from '../_shared/coach.ts';
 import { fireworksRequest } from '../_shared/fireworks-request.ts';
 import { coachAccess } from '../_shared/coach-access.ts';
-import { admin, userClient } from '../_shared/supabase.ts';
+import { admin, authenticateActiveUser, userClient } from '../_shared/supabase.ts';
 
 const model = Deno.env.get('FIREWORKS_MODEL') ?? '';
 const apiKey = Deno.env.get('FIREWORKS_API_KEY') ?? '';
@@ -30,8 +30,8 @@ async function limitedJson(response: Response): Promise<unknown> {
 Deno.serve(coachHandler({
   enabled: access.enabled, minorsApproved, testDiagnostics: testMode,
   async authenticate(token) {
-    const { data, error } = await userClient().auth.getUser(token);
-    return !error && Boolean(data.user && access.permits(data.user.id));
+    const active = await authenticateActiveUser(token);
+    return Boolean(active && access.permits(active.user.id));
   },
   async begin(token, id, kind, prompt) {
     const { data, error } = await userClient(token).rpc('bloom_begin_coach_request', { p_request_id: id, p_kind: kind, p_prompt: prompt });

@@ -3,9 +3,11 @@ import { Platform } from 'react-native';
 import BloomBlocking from '../../modules/bloom-blocking/src/BloomBlockingModule';
 import { finishBlockingRulesSync } from './blocking-rules-sync';
 import { isMacDesktop, macCreditMarker, macUsageKey, macosFilter, type MacCreditTargets } from './macos-blocking';
+import { clearStoreBilling } from './store-billing';
 
 // Close account-bound access before replacing or ending an Auth session.
 export async function closeDeviceAccess(userId: string) {
+  await clearStoreBilling().catch(() => undefined);
   if (isMacDesktop()) {
     if (await AsyncStorage.getItem(macUsageKey(userId))) {
       const usage = (await macosFilter('getUsageAccess')).usage;

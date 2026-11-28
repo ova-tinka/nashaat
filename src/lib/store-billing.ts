@@ -7,3 +7,5 @@ export async function storeOffer(_profile: string, _sku: string, _offer: string)
 export async function purchaseStorePlan(_profile: string, _sku: string, _offer?: string, _winBack?: boolean) { unavailable(); }
 export async function restoreStorePurchases(_profile: string) { unavailable(); }
 export async function redeemAppleCode(_profile: string) { unavailable(); }
+export async function identifyStoreBilling(_profile: string): Promise<void> {}
+export async function clearStoreBilling(): Promise<void> {}

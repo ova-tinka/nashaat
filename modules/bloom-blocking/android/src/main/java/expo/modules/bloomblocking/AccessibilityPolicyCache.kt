@@ -3,8 +3,9 @@ package expo.modules.bloomblocking
 import android.content.Context
 import android.content.SharedPreferences
 import android.view.accessibility.AccessibilityEvent
+import java.util.Calendar
 
-data class CachedAccessibilityPolicy(
+internal data class CachedAccessibilityPolicy(
   val revision: Long,
   val active: Boolean,
   val personalApps: Set<String>,
@@ -15,16 +16,23 @@ data class CachedAccessibilityPolicy(
   val creditAccount: String?,
   val focusRoutineAccount: String?,
   val routines: List<FocusSchedule.Routine>,
-  val manual: ManualFocusStore.Selection?,
+  val manual: ManualFocusStore.RawConfig?,
 ) {
-  fun activeRoutines(nowMs: Long = System.currentTimeMillis()): List<FocusSchedule.Routine> {
+  fun activeRoutines(now: Calendar = Calendar.getInstance()): List<FocusSchedule.Routine> {
     if (routines.isEmpty()) return emptyList()
-    return FocusSchedule.active(routines, nowMs)
+    return FocusSchedule.active(routines, now)
   }
 
-  fun activeManual(nowMs: Long = System.currentTimeMillis()): ManualFocusStore.Selection? {
+  fun activeManual(nowElapsedMs: Long, currentBoot: Int): ManualFocusStore.Selection? {
     val current = manual ?: return null
-    return if (current.active && (current.endsAtMillis == null || current.endsAtMillis > nowMs)) current else null
+    val timing = ManualFocusTiming.evaluate(
+      enabled = current.enabled,
+      deadline = current.deadline,
+      recordedBoot = current.recordedBoot,
+      currentBoot = currentBoot,
+      now = nowElapsedMs,
+    )
+    return if (timing.active) current.selection else null
   }
 }
 
@@ -77,7 +85,7 @@ class AccessibilityPolicyCache {
     val creditAccount = preferences.getString(BloomBlockingModule.CREDIT_ACCOUNT, null)
     val focusRoutineAccount = FocusRoutineStore.account(context)
     val routines = try { FocusRoutineStore.read(context) } catch (_: Exception) { emptyList() }
-    val manual = try { ManualFocusStore.read(context) } catch (_: Exception) { null }
+    val manual = try { ManualFocusStore.readRaw(context) } catch (_: Exception) { null }
 
     val snapshot = CachedAccessibilityPolicy(
       revision = nextRevision,

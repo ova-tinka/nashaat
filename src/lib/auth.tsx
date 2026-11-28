@@ -15,7 +15,6 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(Boolean(supabase));
   const [profile, setProfile] = useState<ProfileState | null>(null);
-  const [profileBusy, setProfileBusy] = useState(false);
   const profileVersion = useRef(0);
   const accountId = session?.user.id;
 
@@ -55,8 +54,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   const refreshProfile = useCallback(async () => {
     const version = ++profileVersion.current;
-    if (!accountId || !supabase) { setProfile(null); setProfileBusy(false); return; }
-    setProfileBusy(true);
+    if (!accountId || !supabase) { setProfile(null); return; }
     try {
       const { data, error } = await supabase.rpc('bloom_current_profile');
       if (error || typeof data?.profile_id !== 'string' || typeof data?.managed_child !== 'boolean' || typeof data?.child_profile !== 'boolean') throw new Error('Profile unavailable');
@@ -64,7 +62,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       if (profileVersion.current === version) setProfile({ accountId, profileId: data.profile_id, managedChild: data.managed_child, childProfile: data.child_profile, assignedModules, error: null });
     } catch {
       if (profileVersion.current === version) setProfile({ accountId, profileId: null, managedChild: false, childProfile: false, assignedModules: [], error: 'Could not load your Bloom profile. Check your connection and try again.' });
-    } finally { if (profileVersion.current === version) setProfileBusy(false); }
+    }
   }, [accountId]);
 
   // Profile identity may differ from the Auth account after email linking.
@@ -80,7 +78,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const current = profile?.accountId === accountId ? profile : null;
 
   return <AuthContext.Provider value={{ session, loading, configured: Boolean(supabase), profileId: current?.profileId ?? null,
-    managedChild: current?.managedChild ?? false, childProfile: current?.childProfile ?? false, assignedModules: current?.assignedModules ?? [], profileLoading: Boolean(accountId && (!current || profileBusy)),
+    managedChild: current?.managedChild ?? false, childProfile: current?.childProfile ?? false, assignedModules: current?.assignedModules ?? [], profileLoading: Boolean(accountId && !current),
     profileError: current?.error ?? null, refreshProfile }}>{children}</AuthContext.Provider>;
 }
 

@@ -35,6 +35,9 @@ export async function requestAccountDeletion(): Promise<AccountDeletionResult> {
     if (code === 'reauth_required') {
       throw new Error('Please sign in again before deleting your account.');
     }
+    if (code === 'needs_billing_cancellation') {
+      throw new Error(typeof data?.error === 'string' ? data.error : 'Cancel your active subscription before deleting your account.');
+    }
     throw new Error(typeof data?.error === 'string' ? data.error : 'Could not delete your account. Please try again.');
   }
   if (data?.status === 'needs_family_review') {

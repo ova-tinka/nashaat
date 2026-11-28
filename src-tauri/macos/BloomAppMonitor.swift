@@ -91,15 +91,20 @@ import os
         }
       }
       let app = workspace.frontmostApplication
-      let selectedApps = Set((defaults.stringArray(forKey: "blockedApps") ?? []) + (defaults.stringArray(forKey: "managedApps") ?? [])).sorted()
+      let personalApps = defaults.stringArray(forKey: "blockedApps") ?? []
+      let managedApps = defaults.stringArray(forKey: "managedApps") ?? []
+      let selectedApps = Set(personalApps + managedApps).sorted()
       let selectedDomains = defaults.stringArray(forKey: "blockedDomains") ?? []
+      let managedDomains = defaults.stringArray(forKey: "managedDomains") ?? []
       let websiteBlocking = defaults.bool(forKey: "websiteBlockingEnabled") && !selectedDomains.isEmpty
       let accessibilityTrusted = AXIsProcessTrusted()
       let browserAddress: MacBrowserAddressResult? = if interactive && websiteBlocking, let app {
         MacBrowserAddress.current(for: app, accessibilityAllowed: accessibilityTrusted)
       } else { nil }
       let rules = WebsiteRules(configuration: ["blockedDomains": selectedDomains])
+      let managedRules = WebsiteRules(configuration: ["blockedDomains": managedDomains])
       let websiteHost = browserAddress?.host.flatMap { rules.blocks($0) ? $0 : nil }
+      let managedWebsiteHost = browserAddress?.host.flatMap { managedRules.blocks($0) ? $0 : nil }
       let unreadableBrowser = browserAddress.flatMap { $0.readable ? nil : $0 }
       let appBlocking = defaults.bool(forKey: "appBlockingEnabled")
       let shouldRequestAccessibility = !accessibilityTrusted
@@ -109,9 +114,12 @@ import os
         let promptKey = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
         _ = AXIsProcessTrustedWithOptions([promptKey: true] as CFDictionary)
       }
-      let appTarget = appBlocking
-        && MacAppRules.shouldBlock(bundleId: app?.bundleIdentifier, active: true, selected: selectedApps, creditAllowed: false)
-      let selectedTarget = interactive && (appTarget || (websiteBlocking && MacMonitorRules.shouldCountWebsiteUse(eligibleBlockedHost: websiteHost)))
+      let managedAppTarget = appBlocking
+        && MacAppRules.shouldBlock(bundleId: app?.bundleIdentifier, active: true, selected: managedApps, creditAllowed: false)
+      let personalAppTarget = appBlocking
+        && MacAppRules.shouldBlock(bundleId: app?.bundleIdentifier, active: true, selected: personalApps, creditAllowed: false)
+      let selectedTarget = interactive && !managedAppTarget
+        && (personalAppTarget || (websiteBlocking && managedWebsiteHost == nil && MacMonitorRules.shouldCountWebsiteUse(eligibleBlockedHost: websiteHost)))
       let config: [String: Any] = [
         "creditBoot": defaults.object(forKey: "creditBoot") ?? NSNull(),
         "creditDeadlineMillis": defaults.object(forKey: "creditDeadlineMillis") ?? NSNull(),
@@ -121,15 +129,80 @@ import os
       let websiteUsageTarget = usageAllowed && usage?.activeSinceMillis != nil && websiteBlocking ? websiteHost : nil
       let websiteUsageBrowser = usageAllowed && usage?.activeSinceMillis != nil && websiteBlocking ? unreadableBrowser?.bundleIdentifier : nil
       let creditAllowed = FilterCreditClock.isAllowed(configuration: config)
-      let balanceHint = MacDisplayBalance.formatHint(MacDisplayBalance.read(from: defaults))
-      let blockUnreadableBrowser = interactive && unreadableBrowser != nil && !creditAllowed && !usageAllowed
+      let accessAllowed = creditAllowed || usageAllowed
+      let blockUnreadableBrowser = interactive && unreadableBrowser != nil && !accessAllowed
       let blockRuleSiteInBrowser = rules.shouldBlockActiveBrowser(host: browserAddress?.host,
         interactive: interactive, protectionEnabled: websiteBlocking,
         creditAllowed: creditAllowed, usageAllowed: usageAllowed)
+        || (interactive && websiteBlocking && managedWebsiteHost != nil)
+      let balanceHint = MacDisplayBalance.formatHint(MacDisplayBalance.read(from: defaults))
+      var observedBrowserAddress = browserAddress
+      var observedUnreadableBrowser = unreadableBrowser
+      var observedBlockRuleSite = blockRuleSiteInBrowser
 
-      if !interactive || creditAllowed || usageAllowed {
+      if !interactive {
         pendingWebsiteShield = nil
         clearShield()
+      } else if accessAllowed {
+        if let app, app.processIdentifier == monitorPID,
+           let currentShield = activeShield,
+           let runningShielded = workspace.runningApplications.first(where: { $0.processIdentifier == currentShield.pid && !$0.isTerminated && !$0.isHidden }) {
+          switch currentShield.target {
+          case .app(let bundleID, _, let isManaged):
+            if isManaged && appBlocking && MacAppRules.shouldBlock(bundleId: bundleID, active: true, selected: managedApps, creditAllowed: false) {
+              showShield(for: runningShielded, target: currentShield.target, balanceHint: balanceHint)
+            } else {
+              clearShield()
+            }
+          case .website(let shieldedHost, _, let browserName, let isManaged):
+            let rechecked = websiteBlocking ? MacBrowserAddress.current(for: runningShielded, accessibilityAllowed: accessibilityTrusted) : nil
+            let recheckedManaged = rechecked?.host.flatMap { managedRules.blocks($0) ? $0 : nil }
+            observedBrowserAddress = rechecked
+            observedBlockRuleSite = recheckedManaged != nil
+            if isManaged, let recheckedManaged, shieldedHost != "" {
+              let nextTarget = MacAppShieldOverlay.ShieldTarget.website(
+                host: recheckedManaged,
+                browserBundleID: runningShielded.bundleIdentifier ?? "",
+                browserName: browserName,
+                isManaged: true
+              )
+              showShield(for: runningShielded, target: nextTarget, balanceHint: balanceHint)
+            } else {
+              clearShield()
+            }
+          case .unreadableBrowser:
+            clearShield()
+          }
+        } else if let app, appBlocking,
+                  MacAppRules.shouldBlock(bundleId: app.bundleIdentifier, active: true, selected: managedApps, creditAllowed: false) {
+          pendingWebsiteShield = nil
+          let target = MacAppShieldOverlay.ShieldTarget.app(
+            bundleID: app.bundleIdentifier ?? "",
+            displayName: app.localizedName ?? app.bundleIdentifier ?? "This app",
+            isManaged: true
+          )
+          showShield(for: app, target: target, balanceHint: balanceHint)
+        } else if let app, websiteBlocking, let managedHost = managedWebsiteHost {
+          if let existing = pendingWebsiteShield, existing.pid == app.processIdentifier, existing.host == managedHost {
+            pendingWebsiteShield = PendingWebsiteShield(pid: app.processIdentifier, host: managedHost, seenCount: existing.seenCount + 1)
+          } else {
+            pendingWebsiteShield = PendingWebsiteShield(pid: app.processIdentifier, host: managedHost, seenCount: 1)
+          }
+          if (pendingWebsiteShield?.seenCount ?? 0) >= 2 {
+            let target = MacAppShieldOverlay.ShieldTarget.website(
+              host: managedHost,
+              browserBundleID: browserAddress?.bundleIdentifier ?? app.bundleIdentifier ?? "",
+              browserName: browserAddress?.browserName ?? app.localizedName ?? "Browser",
+              isManaged: true
+            )
+            showShield(for: app, target: target, balanceHint: balanceHint)
+          } else {
+            clearShield()
+          }
+        } else {
+          pendingWebsiteShield = nil
+          clearShield()
+        }
       } else if let app, app.processIdentifier == monitorPID {
         if let currentShield = activeShield,
            let runningShielded = workspace.runningApplications.first(where: { $0.processIdentifier == currentShield.pid && !$0.isTerminated && !$0.isHidden }) {
@@ -143,9 +216,10 @@ import os
           case .website(let shieldedHost, _, let browserName, _):
             let rechecked = websiteBlocking ? MacBrowserAddress.current(for: runningShielded, accessibilityAllowed: accessibilityTrusted) : nil
             let recheckedHost = rechecked?.host.flatMap { rules.blocks($0) ? $0 : nil }
+            observedBrowserAddress = rechecked
+            observedBlockRuleSite = recheckedHost != nil
             if let recheckedHost {
-              let managedDomains = defaults.stringArray(forKey: "managedDomains") ?? []
-              let isManaged = WebsiteRules(configuration: ["blockedDomains": managedDomains]).blocks(recheckedHost)
+              let isManaged = managedRules.blocks(recheckedHost)
               let nextTarget = MacAppShieldOverlay.ShieldTarget.website(
                 host: recheckedHost,
                 browserBundleID: runningShielded.bundleIdentifier ?? "",
@@ -160,6 +234,8 @@ import os
             }
           case .unreadableBrowser:
             let rechecked = websiteBlocking ? MacBrowserAddress.current(for: runningShielded, accessibilityAllowed: accessibilityTrusted) : nil
+            observedBrowserAddress = rechecked
+            observedUnreadableBrowser = rechecked.flatMap { $0.readable ? nil : $0 }
             if websiteBlocking, let rechecked, !rechecked.readable {
               showShield(for: runningShielded, target: currentShield.target, balanceHint: balanceHint)
             } else {
@@ -172,7 +248,7 @@ import os
       } else if let app, appBlocking,
                 MacAppRules.shouldBlock(bundleId: app.bundleIdentifier, active: true, selected: selectedApps, creditAllowed: false) {
         pendingWebsiteShield = nil
-        let isManaged = (defaults.stringArray(forKey: "managedApps") ?? []).contains {
+        let isManaged = managedApps.contains {
           $0.lowercased() == (app.bundleIdentifier ?? "").lowercased()
         }
         let target = MacAppShieldOverlay.ShieldTarget.app(
@@ -190,8 +266,7 @@ import os
           pendingWebsiteShield = PendingWebsiteShield(pid: app.processIdentifier, host: host, seenCount: 1)
         }
         if (pendingWebsiteShield?.seenCount ?? 0) >= 2 {
-          let managedDomains = defaults.stringArray(forKey: "managedDomains") ?? []
-          let isManaged = WebsiteRules(configuration: ["blockedDomains": managedDomains]).blocks(host)
+          let isManaged = managedRules.blocks(host)
           let target = MacAppShieldOverlay.ShieldTarget.website(
             host: host,
             browserBundleID: browserAddress?.bundleIdentifier ?? app.bundleIdentifier ?? "",
@@ -220,7 +295,7 @@ import os
       ])
 
       let accessDecision = creditAllowed ? "credit" : usageAllowed ? "usage" : "denied"
-      let policySignature = "interactive=\(interactive ? "yes" : "no") protection=\(websiteBlocking ? "on" : "off") address=\(browserAddress?.readable == true ? "readable" : browserAddress?.source ?? "none") source=\(browserAddress?.source ?? "none") rule-match=\(websiteHost == nil ? "no" : "yes") access=\(accessDecision) active-block=\(blockRuleSiteInBrowser ? "yes" : "no")"
+      let policySignature = "interactive=\(interactive ? "yes" : "no") protection=\(websiteBlocking ? "on" : "off") address=\(observedBrowserAddress?.readable == true ? "readable" : observedBrowserAddress?.source ?? "none") source=\(observedBrowserAddress?.source ?? "none") rule-match=\(websiteHost == nil ? "no" : "yes") access=\(accessDecision) active-block=\(observedBlockRuleSite ? "yes" : "no")"
       let policyChanged = policySignature != lastWebsitePolicySignature
       if policyChanged {
         logger.debug("website-policy \(policySignature, privacy: .public)")
@@ -229,18 +304,18 @@ import os
       var statusUpdates: [String: Any] = [
         "usageTargetDomain": websiteUsageTarget ?? "",
         "usageTargetBrowser": websiteUsageBrowser ?? "",
-        "blockedUnreadableBrowserBundleId": websiteBlocking ? unreadableBrowser?.bundleIdentifier ?? "" : "",
-        "blockedActiveBrowserBundleId": blockRuleSiteInBrowser ? browserAddress?.bundleIdentifier ?? "" : "",
+        "blockedUnreadableBrowserBundleId": websiteBlocking ? observedUnreadableBrowser?.bundleIdentifier ?? "" : "",
+        "blockedActiveBrowserBundleId": observedBlockRuleSite ? observedBrowserAddress?.bundleIdentifier ?? "" : "",
         "blockedActiveBrowserCheckedAtMillis": NSNumber(value: now),
         "blockedActiveBrowserBoot": NSNumber(value: boot),
         "usageTargetHeartbeatMillis": NSNumber(value: now),
         "usageTargetBoot": NSNumber(value: boot),
       ]
-      if let browserAddress {
-        statusUpdates["monitorBrowserBundleId"] = browserAddress.bundleIdentifier
-        statusUpdates["monitorBrowserName"] = browserAddress.browserName
-        statusUpdates["monitorBrowserAddressStatus"] = browserAddress.readable ? "readable" : browserAddress.source
-        statusUpdates["monitorBrowserAutomationStatus"] = browserAddress.automationStatus
+      if let observedBrowserAddress {
+        statusUpdates["monitorBrowserBundleId"] = observedBrowserAddress.bundleIdentifier
+        statusUpdates["monitorBrowserName"] = observedBrowserAddress.browserName
+        statusUpdates["monitorBrowserAddressStatus"] = observedBrowserAddress.readable ? "readable" : observedBrowserAddress.source
+        statusUpdates["monitorBrowserAutomationStatus"] = observedBrowserAddress.automationStatus
         statusUpdates["monitorBrowserCheckedAtMillis"] = NSNumber(value: now)
       }
       _ = MacSharedPreferences.write(statusUpdates)
@@ -252,9 +327,9 @@ import os
         userID: UInt32(getuid()),
         publishedAtMillis: now,
         websiteBlockingEnabled: websiteBlocking,
-        browserAddressStatus: browserAddress?.readable == true ? "readable" : browserAddress?.source ?? "inactive",
-        unreadableBrowserBundleIdentifier: unreadableBrowser?.bundleIdentifier ?? "",
-        activeBlockedBrowserBundleIdentifier: blockRuleSiteInBrowser ? browserAddress?.bundleIdentifier ?? "" : "",
+        browserAddressStatus: observedBrowserAddress?.readable == true ? "readable" : observedBrowserAddress?.source ?? "inactive",
+        unreadableBrowserBundleIdentifier: observedUnreadableBrowser?.bundleIdentifier ?? "",
+        activeBlockedBrowserBundleIdentifier: observedBlockRuleSite ? observedBrowserAddress?.bundleIdentifier ?? "" : "",
         activeBlockedBrowserCheckedAtMillis: now,
         activeBlockedBrowserBoot: boot,
         monitorHeartbeatMillis: now,

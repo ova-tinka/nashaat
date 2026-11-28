@@ -54,3 +54,11 @@ Deno.test('parseDocxXmlSections enforces extraction time budget', () => {
     /timed out/,
   );
 });
+
+Deno.test('parseDocxXmlSections ignores out-of-range numeric XML entities without throwing', () => {
+  const xml = `<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>
+    <w:p><w:r><w:t>Valid &#65; and invalid &#99999999; &#x110000; text</w:t></w:r></w:p>
+  </w:body></w:document>`;
+  const sections = parseDocxXmlSections(xml);
+  assert(sections.length === 1 && sections[0].text === 'Valid A and invalid text', `Unexpected text: ${sections[0]?.text}`);
+});

@@ -227,7 +227,7 @@ export default function SettingsScreen() {
             {manualActive && <Body>{manualRemaining === null ? 'Runs until stopped.' : `${Math.ceil(manualRemaining / 60000)} minutes remaining.`}</Body>}
             <Button label={manualActive ? 'End Focus' : 'Start Focus'} onPress={() => void toggleManualFocus()} busy={manualBusy} disabled={manualBusy || manualActive === null || !blockingStatus || (!manualActive && (!blockingStatus.authorized || (Platform.OS === 'android' && blockingStatus.serviceConnected !== true) || !manualTargets))} />
             <Button label="Configure Manual Focus" variant="secondary" onPress={() => router.push('/manual-focus' as Href)} />
-          </> : <Body>Independent Manual Focus is not available on this device.</Body>}
+          </> : <Body>{isMacDesktop() ? 'Use Focus on this Mac to block apps and websites; mobile-style Focus timers are for iOS and Android.' : 'Independent Manual Focus is not available on this device.'}</Body>}
         </View>
 
         <View style={[styles.modeCard, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
@@ -238,7 +238,7 @@ export default function SettingsScreen() {
           {(Platform.OS === 'android' || Platform.OS === 'ios') && !isMacDesktop() ? <>
             <Body>Automatically block selected apps during your routines. Overlapping routines combine their restrictions.</Body>
             <Button label="Manage routines" variant="secondary" onPress={() => router.push('/focus-routines' as Href)} />
-          </> : <Body>Recurring blocking routines are not available on this device.</Body>}
+          </> : <Body>{isMacDesktop() ? 'Use Focus on this Mac to manage blocking; recurring Focus routines are for iOS and Android.' : 'Recurring blocking routines are not available on this device.'}</Body>}
         </View>
       </Panel>
 

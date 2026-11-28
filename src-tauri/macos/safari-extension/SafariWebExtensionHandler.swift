@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import SafariServices
 
@@ -79,9 +80,9 @@ final class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
   }
 
   private func openBloomApp() {
-    let deepLink = Process()
-    deepLink.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-    deepLink.arguments = ["bloomexercise://focus?section=earned"]
-    try? deepLink.run()
+    guard let url = URL(string: "bloomexercise://focus?section=earned") else { return }
+    DispatchQueue.main.async {
+      _ = NSWorkspace.shared.open(url)
+    }
   }
 }

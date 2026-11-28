@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
+import { invoke } from '@tauri-apps/api/core';
 import { Linking, Platform } from 'react-native';
 import { Body, Button, ErrorText, Field, Heading, Label, Panel, Screen } from '../../components/bloom-ui';
 import { useAuth } from '../../lib/auth';
@@ -152,9 +153,21 @@ export default function SubscriptionScreen() {
 
   async function openCheckout(result: Checkout) {
     if (result.checkout_url && result.state === 'pending') {
-      await Linking.openURL(result.checkout_url);
+      if (browser && typeof window !== 'undefined') window.location.assign(result.checkout_url);
+      else await Linking.openURL(result.checkout_url);
     } else {
       router.replace({ pathname: '/subscription', params: { attempt: result.id } });
+    }
+  }
+
+  async function openExternalBilling(
+    target: 'web_subscription' | 'apple_subscriptions' | 'apple_report_problem' | 'google_subscriptions' | 'google_order_history' | 'google_refund_help',
+    fallbackUrl?: string,
+  ) {
+    if (isMacDesktop()) {
+      await invoke('open_billing_url', { target });
+    } else if (fallbackUrl) {
+      await Linking.openURL(fallbackUrl);
     }
   }
 
@@ -174,7 +187,8 @@ export default function SubscriptionScreen() {
   const mayChoose = catalog?.enabled && !childProfile && (browser || (native && storeBillingAvailable))
     && (!plan || (plan.is_payer && plan.provider === provider));
 
-  return <Screen>
+  return <Screen safeAreaTop={false}>
+    <Button label={local('Back', 'رجوع')} variant="tertiary" onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} />
     <Heading>{local('Subscription and usage credits', 'الاشتراك ورصيد الاستخدام')}</Heading>
     <Panel>
       <Label>{plan ? label(plan) : local('Your Bloom plan', 'خطة بلوم الخاصة بك')}</Label>
@@ -184,9 +198,15 @@ export default function SubscriptionScreen() {
       {summary?.next_refill_at && <Body>{local('Next refill', 'التجديد القادم')} · {date(summary.next_refill_at)}</Body>}
       {!plan && summary?.metered && summary.can_access && summary.enforcement_at &&
         <Body>{local('Your transition access ends', 'ينتهي وصولك الانتقالي في')} {date(summary.enforcement_at)}</Body>}
+      {!plan && isMacDesktop() && !childProfile && <>
+        <Body>{local('Subscribe on the Bloom website or on iOS/Android to unlock full access.', 'اشترك عبر موقع بلوم أو تطبيق iOS/Android لفتح الوصول الكامل.')}</Body>
+        <Button label={local('Open Bloom billing on the web', 'فتح الفوترة عبر موقع بلوم')} secondary disabled={busy}
+          onPress={() => void run(() => openExternalBilling('web_subscription'))} />
+      </>}
       {childProfile && <Body>{local('Your household payer manages billing.', 'يتولى وليّ الأمر إدارة الفوترة.')}</Body>}
       {summaryError && <ErrorText>{local('Your balance is temporarily unavailable.', 'رصيدك غير متاح مؤقتًا.')}</ErrorText>}
       <Button label={local('Refresh subscription', 'تحديث الاشتراك')} secondary disabled={busy} onPress={() => void run(async () => {
+        setStatus('');
         if (native && storeBillingAvailable && !childProfile) await syncStoreBilling();
         await refresh(); await load();
       })} />
@@ -198,16 +218,19 @@ export default function SubscriptionScreen() {
 
     {!childProfile && storeProviders.map(storeProvider => <Panel key={storeProvider}>
       <Label>{providers[storeProvider]}</Label>
-      <Button label={local('Manage store subscription', 'إدارة الاشتراك في المتجر')} onPress={() => void run(async () => {
-        await Linking.openURL(storeProvider === 'app_store'
-          ? 'https://apps.apple.com/account/subscriptions' : 'https://play.google.com/store/account/subscriptions');
-      })} />
-      <Button label={local('View store purchases', 'عرض مشتريات المتجر')} secondary onPress={() => void run(async () => {
-        await Linking.openURL(storeProvider === 'app_store' ? 'https://reportaproblem.apple.com/' : 'https://play.google.com/store/account/orderhistory');
-      })} />
-      <Button label={local('Request a store refund', 'طلب استرداد من المتجر')} secondary onPress={() => void run(async () => {
-        await Linking.openURL(storeProvider === 'app_store' ? 'https://reportaproblem.apple.com/' : 'https://support.google.com/googleplay/answer/15574897');
-      })} />
+      <Button label={local('Manage store subscription', 'إدارة الاشتراك في المتجر')} onPress={() => void run(() =>
+        openExternalBilling(
+          storeProvider === 'app_store' ? 'apple_subscriptions' : 'google_subscriptions',
+          storeProvider === 'app_store' ? 'https://apps.apple.com/account/subscriptions' : 'https://play.google.com/store/account/subscriptions',
+        ))} />
+      <Button label={local(storeProvider === 'app_store' ? 'View purchases or request a refund' : 'View store purchases',
+        storeProvider === 'app_store' ? 'عرض المشتريات أو طلب استرداد' : 'عرض مشتريات المتجر')} secondary onPress={() => void run(() =>
+        openExternalBilling(
+          storeProvider === 'app_store' ? 'apple_report_problem' : 'google_order_history',
+          storeProvider === 'app_store' ? 'https://reportaproblem.apple.com/' : 'https://play.google.com/store/account/orderhistory',
+        ))} />
+      {storeProvider !== 'app_store' && <Button label={local('Request a store refund', 'طلب استرداد من المتجر')} secondary onPress={() => void run(() =>
+        openExternalBilling('google_refund_help', 'https://support.google.com/googleplay/answer/15574897'))} />}
     </Panel>)}
 
     {plan?.is_payer && !childProfile && (plan.provider === 'tap' || plan.scope === 'household') && <Panel>
@@ -220,7 +243,11 @@ export default function SubscriptionScreen() {
         <Button label={local('Confirm card update', 'تأكيد تحديث البطاقة')} disabled={busy}
           onPress={() => void run(async () => openCheckout(await tapBilling<Checkout>('card_update', { subscription_id: plan.subscription_id, accepted: true })))} /></>}
       </>}
-      {plan.provider === 'tap' && !browser && <Body>{local('Manage this subscription on the Bloom website.', 'يمكنك إدارة الاشتراك من موقع بلوم.')}</Body>}
+      {plan.provider === 'tap' && !browser && <>
+        <Body>{local('Manage this subscription on the Bloom website.', 'يمكنك إدارة الاشتراك من موقع بلوم.')}</Body>
+        {isMacDesktop() && <Button label={local('Manage subscription on Bloom website', 'إدارة الاشتراك عبر موقع بلوم')} secondary disabled={busy}
+          onPress={() => void run(() => openExternalBilling('web_subscription'))} />}
+      </>}
       {plan.scope === 'household' && (plan.has_household
         ? <Button label={local('Manage household seats', 'إدارة مقاعد العائلة')} secondary disabled={busy} onPress={() => void run(fetchSeats)} />
         : <><Body>{local('Choose the household for your subscription.', 'اختر العائلة التي سيغطيها اشتراكك.')}</Body>
@@ -273,7 +300,7 @@ export default function SubscriptionScreen() {
             onPress={() => void run(() => pay())} /></>}
         {plan?.provider === 'tap' && plan.scope === selected.scope && <Button label={local('Switch at the end of this term', 'التبديل عند نهاية هذه الفترة')}
           secondary disabled={busy} onPress={() => void run(async () => {
-            await tapBilling('schedule', { subscription_id: plan.subscription_id, product_id: selected.id }); await load();
+            await tapBilling('schedule', { subscription_id: plan.subscription_id, product_id: selected.id }); await refresh(); await load();
           })} />}
       </> : <>
         {product && <Body>{local('Regular renewal price', 'سعر التجديد المعتاد')} · {product.price} · {label(selected)}</Body>}

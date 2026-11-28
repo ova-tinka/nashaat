@@ -139,8 +139,11 @@ export async function syncOfflineQueue(
         attempts: entry.attempts + 1,
         lastError: cause instanceof Error ? cause.message : 'Sync interrupted',
       };
-      remaining.push(failed, ...queue.slice(i + 1));
-      break;
+      remaining.push(failed);
+      if (failed.attempts < 3) {
+        remaining.push(...queue.slice(i + 1));
+        break;
+      }
     }
   }
 
